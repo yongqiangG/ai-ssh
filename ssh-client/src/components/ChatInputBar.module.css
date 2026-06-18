@@ -1,0 +1,124 @@
+.bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--vsc-border);
+  background: var(--vsc-sidebar-bg);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agentSelect {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 4px 0 8px;
+  background: var(--vsc-input-bg);
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 3px;
+  color: var(--vsc-fg);
+}
+
+.agentIcon {
+  color: var(--vsc-green);
+  flex: 0 0 auto;
+}
+
+.select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--vsc-fg);
+  font-size: 12px;
+  padding-right: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.select option {
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg);
+}
+
+.chevron {
+  color: var(--vsc-fg-muted);
+  pointer-events: none;
+}
+
+.newBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vsc-fg);
+  font-size: 12px;
+}
+.newBtn:hover {
+  background: var(--vsc-list-hover);
+}
+
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--vsc-input-bg);
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 4px;
+  padding: 6px 6px 6px 10px;
+}
+.inputRow:focus-within {
+  border-color: var(--vsc-accent);
+}
+
+.textarea {
+  flex: 1 1 auto;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--vsc-fg-strong);
+  font-family: var(--ui-font);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 160px;
+  overflow: auto;
+  padding: 3px 0;
+}
+.textarea::placeholder {
+  color: var(--vsc-fg-muted);
+}
+.textarea:disabled {
+  opacity: 0.6;
+}
+
+.sendBtn {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 4px;
+  background: var(--vsc-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sendBtn:hover:not(:disabled) {
+  background: var(--vsc-accent-hover);
+}
+.sendBtn:disabled {
+  background: #3a3d41;
+  color: var(--vsc-fg-faint);
+  cursor: not-allowed;
+}

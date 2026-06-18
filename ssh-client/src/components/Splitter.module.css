@@ -1,0 +1,24 @@
+.splitter {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 100%;
+  background: var(--vsc-border);
+  position: relative;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+/* 加宽可点击命中区域（左右各 3px） */
+.splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+}
+
+.splitter:hover,
+.splitter:active {
+  background: var(--vsc-accent);
+}

@@ -1,51 +1,45 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useCallback, useState } from "react";
+import TopBar from "./components/TopBar";
+import Splitter from "./components/Splitter";
+import ServersPanel from "./views/ServersPanel";
+import TerminalPanel from "./views/TerminalPanel";
+import ChatPanel from "./views/ChatPanel";
+import styles from "./App.module.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+const MIN_LEFT = 220;
+const MAX_LEFT = 560;
+const MIN_RIGHT = 300;
+const MAX_RIGHT = 760;
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+export default function App() {
+  const [leftWidth, setLeftWidth] = useState(280);
+  const [rightWidth, setRightWidth] = useState(380);
+
+  const onDragLeft = useCallback((dx: number) => {
+    setLeftWidth((w) => Math.min(MAX_LEFT, Math.max(MIN_LEFT, w + dx)));
+  }, []);
+
+  // 右栏贴右侧：向右拖（dx>0）应缩小右栏宽度
+  const onDragRight = useCallback((dx: number) => {
+    setRightWidth((w) => Math.min(MAX_RIGHT, Math.max(MIN_RIGHT, w - dx)));
+  }, []);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className={styles.app}>
+      <TopBar />
+      <div className={styles.workspace}>
+        <div className={styles.host} style={{ width: leftWidth }}>
+          <ServersPanel />
+        </div>
+        <Splitter onDrag={onDragLeft} />
+        <div className={`${styles.host} ${styles.center}`}>
+          <TerminalPanel />
+        </div>
+        <Splitter onDrag={onDragRight} />
+        <div className={styles.host} style={{ width: rightWidth }}>
+          <ChatPanel />
+        </div>
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    </div>
   );
 }
-
-export default App;

@@ -1,0 +1,137 @@
+.list {
+  padding: 4px 0;
+}
+
+.group {
+  margin-bottom: 4px;
+}
+
+.groupHeader {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vsc-fg-muted);
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--vsc-list-hover);
+}
+
+.item.selected {
+  background: var(--vsc-list-selected);
+}
+
+.accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--vsc-accent);
+}
+
+.itemMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.itemIcon {
+  flex: 0 0 auto;
+  color: var(--vsc-fg-muted);
+}
+
+.item.selected .itemIcon {
+  color: var(--vsc-fg-strong);
+}
+
+.itemText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.itemName {
+  font-size: 13px;
+  color: var(--vsc-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item.selected .itemName {
+  color: var(--vsc-fg-strong);
+}
+
+.itemSub {
+  font-size: 11px;
+  font-family: var(--mono-font);
+  color: var(--vsc-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.item:hover .itemActions,
+.item.selected .itemActions {
+  opacity: 1;
+}
+
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.confirmText {
+  font-size: 11px;
+  color: var(--vsc-fg-muted);
+}
+
+.miniBtn {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 2px;
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg);
+  font-size: 11px;
+}
+
+.miniBtn:hover {
+  background: var(--vsc-list-hover);
+}
+
+.miniDanger {
+  border-color: #5a1d1d;
+  color: var(--vsc-red);
+}
+
+.miniDanger:hover {
+  background: #5a1d1d;
+  color: #fff;
+}

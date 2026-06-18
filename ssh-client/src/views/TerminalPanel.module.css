@@ -1,0 +1,39 @@
+.titleWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.titleIcon {
+  color: var(--vsc-fg-muted);
+  flex: 0 0 auto;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--vsc-fg-muted);
+  background: rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+}
+
+.ok {
+  color: var(--vsc-green);
+}
+
+.err {
+  color: var(--vsc-red);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}

@@ -1,0 +1,43 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 35px;
+  padding: 0 12px;
+  flex: 0 0 auto;
+  background: var(--vsc-titlebar-bg);
+  border-bottom: 1px solid var(--vsc-border);
+  user-select: none;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vsc-fg-strong);
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #3a3d41;
+  color: var(--vsc-fg-muted);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--vsc-fg-faint);
+}

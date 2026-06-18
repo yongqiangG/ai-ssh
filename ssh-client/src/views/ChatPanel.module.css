@@ -1,0 +1,74 @@
+.convSelect {
+  height: 24px;
+  font-size: 11px;
+  padding: 0 4px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 3px;
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg);
+  outline: none;
+  cursor: pointer;
+}
+.convSelect option {
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg);
+}
+
+.messageList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 12px;
+}
+
+.typingRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.typingAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2a4a3f;
+  color: var(--vsc-green);
+}
+
+.typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #2d2d2d;
+  border-radius: 6px;
+  border-top-left-radius: 2px;
+}
+
+.typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vsc-fg-muted);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}

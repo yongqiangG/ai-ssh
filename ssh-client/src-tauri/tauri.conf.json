@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "ssh-client",
-        "width": 800,
-        "height": 600
+        "title": "AI SSH Client",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true
       }
     ],
     "security": {

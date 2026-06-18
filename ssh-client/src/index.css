@@ -1,0 +1,232 @@
+/* ===== VS Code Dark+ 主题色板 ===== */
+:root {
+  /* 背景层 */
+  --vsc-editor-bg: #1e1e1e;
+  --vsc-sidebar-bg: #252526;
+  --vsc-titlebar-bg: #323233;
+  --vsc-panel-header-bg: #2d2d2d;
+  --vsc-input-bg: #3c3c3c;
+  --vsc-list-hover: #2a2d2e;
+  --vsc-list-active: #37373d;
+  --vsc-list-selected: #04395e;
+
+  /* 描边 */
+  --vsc-border: #2b2b2b;
+  --vsc-border-strong: #454545;
+
+  /* 文字 */
+  --vsc-fg: #cccccc;
+  --vsc-fg-strong: #ffffff;
+  --vsc-fg-muted: #969696;
+  --vsc-fg-faint: #6e6e6e;
+
+  /* 强调色 */
+  --vsc-accent: #0e639c;
+  --vsc-accent-hover: #1177bb;
+  --vsc-accent-fg: #ffffff;
+
+  /* 状态色 */
+  --vsc-green: #4ec9b0;
+  --vsc-yellow: #dcdcaa;
+  --vsc-red: #f48771;
+  --vsc-blue: #569cd6;
+  --vsc-purple: #c586c0;
+
+  /* 终端配色 */
+  --terminal-bg: #1e1e1e;
+  --terminal-fg: #d4d4d4;
+  --terminal-prompt: #4ec9b0;
+
+  --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  --mono-font: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New",
+    monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--vsc-fg);
+  background: var(--vsc-editor-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ===== 滚动条（VS Code 风格） ===== */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4f4f4f;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ===== 通用面板样式 ===== */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--vsc-sidebar-bg);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 35px;
+  padding: 0 8px 0 12px;
+  flex: 0 0 auto;
+  background: var(--vsc-panel-header-bg);
+  border-bottom: 1px solid var(--vsc-border);
+  user-select: none;
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vsc-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ===== 按钮 ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: var(--vsc-accent);
+  color: var(--vsc-accent-fg);
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--vsc-accent-hover);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #3a3d41;
+  color: var(--vsc-fg);
+}
+.btn-secondary:hover {
+  background: #45494e;
+}
+
+/* 图标按钮 */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vsc-fg-muted);
+}
+.icon-btn:hover {
+  background: var(--vsc-list-hover);
+  color: var(--vsc-fg-strong);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.icon-btn.danger:hover {
+  background: #5a1d1d;
+  color: var(--vsc-red);
+}
+.icon-btn.active {
+  background: var(--vsc-list-selected);
+  color: var(--vsc-fg-strong);
+}
+
+/* ===== 输入 ===== */
+.input,
+.textarea,
+.select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 2px;
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg-strong);
+  outline: none;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--vsc-accent);
+}
+.textarea {
+  resize: none;
+  line-height: 1.5;
+}
+.select {
+  appearance: none;
+  cursor: pointer;
+}
