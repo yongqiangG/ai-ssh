@@ -109,7 +109,7 @@
   border: none;
   border-radius: 4px;
   background: var(--vsc-accent);
-  color: #fff;
+  color: var(--vsc-accent-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -118,7 +118,7 @@
   background: var(--vsc-accent-hover);
 }
 .sendBtn:disabled {
-  background: #3a3d41;
+  background: var(--vsc-secondary-bg);
   color: var(--vsc-fg-faint);
   cursor: not-allowed;
 }

@@ -1,14 +1,20 @@
-/* ===== VS Code Dark+ 主题色板 ===== */
-:root {
+/* ===== 主题色板：通过 [data-theme] 切换 =====
+   字段与 themeStore.ts 中 ThemePalette 一一对应。
+   新增颜色时两侧同步维护。 */
+
+[data-theme="dark"] {
   /* 背景层 */
   --vsc-editor-bg: #1e1e1e;
   --vsc-sidebar-bg: #252526;
   --vsc-titlebar-bg: #323233;
   --vsc-panel-header-bg: #2d2d2d;
+  --vsc-activitybar-bg: #333333;
   --vsc-input-bg: #3c3c3c;
   --vsc-list-hover: #2a2d2e;
   --vsc-list-active: #37373d;
   --vsc-list-selected: #04395e;
+  --vsc-splitter: #2b2b2b;
+  --vsc-splitter-hover: #0e639c;
 
   /* 描边 */
   --vsc-border: #2b2b2b;
@@ -36,12 +42,88 @@
   --terminal-bg: #1e1e1e;
   --terminal-fg: #d4d4d4;
   --terminal-prompt: #4ec9b0;
+  --terminal-cursor: #aeafad;
 
+  /* 语义化扩展色 */
+  --vsc-secondary-bg: #3a3d41;
+  --vsc-secondary-bg-hover: #45494e;
+  --vsc-bubble-ai-bg: #2d2d2d;
+  --vsc-avatar-ai-bg: #2a4a3f;
+  --vsc-avatar-user-bg: #1f3a5a;
+  --vsc-avatar-neutral-bg: #3a3d41;
+  --vsc-danger-bg: #5a1d1d;
+  --vsc-danger-border: #5a1d1d;
+  --vsc-error-bg: rgba(244, 135, 113, 0.12);
+  --vsc-scrollbar-thumb: #424242;
+  --vsc-scrollbar-thumb-hover: #4f4f4f;
+  --vsc-modal-overlay: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] {
+  /* 背景层 */
+  --vsc-editor-bg: #ffffff;
+  --vsc-sidebar-bg: #f3f3f3;
+  --vsc-titlebar-bg: #dddddd;
+  --vsc-panel-header-bg: #e8e8e8;
+  --vsc-activitybar-bg: #2c2c2c;
+  --vsc-input-bg: #ffffff;
+  --vsc-list-hover: #e8e8e8;
+  --vsc-list-active: #d0d0d0;
+  --vsc-list-selected: #cce5ff;
+  --vsc-splitter: #e0e0e0;
+  --vsc-splitter-hover: #0066b8;
+
+  /* 描边 */
+  --vsc-border: #e0e0e0;
+  --vsc-border-strong: #c4c4c4;
+
+  /* 文字 */
+  --vsc-fg: #323232;
+  --vsc-fg-strong: #000000;
+  --vsc-fg-muted: #6c6c6c;
+  --vsc-fg-faint: #999999;
+
+  /* 强调色 */
+  --vsc-accent: #0066b8;
+  --vsc-accent-hover: #0078d4;
+  --vsc-accent-fg: #ffffff;
+
+  /* 状态色 */
+  --vsc-green: #098658;
+  --vsc-yellow: #b58900;
+  --vsc-red: #d73a49;
+  --vsc-blue: #005cc5;
+  --vsc-purple: #6f42c1;
+
+  /* 终端配色 */
+  --terminal-bg: #ffffff;
+  --terminal-fg: #1e1e1e;
+  --terminal-prompt: #098658;
+  --terminal-cursor: #333333;
+
+  /* 语义化扩展色 */
+  --vsc-secondary-bg: #e5e5e5;
+  --vsc-secondary-bg-hover: #d4d4d4;
+  --vsc-bubble-ai-bg: #f0f0f0;
+  --vsc-avatar-ai-bg: #d4ebe4;
+  --vsc-avatar-user-bg: #d4e3f5;
+  --vsc-avatar-neutral-bg: #e5e5e5;
+  --vsc-danger-bg: #fde7e7;
+  --vsc-danger-border: #f1aeb6;
+  --vsc-error-bg: rgba(215, 58, 73, 0.1);
+  --vsc-scrollbar-thumb: #c0c0c0;
+  --vsc-scrollbar-thumb-hover: #a6a6a6;
+  --vsc-modal-overlay: rgba(0, 0, 0, 0.35);
+}
+
+:root {
   --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
   --mono-font: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New",
     monospace;
 
+  /* 兜底主题：未应用 data-theme 之前使用深色，避免白闪。
+     实际渲染会由 initTheme() 立即覆盖。 */
   color-scheme: dark;
 }
 
@@ -90,11 +172,11 @@ select {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: var(--vsc-scrollbar-thumb);
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f4f4f;
+  background: var(--vsc-scrollbar-thumb-hover);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
@@ -169,11 +251,11 @@ select {
 }
 
 .btn-secondary {
-  background: #3a3d41;
+  background: var(--vsc-secondary-bg);
   color: var(--vsc-fg);
 }
 .btn-secondary:hover {
-  background: #45494e;
+  background: var(--vsc-secondary-bg-hover);
 }
 
 /* 图标按钮 */
@@ -197,7 +279,7 @@ select {
   cursor: not-allowed;
 }
 .icon-btn.danger:hover {
-  background: #5a1d1d;
+  background: var(--vsc-danger-bg);
   color: var(--vsc-red);
 }
 .icon-btn.active {

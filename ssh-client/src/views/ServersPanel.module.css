@@ -127,11 +127,11 @@
 }
 
 .miniDanger {
-  border-color: #5a1d1d;
+  border-color: var(--vsc-danger-border);
   color: var(--vsc-red);
 }
 
 .miniDanger:hover {
-  background: #5a1d1d;
-  color: #fff;
+  background: var(--vsc-danger-bg);
+  color: var(--vsc-accent-fg);
 }

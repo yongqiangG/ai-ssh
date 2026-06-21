@@ -22,18 +22,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #3a3d41;
+  background: var(--vsc-avatar-neutral-bg);
   color: var(--vsc-fg-muted);
   margin-top: 2px;
 }
 
 .aiRow .avatar {
-  background: #2a4a3f;
+  background: var(--vsc-avatar-ai-bg);
   color: var(--vsc-green);
 }
 
 .userRow .avatar {
-  background: #1f3a5a;
+  background: var(--vsc-avatar-user-bg);
   color: var(--vsc-blue);
 }
 
@@ -47,14 +47,14 @@
 }
 
 .aiBubble {
-  background: #2d2d2d;
+  background: var(--vsc-bubble-ai-bg);
   color: var(--vsc-fg);
   border-top-left-radius: 2px;
 }
 
 .userBubble {
   background: var(--vsc-accent);
-  color: #fff;
+  color: var(--vsc-accent-fg);
   border-top-right-radius: 2px;
 }
 

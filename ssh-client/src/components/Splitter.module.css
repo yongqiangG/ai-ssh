@@ -2,10 +2,11 @@
   flex: 0 0 1px;
   width: 1px;
   height: 100%;
-  background: var(--vsc-border);
+  background: var(--vsc-splitter);
   position: relative;
   cursor: col-resize;
   z-index: 2;
+  transition: background 0.1s ease;
 }
 
 /* 加宽可点击命中区域（左右各 3px） */
@@ -20,5 +21,5 @@
 
 .splitter:hover,
 .splitter:active {
-  background: var(--vsc-accent);
+  background: var(--vsc-splitter-hover);
 }

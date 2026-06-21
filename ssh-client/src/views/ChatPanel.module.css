@@ -34,7 +34,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #2a4a3f;
+  background: var(--vsc-avatar-ai-bg);
   color: var(--vsc-green);
 }
 
@@ -43,7 +43,7 @@
   align-items: center;
   gap: 4px;
   padding: 10px 12px;
-  background: #2d2d2d;
+  background: var(--vsc-bubble-ai-bg);
   border-radius: 6px;
   border-top-left-radius: 2px;
 }

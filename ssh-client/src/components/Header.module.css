@@ -1,0 +1,167 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 35px;
+  padding: 0 8px;
+  flex: 0 0 auto;
+  background: var(--vsc-titlebar-bg);
+  border-bottom: 1px solid var(--vsc-border);
+  user-select: none;
+}
+
+.left,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.center {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vsc-fg-muted);
+}
+
+.iconBtn:hover {
+  background: var(--vsc-list-hover);
+  color: var(--vsc-fg-strong);
+}
+
+.iconBtn.active {
+  background: var(--vsc-list-selected);
+  color: var(--vsc-fg-strong);
+}
+
+.iconBtn.inactive {
+  opacity: 0.55;
+}
+
+.addBtn {
+  color: var(--vsc-green);
+}
+
+.addBtn:hover {
+  color: var(--vsc-green);
+}
+
+/* ===== 未连接占位 ===== */
+.idle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vsc-fg-faint);
+}
+
+.idleIcon {
+  opacity: 0.6;
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 3px;
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ===== 已连接信息 ===== */
+.connInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--vsc-fg);
+}
+
+.connName {
+  color: var(--vsc-fg-strong);
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connHost {
+  font-family: var(--mono-font);
+  color: var(--vsc-fg-muted);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--vsc-fg-faint);
+}
+
+.dot.ok {
+  background: var(--vsc-green);
+  box-shadow: 0 0 4px var(--vsc-green);
+}
+
+.dot.connecting {
+  background: var(--vsc-yellow);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.dot.error {
+  background: var(--vsc-red);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--vsc-input-bg);
+  color: var(--vsc-fg-muted);
+  white-space: nowrap;
+}
+
+.badge.ok {
+  color: var(--vsc-green);
+}
+
+.badge.connecting {
+  color: var(--vsc-yellow);
+}
+
+.badge.error {
+  color: var(--vsc-red);
+}
