@@ -1,0 +1,5 @@
+spring:
+  config:
+    name: ssh-server-app
+  profiles:
+    active: dev
