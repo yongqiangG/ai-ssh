@@ -19,6 +19,11 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
+        <!-- SSH 客户端；SshSessionPort 的实现依赖，版本由根 pom 统一管理 -->
+        <dependency>
+            <groupId>com.github.mwiede</groupId>
+            <artifactId>jsch</artifactId>
+        </dependency>
 
         <!-- 系统模块 -->
         <dependency>
