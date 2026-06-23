@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.johnny.infrastructure.dao.ISshConnectionDao">
+
+    <resultMap id="SshConnectionMap" type="com.johnny.infrastructure.dao.po.SshConnectionPO">
+        <id column="id" property="id"/>
+        <result column="connection_id" property="connectionId"/>
+        <result column="host" property="host"/>
+        <result column="port" property="port"/>
+        <result column="username" property="username"/>
+        <result column="auth_type" property="authType"/>
+        <result column="password" property="password"/>
+        <result column="private_key" property="privateKey"/>
+        <result column="status" property="status"/>
+        <result column="user_id" property="userId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.johnny.infrastructure.dao.po.SshConnectionPO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ssh_connection
+            (connection_id, host, port, username, auth_type, password, private_key, status, user_id)
+        VALUES
+            (#{connectionId}, #{host}, #{port}, #{username}, #{authType}, #{password}, #{privateKey}, #{status}, #{userId})
+    </insert>
+
+    <select id="queryByConnectionId" parameterType="java.lang.String" resultMap="SshConnectionMap">
+        SELECT id, connection_id, host, port, username, auth_type, password, private_key, status, user_id, created_at, updated_at, deleted
+        FROM ssh_connection
+        WHERE connection_id = #{connectionId} AND deleted = 0
+    </select>
+
+</mapper>

@@ -17,8 +17,8 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
-CREATE database if NOT EXISTS `xfg_frame_archetype` default character set utf8mb4 collate utf8mb4_0900_ai_ci;
-use `xfg_frame_archetype`;
+CREATE database if NOT EXISTS `ai_ssh` default character set utf8mb4 collate utf8mb4_0900_ai_ci;
+use `ai_ssh`;
 
 -- ----------------------------
 -- Table structure for employee
