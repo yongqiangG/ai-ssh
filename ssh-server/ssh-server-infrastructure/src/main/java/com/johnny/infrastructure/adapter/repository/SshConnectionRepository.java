@@ -5,8 +5,8 @@ import com.johnny.domain.ssh.adapter.repository.ISshConnectionRepository;
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.SshConnectionConfigEntity;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
+import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import com.johnny.infrastructure.dao.ISshConnectionConfigDao;
 import com.johnny.infrastructure.dao.ISshConnectionDao;
 import com.johnny.infrastructure.dao.po.SshConnectionConfigPO;
@@ -106,10 +106,10 @@ public class SshConnectionRepository implements ISshConnectionRepository {
                 po.getHost(),
                 po.getPort(),
                 po.getUsername(),
-                AuthTypeVO.of(po.getAuthType()),
+                AuthTypeEnum.of(po.getAuthType()),
                 cipher.decrypt(po.getPassword()),
                 cipher.decrypt(po.getPrivateKey()),
-                ConnectionStatusVO.of(po.getStatus()),
+                ConnectionStatusEnum.of(po.getStatus()),
                 po.getUserId());
     }
 

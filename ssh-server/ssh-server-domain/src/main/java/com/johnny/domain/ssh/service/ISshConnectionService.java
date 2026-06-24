@@ -2,7 +2,7 @@ package com.johnny.domain.ssh.service;
 
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
 
 import java.util.List;
 
@@ -46,7 +46,7 @@ public interface ISshConnectionService {
         public String username;
         public String password;
         public String privateKey;
-        public AuthTypeVO authType;
+        public AuthTypeEnum authType;
         public Integer connectTimeout;
         public Integer keepaliveInterval;
         public String startupCommand;
@@ -63,7 +63,7 @@ public interface ISshConnectionService {
         public String username;
         public String password;
         public String privateKey;
-        public AuthTypeVO authType;
+        public AuthTypeEnum authType;
         public Integer connectTimeout;
         public Integer keepaliveInterval;
         public String startupCommand;

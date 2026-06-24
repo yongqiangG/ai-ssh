@@ -1,7 +1,7 @@
 package com.johnny.domain.ssh.model.entity;
 
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
+import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
 import lombok.Getter;
@@ -24,12 +24,12 @@ public class SshConnectionEntity {
     private String host;
     private int port;
     private String username;
-    private AuthTypeVO authType;
+    private AuthTypeEnum authType;
     /** 明文密码（领域内流转，落库前由仓储加密） */
     private String password;
     /** 明文 SSH 私钥（PEM 格式） */
     private String privateKey;
-    private ConnectionStatusVO status;
+    private ConnectionStatusEnum status;
     private String userId;
 
     private SshConnectionEntity() {
@@ -41,7 +41,7 @@ public class SshConnectionEntity {
      * @throws AppException 任一校验失败
      */
     public static void validate(String name, String host, int port, String username,
-                                AuthTypeVO authType, String password, String privateKey) {
+                                AuthTypeEnum authType, String password, String privateKey) {
         if (StringUtils.isBlank(name)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接名称不能为空");
         }
@@ -60,10 +60,10 @@ public class SshConnectionEntity {
         if (authType == null) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "认证类型不能为空");
         }
-        if (authType == AuthTypeVO.PASSWORD && StringUtils.isBlank(password)) {
+        if (authType == AuthTypeEnum.PASSWORD && StringUtils.isBlank(password)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "密码认证方式下密码不能为空");
         }
-        if (authType == AuthTypeVO.PUBLIC_KEY && StringUtils.isBlank(privateKey)) {
+        if (authType == AuthTypeEnum.PUBLIC_KEY && StringUtils.isBlank(privateKey)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "公钥认证方式下私钥不能为空");
         }
     }
@@ -74,7 +74,7 @@ public class SshConnectionEntity {
      * @throws AppException 校验失败
      */
     public static SshConnectionEntity create(String connectionId, String name, String host, int port,
-                                             String username, AuthTypeVO authType, String password,
+                                             String username, AuthTypeEnum authType, String password,
                                              String privateKey, String userId) {
         validate(name, host, port, username, authType, password, privateKey);
         SshConnectionEntity entity = new SshConnectionEntity();
@@ -86,7 +86,7 @@ public class SshConnectionEntity {
         entity.authType = authType;
         entity.password = password;
         entity.privateKey = privateKey;
-        entity.status = ConnectionStatusVO.DISCONNECTED;
+        entity.status = ConnectionStatusEnum.DISCONNECTED;
         entity.userId = userId;
         return entity;
     }
@@ -95,8 +95,8 @@ public class SshConnectionEntity {
      * 从持久化数据还原（跳过校验，信任已落库数据）。
      */
     public static SshConnectionEntity restore(String connectionId, String name, String host, int port,
-                                              String username, AuthTypeVO authType, String password,
-                                              String privateKey, ConnectionStatusVO status, String userId) {
+                                              String username, AuthTypeEnum authType, String password,
+                                              String privateKey, ConnectionStatusEnum status, String userId) {
         SshConnectionEntity entity = new SshConnectionEntity();
         entity.connectionId = connectionId;
         entity.name = name;
@@ -113,11 +113,11 @@ public class SshConnectionEntity {
 
     /** 标记为已连接 */
     public void markConnected() {
-        this.status = ConnectionStatusVO.CONNECTED;
+        this.status = ConnectionStatusEnum.CONNECTED;
     }
 
     /** 标记为未连接 */
     public void markDisconnected() {
-        this.status = ConnectionStatusVO.DISCONNECTED;
+        this.status = ConnectionStatusEnum.DISCONNECTED;
     }
 }

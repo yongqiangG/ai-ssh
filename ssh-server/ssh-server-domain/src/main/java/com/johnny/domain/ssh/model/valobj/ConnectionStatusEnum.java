@@ -8,7 +8,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum ConnectionStatusVO {
+public enum ConnectionStatusEnum {
 
     DISCONNECTED(0, "未连接"),
     CONNECTED(1, "已连接");
@@ -24,11 +24,11 @@ public enum ConnectionStatusVO {
      * @param code 状态编码
      * @return 对应枚举值
      */
-    public static ConnectionStatusVO of(Integer code) {
+    public static ConnectionStatusEnum of(Integer code) {
         if (code == null) {
             return DISCONNECTED;
         }
-        for (ConnectionStatusVO value : values()) {
+        for (ConnectionStatusEnum value : values()) {
             if (value.code == code) {
                 return value;
             }

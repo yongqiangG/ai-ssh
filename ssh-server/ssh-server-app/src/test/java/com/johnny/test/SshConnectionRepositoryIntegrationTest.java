@@ -2,7 +2,7 @@ package com.johnny.test;
 
 import com.johnny.domain.ssh.adapter.repository.ISshConnectionRepository;
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
 import com.johnny.infrastructure.dao.ISshConnectionDao;
 import com.johnny.infrastructure.dao.po.SshConnectionPO;
 import org.junit.Test;
@@ -35,7 +35,7 @@ public class SshConnectionRepositoryIntegrationTest {
         String plainPassword = "super-secret-pwd-123";
         SshConnectionAggregate agg = SshConnectionAggregate.create(
                 "加密测试连接", "10.0.0.9", 22, "root",
-                AuthTypeVO.PASSWORD, plainPassword, null, "user_encrypt",
+                AuthTypeEnum.PASSWORD, plainPassword, null, "user_encrypt",
                 null, null, null, false, null, false);
 
         repository.save(agg);
@@ -63,11 +63,11 @@ public class SshConnectionRepositoryIntegrationTest {
     public void save_same_password_produces_different_ciphertext() {
         SshConnectionAggregate a = SshConnectionAggregate.create(
                 "连接A", "10.0.0.1", 22, "root",
-                AuthTypeVO.PASSWORD, "same-pwd", null, "u",
+                AuthTypeEnum.PASSWORD, "same-pwd", null, "u",
                 null, null, null, false, null, false);
         SshConnectionAggregate b = SshConnectionAggregate.create(
                 "连接B", "10.0.0.2", 22, "root",
-                AuthTypeVO.PASSWORD, "same-pwd", null, "u",
+                AuthTypeEnum.PASSWORD, "same-pwd", null, "u",
                 null, null, null, false, null, false);
         repository.save(a);
         repository.save(b);

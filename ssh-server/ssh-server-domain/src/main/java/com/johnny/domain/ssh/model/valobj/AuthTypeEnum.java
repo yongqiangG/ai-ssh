@@ -10,7 +10,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum AuthTypeVO {
+public enum AuthTypeEnum {
 
     PASSWORD("PASSWORD", "密码认证"),
     PUBLIC_KEY("PUBLIC_KEY", "公钥认证");
@@ -27,11 +27,11 @@ public enum AuthTypeVO {
      * @return 对应枚举值
      * @throws AppException 编码为空或非法时抛出
      */
-    public static AuthTypeVO of(String code) {
+    public static AuthTypeEnum of(String code) {
         if (code == null) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "认证类型不能为空");
         }
-        for (AuthTypeVO value : values()) {
+        for (AuthTypeEnum value : values()) {
             if (value.code.equals(code)) {
                 return value;
             }

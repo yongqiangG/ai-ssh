@@ -5,7 +5,7 @@ import com.johnny.domain.ssh.adapter.repository.ISshConnectionRepository;
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.SshConnectionConfigEntity;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
 import com.johnny.domain.ssh.service.ISshConnectionService;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
@@ -54,7 +54,7 @@ public class SshConnectionService implements ISshConnectionService {
         String host = cmd.host != null ? cmd.host : oldConn.getHost();
         int port = cmd.port != null ? cmd.port : oldConn.getPort();
         String username = cmd.username != null ? cmd.username : oldConn.getUsername();
-        AuthTypeVO authType = cmd.authType != null ? cmd.authType : oldConn.getAuthType();
+        AuthTypeEnum authType = cmd.authType != null ? cmd.authType : oldConn.getAuthType();
         String password = cmd.password != null ? cmd.password : oldConn.getPassword();
         String privateKey = cmd.privateKey != null ? cmd.privateKey : oldConn.getPrivateKey();
 

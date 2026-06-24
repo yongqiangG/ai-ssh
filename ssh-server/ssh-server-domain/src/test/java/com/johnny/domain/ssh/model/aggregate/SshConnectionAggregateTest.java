@@ -1,7 +1,7 @@
 package com.johnny.domain.ssh.model.aggregate;
 
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
+import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -16,7 +16,7 @@ public class SshConnectionAggregateTest {
     public void create_generates_connectionId_and_applies_defaults() {
         SshConnectionAggregate agg = SshConnectionAggregate.create(
                 "我的连接", "10.0.0.1", 22, "root",
-                AuthTypeVO.PASSWORD, "pwd", null, "user_001",
+                AuthTypeEnum.PASSWORD, "pwd", null, "user_001",
                 null, null, null, false, null, false);
 
         String cid = agg.getConnectionId();
@@ -24,7 +24,7 @@ public class SshConnectionAggregateTest {
         assertEquals(32, cid.length()); // UUID 去掉横线后 32 个十六进制字符
         assertEquals(cid, agg.getConnection().getConnectionId());
         assertEquals(cid, agg.getConfig().getConnectionId());
-        assertEquals(ConnectionStatusVO.DISCONNECTED, agg.getConnection().getStatus());
+        assertEquals(ConnectionStatusEnum.DISCONNECTED, agg.getConnection().getStatus());
         // 默认值已填充
         assertEquals(Integer.valueOf(5000), agg.getConfig().getConnectTimeout());
         assertEquals(Integer.valueOf(30000), agg.getConfig().getKeepaliveInterval());
@@ -35,7 +35,7 @@ public class SshConnectionAggregateTest {
     public void create_uses_user_config_when_provided() {
         SshConnectionAggregate agg = SshConnectionAggregate.create(
                 "我的连接", "10.0.0.1", 22, "root",
-                AuthTypeVO.PASSWORD, "pwd", null, "user_001",
+                AuthTypeEnum.PASSWORD, "pwd", null, "user_001",
                 8000, 60000, "ls", true, "known", true);
         assertEquals(Integer.valueOf(8000), agg.getConfig().getConnectTimeout());
         assertEquals(true, agg.getConfig().isStrictHostKeyCheck());

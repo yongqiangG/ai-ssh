@@ -2,7 +2,7 @@ package com.johnny.domain.ssh.model.aggregate;
 
 import com.johnny.domain.ssh.model.entity.SshConnectionConfigEntity;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
-import com.johnny.domain.ssh.model.valobj.AuthTypeVO;
+import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
 import lombok.Getter;
 
 import java.util.UUID;
@@ -33,7 +33,7 @@ public class SshConnectionAggregate {
      * @throws AppException 任一校验失败
      */
     public static SshConnectionAggregate create(String name, String host, int port, String username,
-                                                AuthTypeVO authType, String password, String privateKey, String userId,
+                                                AuthTypeEnum authType, String password, String privateKey, String userId,
                                                 Integer connectTimeout, Integer keepaliveInterval,
                                                 String startupCommand, boolean strictHostKeyCheck,
                                                 String knownHosts, boolean compression) {
