@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS `ssh_connection`;
 CREATE TABLE `ssh_connection` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `connection_id` varchar(64) NOT NULL DEFAULT '' COMMENT '连接唯一标识(UUID)',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT '连接显示名',
   `host` varchar(128) NOT NULL DEFAULT '' COMMENT '主机地址',
   `port` int NOT NULL DEFAULT 22 COMMENT '端口',
   `username` varchar(64) NOT NULL DEFAULT '' COMMENT '用户名',
@@ -39,6 +40,7 @@ CREATE TABLE `ssh_connection_config` (
   `keepalive_interval` int NOT NULL DEFAULT 30000 COMMENT 'keepalive间隔(毫秒)',
   `startup_command` varchar(512) DEFAULT NULL COMMENT '连接后执行的启动命令',
   `strict_host_key_check` tinyint NOT NULL DEFAULT 0 COMMENT '严格主机密钥检查 0关 1开',
+  `compression` tinyint NOT NULL DEFAULT 0 COMMENT '是否启用压缩 0关 1开',
   `known_hosts` text COMMENT '已知主机密钥列表',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),

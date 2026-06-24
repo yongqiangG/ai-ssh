@@ -43,6 +43,12 @@
             <groupId>com.johnny</groupId>
             <artifactId>ssh-server-types</artifactId>
         </dependency>
+        <!-- 测试；版本由 spring-boot-starter-parent 统一管理 -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

@@ -33,6 +33,9 @@ public class SshConnectionConfigPO {
     /** 严格主机密钥检查：0 关闭，1 开启 */
     private Integer strictHostKeyCheck;
 
+    /** 是否启用压缩：0 关闭，1 开启 */
+    private Integer compression;
+
     /** 已知主机密钥列表 */
     private String knownHosts;
 

@@ -9,20 +9,41 @@
         <result column="keepalive_interval" property="keepaliveInterval"/>
         <result column="startup_command" property="startupCommand"/>
         <result column="strict_host_key_check" property="strictHostKeyCheck"/>
+        <result column="compression" property="compression"/>
         <result column="known_hosts" property="knownHosts"/>
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
 
+    <sql id="columns">
+        id, connection_id, connect_timeout, keepalive_interval, startup_command, strict_host_key_check, compression, known_hosts, updated_at
+    </sql>
+
     <insert id="insert" parameterType="com.johnny.infrastructure.dao.po.SshConnectionConfigPO"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO ssh_connection_config
-            (connection_id, connect_timeout, keepalive_interval, startup_command, strict_host_key_check, known_hosts)
+            (connection_id, connect_timeout, keepalive_interval, startup_command, strict_host_key_check, compression, known_hosts)
         VALUES
-            (#{connectionId}, #{connectTimeout}, #{keepaliveInterval}, #{startupCommand}, #{strictHostKeyCheck}, #{knownHosts})
+            (#{connectionId}, #{connectTimeout}, #{keepaliveInterval}, #{startupCommand}, #{strictHostKeyCheck}, #{compression}, #{knownHosts})
     </insert>
 
+    <update id="update" parameterType="com.johnny.infrastructure.dao.po.SshConnectionConfigPO">
+        UPDATE ssh_connection_config
+        SET connect_timeout        = #{connectTimeout},
+            keepalive_interval     = #{keepaliveInterval},
+            startup_command        = #{startupCommand},
+            strict_host_key_check  = #{strictHostKeyCheck},
+            compression            = #{compression},
+            known_hosts            = #{knownHosts}
+        WHERE connection_id = #{connectionId}
+    </update>
+
+    <delete id="deleteByConnectionId" parameterType="java.lang.String">
+        DELETE FROM ssh_connection_config
+        WHERE connection_id = #{connectionId}
+    </delete>
+
     <select id="queryByConnectionId" parameterType="java.lang.String" resultMap="SshConnectionConfigMap">
-        SELECT id, connection_id, connect_timeout, keepalive_interval, startup_command, strict_host_key_check, known_hosts, updated_at
+        SELECT <include refid="columns"/>
         FROM ssh_connection_config
         WHERE connection_id = #{connectionId}
     </select>

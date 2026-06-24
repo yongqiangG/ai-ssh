@@ -21,6 +21,9 @@ public class SshConnectionPO {
     /** 连接唯一标识（UUID） */
     private String connectionId;
 
+    /** 连接显示名 */
+    private String name;
+
     private String host;
 
     private Integer port;

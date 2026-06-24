@@ -7,6 +7,7 @@ import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 以 connectionId 索引维护多个 SSH 会话（{@link ConcurrentHashMap}）；单个会话仍非线程安全。
  */
 @Slf4j
+@Component
 public class SshSessionPort implements ISshSessionPort {
 
     /** 连接超时时间（毫秒），避免不可达主机导致长时间阻塞 */

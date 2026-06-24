@@ -40,3 +40,8 @@ logging:
   level:
     root: info
   config: classpath:logback-spring.xml
+
+# SSH 加密配置；dev 默认密钥（Base64，解码 32 字节），生产环境必须用环境变量覆盖
+ssh:
+  crypto:
+    secret-key: "ZGV2X2RlZmF1bHRfc2VjcmV0X2tleV8zMmJ5dGVzISE="
