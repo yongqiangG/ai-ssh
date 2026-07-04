@@ -1,0 +1,204 @@
+import { useEffect, useState } from "react";
+import Icon from "../components/Icon";
+import EmptyState from "../components/EmptyState";
+import SshConnectionModal from "../components/sshConnectionModal";
+import BackendSettingsModal from "../components/BackendSettingsModal";
+import { useConnectionStore } from "../stores/connectionStore";
+import type { SshConnection } from "../api/sshConnection";
+import type { ConnectionState } from "../types";
+import styles from "./ConnectionsPanel.module.css";
+
+const STATUS_LABEL: Record<ConnectionState, string> = {
+  connected: "已连接",
+  connecting: "连接中",
+  disconnected: "未连接",
+  error: "失败",
+};
+
+export default function ConnectionsPanel() {
+  const connections = useConnectionStore((s) => s.connections);
+  const loading = useConnectionStore((s) => s.loading);
+  const error = useConnectionStore((s) => s.error);
+  const fetchList = useConnectionStore((s) => s.fetchList);
+  const connect = useConnectionStore((s) => s.connect);
+  const disconnect = useConnectionStore((s) => s.disconnect);
+  const remove = useConnectionStore((s) => s.remove);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<SshConnection | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setModalOpen(true);
+  };
+  const openEdit = (c: SshConnection) => {
+    setEditing(c);
+    setModalOpen(true);
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <span className="panel-title">SSH 连接</span>
+        <div className="panel-actions">
+          <button className="icon-btn" title="刷新" onClick={() => void fetchList()}>
+            <Icon name="refresh" size={14} />
+          </button>
+          <button
+            className="icon-btn"
+            title="后端服务地址"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Icon name="settings" size={14} />
+          </button>
+          <button className="icon-btn" title="新建连接" onClick={openCreate}>
+            <Icon name="add" size={16} />
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-body">
+        {loading && connections.length === 0 ? (
+          <div className={styles.list}>
+            <div className={styles.card}>
+              <span className={styles.sub}>加载中…</span>
+            </div>
+          </div>
+        ) : connections.length === 0 ? (
+          <EmptyState
+            icon="server"
+            title={error ? "加载失败" : "还没有连接"}
+            hint={error ?? "新建一个 SSH 连接以开始管理"}
+            action={
+              <button className="btn" onClick={openCreate}>
+                <Icon name="add" size={14} />
+                新建连接
+              </button>
+            }
+          />
+        ) : (
+          <div className={styles.list}>
+            {connections.map((c) => (
+              <ConnectionCard
+                key={c.connectionId}
+                connection={c}
+                pendingDelete={pendingDelete === c.connectionId}
+                onToggle={() =>
+                  void (c.status === "connected"
+                    ? disconnect(c.connectionId)
+                    : connect(c.connectionId))
+                }
+                onEdit={() => openEdit(c)}
+                onAskDelete={() => setPendingDelete(c.connectionId)}
+                onCancelDelete={() => setPendingDelete(null)}
+                onConfirmDelete={async () => {
+                  await remove(c.connectionId);
+                  setPendingDelete(null);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <SshConnectionModal
+        open={modalOpen}
+        mode={editing ? "edit" : "create"}
+        initial={editing}
+        onClose={() => setModalOpen(false)}
+      />
+      <BackendSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+    </section>
+  );
+}
+
+interface ConnectionCardProps {
+  connection: SshConnection;
+  pendingDelete: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onAskDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => Promise<void>;
+}
+
+function ConnectionCard({
+  connection,
+  pendingDelete,
+  onToggle,
+  onEdit,
+  onAskDelete,
+  onCancelDelete,
+  onConfirmDelete,
+}: ConnectionCardProps) {
+  const { status } = connection;
+  const isConnected = status === "connected";
+  const isConnecting = status === "connecting";
+
+  return (
+    <div className={styles.card} title={`${connection.username}@${connection.host}:${connection.port}`}>
+      <div className={styles.cardMain}>
+        <span className={`${styles.dot} ${styles[status]}`} />
+        <div className={styles.nameWrap}>
+          <span className={styles.name}>{connection.name}</span>
+          <span className={styles.sub}>
+            {connection.username}@{connection.host}:{connection.port}
+          </span>
+        </div>
+        <span className={`${styles.badge} ${styles[status]}`}>
+          {STATUS_LABEL[status]}
+        </span>
+      </div>
+
+      {pendingDelete ? (
+        <div className={styles.cardFoot}>
+          <span className={styles.confirmText}>确认删除该连接？</span>
+          <div className={styles.confirm}>
+            <button className={`${styles.miniBtn} ${styles.miniDanger}`} onClick={onConfirmDelete}>
+              删除
+            </button>
+            <button className={styles.miniBtn} onClick={onCancelDelete}>
+              取消
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.cardFoot}>
+          <button
+            className={`${styles.switch} ${isConnected ? styles.on : ""}`}
+            type="button"
+            role="switch"
+            aria-checked={isConnected}
+            disabled={isConnecting}
+            title={isConnected ? "点击断开" : "点击连接"}
+            onClick={onToggle}
+          >
+            <span className={styles.knob} />
+          </button>
+          <div className={styles.actions}>
+            <button className="icon-btn" title="编辑" onClick={onEdit}>
+              <Icon name="edit" size={14} />
+            </button>
+            <button
+              className="icon-btn danger"
+              title="删除"
+              disabled={isConnecting}
+              onClick={onAskDelete}
+            >
+              <Icon name="trash" size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

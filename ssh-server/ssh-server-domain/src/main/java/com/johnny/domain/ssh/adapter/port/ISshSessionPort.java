@@ -48,4 +48,14 @@ public interface ISshSessionPort {
      */
     void openShell(String connectionId, InputStream in, OutputStream out);
 
+    /**
+     * 在已建立的连接上执行单条命令，阻塞直到命令结束并返回标准输出。
+     *
+     * @param connectionId 连接唯一标识
+     * @param command      要执行的单条命令
+     * @return 命令的标准输出
+     * @throws com.johnny.types.exception.AppException 连接未建立或执行失败时抛出
+     */
+    String exec(String connectionId, String command);
+
 }

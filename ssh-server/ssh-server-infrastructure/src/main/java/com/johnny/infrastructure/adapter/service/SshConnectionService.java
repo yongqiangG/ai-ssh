@@ -127,4 +127,13 @@ public class SshConnectionService implements ISshConnectionService {
     public boolean isConnected(String connectionId) {
         return sessionPort.isConnected(connectionId);
     }
+
+    @Override
+    public String exec(String connectionId, String command) {
+        SshConnectionAggregate aggregate = repository.queryByConnectionId(connectionId);
+        if (aggregate == null) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接不存在: " + connectionId);
+        }
+        return sessionPort.exec(connectionId, command);
+    }
 }

@@ -1,10 +1,7 @@
 import { useState } from "react";
 import Icon from "./Icon";
-import ServerFormDialog, {
-  type ServerFormInput,
-} from "./ServerFormDialog";
+import SshConnectionModal from "./sshConnectionModal";
 import { useLayoutStore } from "../stores/layoutStore";
-import { useServersStore } from "../stores/serversStore";
 import { useTerminalStore } from "../stores/terminalStore";
 import type { ConnectionState, SshServer } from "../types";
 import styles from "./Header.module.css";
@@ -18,8 +15,6 @@ export default function Header() {
   const toggleTerminal = useLayoutStore((s) => s.toggleTerminal);
   const showAiPanel = useLayoutStore((s) => s.showAiPanel);
   const toggleAiPanel = useLayoutStore((s) => s.toggleAiPanel);
-
-  const addServer = useServersStore((s) => s.addServer);
 
   const connection = useTerminalStore((s) => s.connection);
   const connectedServer = useTerminalStore((s) => s.connectedServer);
@@ -39,7 +34,7 @@ export default function Header() {
         <button
           type="button"
           className={`${styles.iconBtn} ${styles.addBtn}`}
-          title="添加 SSH 连接"
+          title="新建 SSH 连接"
           onClick={() => setDialogOpen(true)}
         >
           <Icon name="add" size={16} />
@@ -75,14 +70,11 @@ export default function Header() {
         </button>
       </div>
 
-      <ServerFormDialog
+      <SshConnectionModal
         open={dialogOpen}
+        mode="create"
         initial={null}
         onClose={() => setDialogOpen(false)}
-        onSubmit={(input: ServerFormInput) => {
-          addServer(input);
-          setDialogOpen(false);
-        }}
       />
     </header>
   );

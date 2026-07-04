@@ -24,6 +24,13 @@ export default defineConfig(async () => ({
           port: 1421,
         }
       : undefined,
+    proxy: {
+      // 开发环境：客户端 baseURL 为空字符串，请求 /api/* 由 vite 代理到后端 8091
+      "/api": {
+        target: "http://localhost:8091",
+        changeOrigin: true,
+      },
+    },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],

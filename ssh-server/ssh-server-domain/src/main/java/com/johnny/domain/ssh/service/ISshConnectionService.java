@@ -37,6 +37,9 @@ public interface ISshConnectionService {
     /** 是否已连接 */
     boolean isConnected(String connectionId);
 
+    /** 在已建立的连接上执行单条命令，返回标准输出 */
+    String exec(String connectionId, String command);
+
     /** 创建连接命令（纯 POJO，字段即入参） */
     class CreateCmd {
         public String userId;
