@@ -129,6 +129,30 @@
   flex: 0 0 auto;
 }
 
+.testRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.testResult {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.testSuccess {
+  color: var(--vsc-green);
+}
+
+.testFail {
+  color: var(--vsc-red);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

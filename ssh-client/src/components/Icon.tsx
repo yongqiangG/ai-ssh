@@ -21,7 +21,8 @@ export type IconName =
   | "sun"
   | "moon"
   | "settings"
-  | "menu";
+  | "menu"
+  | "check";
 
 // 零依赖内联 SVG（feather/lucide 风格，stroke=currentColor）
 const PATHS: Record<IconName, ReactElement> = {
@@ -134,6 +135,7 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M3 18h18" />
     </>
   ),
+  check: <path d="M20 6L9 17l-5-5" />,
 };
 
 interface IconProps {

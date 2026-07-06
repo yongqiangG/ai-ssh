@@ -82,3 +82,36 @@ export const http = {
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
   del: <T>(path: string) => request<T>("DELETE", path),
 };
+
+/**
+ * 测试后端可达性：对 /api/ping 发一次 GET，校验响应 code==="0000"。
+ *
+ * 与 {@link request} 不同，这里使用传入的 {@code baseUrl}（输入框当前值），
+ * 而非已保存值——让用户改完地址即可直接验证，无需先保存。
+ *
+ * @param baseUrl 待测基地址；"" 表示开发环境走 vite 代理
+ * @throws Error 网络不可达、响应非 JSON 或后端返回非成功码时
+ */
+export async function pingBackend(baseUrl: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(baseUrl + "/api/ping", {
+      headers: { "X-User-Id": getUserId() },
+    });
+  } catch (e) {
+    throw new Error(
+      `无法连接后端服务，请检查地址设置：${e instanceof Error ? e.message : String(e)}`
+    );
+  }
+
+  let json: ApiResponse<unknown>;
+  try {
+    json = (await res.json()) as ApiResponse<unknown>;
+  } catch {
+    throw new Error(`后端响应解析失败（HTTP ${res.status}）`);
+  }
+
+  if (json.code !== SUCCESS_CODE) {
+    throw new Error(json.info || `请求失败：${json.code}`);
+  }
+}
