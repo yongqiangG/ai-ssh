@@ -17,6 +17,11 @@
   gap: 8px;
 }
 
+/* 卡片主体可点击（自动连接并打开终端） */
+.clickable {
+  cursor: pointer;
+}
+
 .dot {
   flex: 0 0 auto;
   width: 8px;

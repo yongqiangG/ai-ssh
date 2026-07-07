@@ -91,6 +91,17 @@ public class SshSessionPort implements ISshSessionPort {
         return session != null && session.isConnected();
     }
 
+    /**
+     * 获取底层 JSch 会话，供同层 {@link TerminalSessionPort} 在其上打开 shell 通道。
+     * <p>
+     * 仅基础设施层内部使用，不进领域端口接口（JSch 类型不能泄漏到 domain）。
+     *
+     * @return 对应会话；不存在返回 null
+     */
+    public Session getSession(String connectionId) {
+        return sessions.get(connectionId);
+    }
+
     @Override
     public void openShell(String connectionId, InputStream in, OutputStream out) {
         Session session = sessions.get(connectionId);

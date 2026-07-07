@@ -4,6 +4,7 @@ import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
 import BackendSettingsModal from "../components/BackendSettingsModal";
 import { useConnectionStore } from "../stores/connectionStore";
+import { useTerminalStore } from "../stores/terminalStore";
 import type { SshConnection } from "../api/sshConnection";
 import type { ConnectionState } from "../types";
 import styles from "./ConnectionsPanel.module.css";
@@ -29,9 +30,29 @@ export default function ConnectionsPanel() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
+  const openTab = useTerminalStore((s) => s.openTab);
+
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
+  /**
+   * 点击卡片主体：自动发起连接并打开终端（无需先选中再点连接按钮）。
+   * 已连接 → 直接打开/激活终端 tab；未连接/失败 → 先 connect 成功后再打开。
+   */
+  const openTerminalFor = async (c: SshConnection) => {
+    if (c.status === "connecting") return;
+    if (c.status === "connected") {
+      openTab(c.connectionId, c.name);
+      return;
+    }
+    try {
+      await connect(c.connectionId);
+      openTab(c.connectionId, c.name);
+    } catch {
+      // 连接失败：store 已把该连接置为 error 并显示在卡片上，这里无需额外处理
+    }
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -89,6 +110,7 @@ export default function ConnectionsPanel() {
                 key={c.connectionId}
                 connection={c}
                 pendingDelete={pendingDelete === c.connectionId}
+                onOpen={() => void openTerminalFor(c)}
                 onToggle={() =>
                   void (c.status === "connected"
                     ? disconnect(c.connectionId)
@@ -124,6 +146,8 @@ export default function ConnectionsPanel() {
 interface ConnectionCardProps {
   connection: SshConnection;
   pendingDelete: boolean;
+  /** 点击卡片主体：自动连接并打开终端 */
+  onOpen: () => void;
   onToggle: () => void;
   onEdit: () => void;
   onAskDelete: () => void;
@@ -134,6 +158,7 @@ interface ConnectionCardProps {
 function ConnectionCard({
   connection,
   pendingDelete,
+  onOpen,
   onToggle,
   onEdit,
   onAskDelete,
@@ -146,7 +171,7 @@ function ConnectionCard({
 
   return (
     <div className={styles.card} title={`${connection.username}@${connection.host}:${connection.port}`}>
-      <div className={styles.cardMain}>
+      <div className={`${styles.cardMain} ${styles.clickable}`} onClick={onOpen}>
         <span className={`${styles.dot} ${styles[status]}`} />
         <div className={styles.nameWrap}>
           <span className={styles.name}>{connection.name}</span>

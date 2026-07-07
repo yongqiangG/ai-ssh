@@ -3,7 +3,9 @@ import Icon from "./Icon";
 import SshConnectionModal from "./sshConnectionModal";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useTerminalStore } from "../stores/terminalStore";
-import type { ConnectionState, SshServer } from "../types";
+import type { TerminalTab } from "../stores/terminalStore";
+import { useConnectionStore } from "../stores/connectionStore";
+import type { SshConnection } from "../api/sshConnection";
 import styles from "./Header.module.css";
 
 export default function Header() {
@@ -16,8 +18,16 @@ export default function Header() {
   const showAiPanel = useLayoutStore((s) => s.showAiPanel);
   const toggleAiPanel = useLayoutStore((s) => s.toggleAiPanel);
 
-  const connection = useTerminalStore((s) => s.connection);
-  const connectedServer = useTerminalStore((s) => s.connectedServer);
+  // 顶栏中间显示「当前激活终端 tab」对应的连接信息：
+  // tab（名称/终端状态）来自 terminalStore，主机详情按 connectionId 到 connectionStore 里找
+  const tabs = useTerminalStore((s) => s.tabs);
+  const activeId = useTerminalStore((s) => s.activeId);
+  const connections = useConnectionStore((s) => s.connections);
+
+  const activeTab = tabs.find((t) => t.connectionId === activeId) ?? null;
+  const activeConn = activeTab
+    ? connections.find((c) => c.connectionId === activeTab.connectionId) ?? null
+    : null;
 
   return (
     <header className={styles.header}>
@@ -42,7 +52,7 @@ export default function Header() {
       </div>
 
       <div className={styles.center}>
-        <ConnectionInfo connection={connection} server={connectedServer} />
+        <ConnectionInfo tab={activeTab} conn={activeConn} />
       </div>
 
       <div className={styles.right}>
@@ -80,14 +90,15 @@ export default function Header() {
   );
 }
 
+/** 激活终端的连接信息条；无激活终端时显示引导文案 */
 function ConnectionInfo({
-  connection,
-  server,
+  tab,
+  conn,
 }: {
-  connection: ConnectionState;
-  server: SshServer | null;
+  tab: TerminalTab | null;
+  conn: SshConnection | null;
 }) {
-  if (!server || connection === "disconnected") {
+  if (!tab) {
     return (
       <span className={styles.idle}>
         <Icon name="server" size={12} className={styles.idleIcon} />
@@ -96,26 +107,29 @@ function ConnectionInfo({
     );
   }
 
+  // 终端 tab 状态 → 展示样式：opening=连接中 / active=已连接 / closed=已断开
   const status =
-    connection === "connected"
+    tab.status === "active"
       ? "ok"
-      : connection === "connecting"
+      : tab.status === "opening"
       ? "connecting"
       : "error";
   const statusText =
-    connection === "connected"
+    tab.status === "active"
       ? "已连接"
-      : connection === "connecting"
+      : tab.status === "opening"
       ? "连接中"
-      : "连接错误";
+      : "已断开";
 
   return (
     <div className={styles.connInfo}>
       <span className={`${styles.dot} ${styles[status]}`} />
-      <span className={styles.connName}>{server.name}</span>
-      <span className={styles.connHost}>
-        {server.username}@{server.host}:{server.port}
-      </span>
+      <span className={styles.connName}>{tab.name}</span>
+      {conn && (
+        <span className={styles.connHost}>
+          {conn.username}@{conn.host}:{conn.port}
+        </span>
+      )}
       <span className={`${styles.badge} ${styles[status]}`}>{statusText}</span>
     </div>
   );

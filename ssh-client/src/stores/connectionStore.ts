@@ -23,6 +23,8 @@ interface ConnectionState_ {
   connect: (id: string) => Promise<void>;
   /** 断开连接 → disconnected */
   disconnect: (id: string) => Promise<void>;
+  /** 本地标记连接失效（终端断连/心跳失败时调用，不发请求） */
+  markError: (id: string) => void;
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -99,4 +101,7 @@ export const useConnectionStore = create<ConnectionState_>((set, get) => ({
       throw e;
     }
   },
+
+  markError: (id) =>
+    set((s) => ({ connections: patchStatus(s.connections, id, "error") })),
 }));

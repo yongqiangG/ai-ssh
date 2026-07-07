@@ -37,3 +37,111 @@
   background: currentColor;
   display: inline-block;
 }
+
+/* ===== 终端 tab 栏 ===== */
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 4px;
+  overflow-x: auto;
+  background: var(--vsc-panel-header-bg);
+  border-bottom: 1px solid var(--vsc-border, rgba(128, 128, 128, 0.2));
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 10px;
+  max-width: 180px;
+  font-size: 12px;
+  color: var(--vsc-fg-muted);
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: var(--vsc-fg);
+}
+
+.tabActive {
+  color: var(--vsc-fg-strong);
+  border-bottom-color: var(--vsc-accent, #0078d4);
+  background: var(--terminal-bg);
+}
+
+.tabName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vsc-fg-faint);
+}
+
+/* tab 状态点颜色与 TerminalTabStatus 一一对应 */
+.tabDot.opening {
+  background: var(--vsc-yellow, #cca700);
+}
+
+.tabDot.active {
+  background: var(--vsc-green);
+}
+
+.tabDot.closed {
+  background: var(--vsc-red);
+}
+
+.tabClose {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vsc-fg-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tabClose:hover {
+  background: rgba(128, 128, 128, 0.25);
+  color: var(--vsc-fg-strong);
+}
+
+/* ===== 终端容器堆叠区 ===== */
+
+/* 覆盖全局 .panel-body 的 overflow:auto —— 滚动交给 xterm 自己的视口 */
+.body {
+  overflow: hidden;
+  display: flex;
+}
+
+/* 堆叠 wrapper：为绝对定位的 host 提供定位上下文 */
+.stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 每个终端容器铺满 wrapper 并互相重叠，由 visibility 决定谁可见 */
+.host {
+  position: absolute;
+  inset: 0;
+  padding: 4px 0 4px 8px;
+}
+
