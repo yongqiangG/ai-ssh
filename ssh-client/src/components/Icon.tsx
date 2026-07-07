@@ -108,11 +108,10 @@ const PATHS: Record<IconName, ReactElement> = {
   ),
   sftp: (
     <>
-      <path d="M4 4h6l2 2h8v6" />
-      <path d="M20 16v4h-4" />
-      <path d="M20 20l-5-5" />
-      <path d="M4 20v-4h4" />
-      <path d="M4 16l5-5" />
+      <path d="M3 16l4 4 4-4" />
+      <path d="M7 20V4" />
+      <path d="M21 8l-4-4-4 4" />
+      <path d="M17 4v16" />
     </>
   ),
   sun: (

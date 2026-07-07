@@ -1,4 +1,6 @@
+import { useState } from "react";
 import Icon, { type IconName } from "./Icon";
+import BackendSettingsModal from "./BackendSettingsModal";
 import { useLayoutStore, type SidebarView } from "../stores/layoutStore";
 import { useThemeStore } from "../stores/themeStore";
 import styles from "./ActivityBar.module.css";
@@ -24,6 +26,8 @@ export default function ActivityBar() {
   const mode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggle);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const onItemClick = (id: SidebarView) => {
     if (showSidebar && active === id) {
       toggleSidebar();
@@ -34,43 +38,49 @@ export default function ActivityBar() {
   };
 
   return (
-    <nav className={styles.bar} aria-label="侧边导航">
-      <div className={styles.top}>
-        {NAV_ITEMS.map((item) => {
-          const isActive = showSidebar && active === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`${styles.btn} ${isActive ? styles.active : ""}`}
-              title={item.label}
-              aria-pressed={isActive}
-              onClick={() => onItemClick(item.id)}
-            >
-              <Icon name={item.icon} size={22} />
-              {isActive && <span className={styles.indicator} />}
-            </button>
-          );
-        })}
-      </div>
-      <div className={styles.bottom}>
-        <button
-          type="button"
-          className={styles.btn}
-          title={mode === "dark" ? "切换到浅色主题" : "切换到深色主题"}
-          onClick={toggleTheme}
-        >
-          <Icon name={mode === "dark" ? "sun" : "moon"} size={22} />
-        </button>
-        <button
-          type="button"
-          className={styles.btn}
-          title="设置（敬请期待）"
-          disabled
-        >
-          <Icon name="settings" size={22} />
-        </button>
-      </div>
-    </nav>
+    <>
+      <nav className={styles.bar} aria-label="侧边导航">
+        <div className={styles.top}>
+          {NAV_ITEMS.map((item) => {
+            const isActive = showSidebar && active === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`${styles.btn} ${isActive ? styles.active : ""}`}
+                title={item.label}
+                aria-pressed={isActive}
+                onClick={() => onItemClick(item.id)}
+              >
+                <Icon name={item.icon} size={22} />
+                {isActive && <span className={styles.indicator} />}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.bottom}>
+          <button
+            type="button"
+            className={styles.btn}
+            title={mode === "dark" ? "切换到浅色主题" : "切换到深色主题"}
+            onClick={toggleTheme}
+          >
+            <Icon name={mode === "dark" ? "sun" : "moon"} size={22} />
+          </button>
+          <button
+            type="button"
+            className={styles.btn}
+            title="设置"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Icon name="settings" size={22} />
+          </button>
+        </div>
+      </nav>
+      <BackendSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+    </>
   );
 }
