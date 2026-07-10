@@ -1,4 +1,27 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// mock api/chat：单元测试不依赖真实后端；streamChat 同步触发回调以模拟流式
+vi.mock("../api/chat", () => ({
+  queryAgents: vi.fn(async () => [
+    { id: "general", name: "通用助手" },
+    { id: "ops", name: "运维专家" },
+  ]),
+  createSession: vi.fn(async () => ({ sessionId: "test-session" })),
+  streamChat: vi.fn((opts: {
+    agentId: string;
+    onText: (t: string) => void;
+    onDone: (t: string) => void;
+  }) => {
+    const reply =
+      opts.agentId === "ops"
+        ? "【运维专家】关于该问题，建议按顺序排查。"
+        : "【通用助手】你好，我是通用助手。";
+    opts.onText(reply);
+    opts.onDone(reply);
+    return () => {};
+  }),
+}));
+
 import { useChatStore } from "./chatStore";
 
 beforeEach(() => {

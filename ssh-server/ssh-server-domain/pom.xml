@@ -10,6 +10,20 @@
     <artifactId>ssh-server-domain</artifactId>
 
     <dependencies>
+        <!-- ===== AI：Google ADK + Spring AI（agent 装配 Runner、ReAct 节点消费 Event 都在此模块使用）===== -->
+        <dependency>
+            <groupId>com.google.adk</groupId>
+            <artifactId>google-adk</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.adk</groupId>
+            <artifactId>google-adk-spring-ai</artifactId>
+        </dependency>
+        <!-- Spring AI 的 OpenAI 兼容实现：OpenAiApi / OpenAiChatModel -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -42,6 +56,12 @@
         <dependency>
             <groupId>com.johnny</groupId>
             <artifactId>ssh-server-types</artifactId>
+        </dependency>
+        <!-- AI 接口与 DTO：ReAct 节点直接使用 ChatRequestDTO / ReActEventDTO / ReActResultDTO。
+             （本最小闭环把 ReAct 编排放 domain，故 domain 需引用 api 层的 DTO，等价于 WaLiSSH 中 case 同时依赖 api+domain 的桥接角色） -->
+        <dependency>
+            <groupId>com.johnny</groupId>
+            <artifactId>ssh-server-api</artifactId>
         </dependency>
         <!-- 测试；版本由 spring-boot-starter-parent 统一管理 -->
         <dependency>

@@ -31,6 +31,8 @@ export interface Conversation {
   agentId: string;
   messages: ChatMessage[];
   createdAt: number;
+  /** 后端会话 ID（ADK sessionId）；不持久化，每次启动重新创建 */
+  sessionId?: string;
 }
 
 export interface Agent {

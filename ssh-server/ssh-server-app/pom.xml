@@ -16,6 +16,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- Bean Validation 实现（Hibernate Validator）：
+             ADK 的 SpringAIProperties(@ConfigurationProperties prefix=adk.spring-ai)绑定时需要校验器实现，否则启动报 "no Jakarta Bean Validation provider could be found" -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

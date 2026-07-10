@@ -36,6 +36,9 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- AI 框架版本：Google ADK（Agent 执行引擎）+ Spring AI（OpenAI 兼容模型对接） -->
+        <google.adk.version>1.2.0</google.adk.version>
+        <spring-ai.version>1.1.5</spring-ai.version>
     </properties>
 
     <developers>
@@ -120,6 +123,28 @@
                 <groupId>com.github.mwiede</groupId>
                 <artifactId>jsch</artifactId>
                 <version>0.2.20</version>
+            </dependency>
+
+            <!-- ===== AI：Google ADK + Spring AI 桥接 OpenAI 兼容端点 ===== -->
+            <!-- Spring AI BOM：统一管理 spring-ai-* 各 artifact 版本 -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Google ADK：Agent 装配 + ReAct 执行引擎（Runner/Session/Event/LlmAgent） -->
+            <dependency>
+                <groupId>com.google.adk</groupId>
+                <artifactId>google-adk</artifactId>
+                <version>${google.adk.version}</version>
+            </dependency>
+            <!-- ADK ↔ Spring AI 桥接包：提供 com.google.adk.models.springai.SpringAI，把 SpringAI ChatModel 接入 ADK LlmAgent -->
+            <dependency>
+                <groupId>com.google.adk</groupId>
+                <artifactId>google-adk-spring-ai</artifactId>
+                <version>${google.adk.version}</version>
             </dependency>
 
             <!-- 工程模块 -->

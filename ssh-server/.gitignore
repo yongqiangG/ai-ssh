@@ -67,3 +67,6 @@ $RECYCLE.BIN/
 *.bak
 .env
 *.env.local
+
+### 本地敏感配置（API key 等），不提交 ###
+**/application-local.yml

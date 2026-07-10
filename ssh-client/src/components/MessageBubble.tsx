@@ -34,12 +34,14 @@ function useTypewriter(
       setVisible(text.length);
       return;
     }
-    let i = 0;
+    // 流式时 text 会逐步增长：从「当前 visible」继续逐字追赶，不重置。
+    // （旧实现用局部 i、text 一变就归零，会导致每个流式 chunk 都从头闪一次）
     const timer = window.setInterval(() => {
-      i = Math.min(text.length, i + 2);
-      setVisible(i);
-      onGrowRef.current?.();
-      if (i >= text.length) window.clearInterval(timer);
+      setVisible((v) => {
+        if (v >= text.length) return v;
+        onGrowRef.current?.();
+        return Math.min(text.length, v + 2);
+      });
     }, 24);
     return () => window.clearInterval(timer);
   }, [enabled, text]);
