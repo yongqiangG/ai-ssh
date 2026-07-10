@@ -20,8 +20,10 @@ import EmptyState from "../components/EmptyState";
 import { useTerminalStore } from "../stores/terminalStore";
 import type { TerminalTab } from "../stores/terminalStore";
 import { useConnectionStore } from "../stores/connectionStore";
+import { useThemeStore } from "../stores/themeStore";
 import { getConnectionStatus } from "../api/sshConnection";
 import {
+  applyTerminalTheme,
   attachTerminal,
   closeTerminalFor,
   fitTerminal,
@@ -42,6 +44,14 @@ export default function TerminalPanel() {
   const activeId = useTerminalStore((s) => s.activeId);
   const setActive = useTerminalStore((s) => s.setActive);
   const closeTab = useTerminalStore((s) => s.closeTab);
+  const themeMode = useThemeStore((s) => s.mode);
+
+  // 主题切换时同步所有已打开终端的配色（xterm 的 theme 是创建时快照，
+  // 不会自动跟随 CSS 变量）。effect 在 DOM 更新后执行，此时 data-theme
+  // 已切换完毕，manager 里读到的即是新值。
+  useEffect(() => {
+    applyTerminalTheme();
+  }, [themeMode]);
 
   // 注册 manager 的断连回调；挂载执行一次（依赖数组 [] 的含义），卸载时清理。
   // 注意只标记 tab 断开：shell 正常 exit 也会走到这里，此时 SSH 连接本身可能还活着，
@@ -112,13 +122,14 @@ export default function TerminalPanel() {
               <button
                 className={styles.tabClose}
                 title="关闭终端"
+                aria-label={`关闭终端 ${tab.name}`}
                 onClick={(e) => {
-                  // 阻止冒泡：点击 × 不要触发外层 div 的「激活 tab」
+                  // 阻止冒泡：点击关闭不要触发外层 div 的「激活 tab」
                   e.stopPropagation();
                   onCloseTab(tab.connectionId);
                 }}
               >
-                ×
+                <Icon name="close" size={11} />
               </button>
             </div>
           ))}

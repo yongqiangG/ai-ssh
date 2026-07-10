@@ -28,7 +28,7 @@
 }
 
 .agentIcon {
-  color: var(--vsc-green);
+  color: var(--ai-grad-a);
   flex: 0 0 auto;
 }
 
@@ -74,11 +74,14 @@
   gap: 8px;
   background: var(--vsc-input-bg);
   border: 1px solid var(--vsc-border-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   padding: 6px 6px 6px 10px;
+  transition: border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .inputRow:focus-within {
-  border-color: var(--vsc-accent);
+  border-color: var(--ai-grad-a);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .textarea {
@@ -107,15 +110,22 @@
   width: 30px;
   height: 30px;
   border: none;
-  border-radius: 4px;
-  background: var(--vsc-accent);
+  border-radius: var(--radius-sm);
+  /* AI 身份渐变：与头像/光标同一色族 */
+  background: linear-gradient(135deg, var(--ai-grad-a), var(--ai-grad-b));
   color: var(--vsc-accent-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 .sendBtn:hover:not(:disabled) {
-  background: var(--vsc-accent-hover);
+  box-shadow: 0 2px 12px var(--accent-glow);
+}
+.sendBtn:active:not(:disabled) {
+  transform: scale(0.94);
 }
 .sendBtn:disabled {
   background: var(--vsc-secondary-bg);

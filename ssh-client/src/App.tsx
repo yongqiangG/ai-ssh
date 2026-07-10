@@ -4,7 +4,7 @@ import LeftSidebar from "./components/LeftSidebar";
 import Splitter from "./components/Splitter";
 import TerminalPanel from "./views/TerminalPanel";
 import ChatPanel from "./views/ChatPanel";
-import Icon from "./components/Icon";
+import EmptyState from "./components/EmptyState";
 import { useLayoutStore } from "./stores/layoutStore";
 import styles from "./App.module.css";
 
@@ -48,10 +48,15 @@ export default function App() {
           {showTerminal ? (
             <TerminalPanel />
           ) : (
-            <EmptyCenter
+            <EmptyState
+              icon="terminal"
               title="终端已隐藏"
               hint="点击右上角「终端」按钮恢复显示"
-              onRestore={toggleTerminal}
+              action={
+                <button className="btn" onClick={toggleTerminal}>
+                  显示终端
+                </button>
+              }
             />
           )}
         </div>
@@ -65,25 +70,6 @@ export default function App() {
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-interface EmptyCenterProps {
-  title: string;
-  hint: string;
-  onRestore: () => void;
-}
-
-function EmptyCenter({ title, hint, onRestore }: EmptyCenterProps) {
-  return (
-    <div className={styles.emptyCenter}>
-      <Icon name="terminal" size={40} className={styles.emptyIcon} />
-      <div className={styles.emptyTitle}>{title}</div>
-      <div className={styles.emptyHint}>{hint}</div>
-      <button className="btn" onClick={onRestore}>
-        显示终端
-      </button>
     </div>
   );
 }

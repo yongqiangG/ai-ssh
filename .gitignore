@@ -5,6 +5,8 @@
 
 # ---- Claude Code 个人本机配置（团队共享的 settings.json 可入库）----
 **/.claude/settings.local.json
+# 第三方 skill 为本机工具链，不入库（按需用 uipro init 自行安装）
+.claude/skills/
 
 # ---- OS ----
 .DS_Store

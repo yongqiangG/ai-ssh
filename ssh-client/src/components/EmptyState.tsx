@@ -17,7 +17,12 @@ export default function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className={styles.empty}>
-      <Icon name={icon} size={28} className={styles.icon} />
+      {/* 氛围光斑：纯装饰，置于内容层之下，reduced-motion 下静止 */}
+      <span className={styles.blobA} aria-hidden="true" />
+      <span className={styles.blobB} aria-hidden="true" />
+      <div className={styles.iconWrap}>
+        <Icon name={icon} size={24} className={styles.icon} />
+      </div>
       <div className={styles.title}>{title}</div>
       {hint && <div className={styles.hint}>{hint}</div>}
       {action && <div className={styles.action}>{action}</div>}

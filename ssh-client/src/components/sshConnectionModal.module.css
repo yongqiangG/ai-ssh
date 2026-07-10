@@ -6,7 +6,8 @@
   align-items: center;
   justify-content: center;
   background: var(--vsc-modal-overlay);
-  animation: fadeIn 0.12s ease;
+  backdrop-filter: blur(6px);
+  animation: fadeIn var(--dur-fast) var(--ease-out);
 }
 
 .dialog {
@@ -16,10 +17,11 @@
   overflow: auto;
   background: var(--vsc-sidebar-bg);
   border: 1px solid var(--vsc-border-strong);
-  border-radius: 6px;
-  box-shadow: 0 8px 32px var(--vsc-modal-overlay);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
+  animation: dialogIn var(--dur-slow) var(--ease-spring);
 }
 
 .header {
@@ -52,6 +54,8 @@
   color: var(--vsc-fg-muted);
   font-size: 12px;
   border-bottom: 2px solid transparent;
+  transition: color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 
 .tab:hover {
@@ -159,5 +163,16 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

@@ -32,10 +32,13 @@
   background: transparent;
   color: rgba(255, 255, 255, 0.6);
   border-radius: 0;
+  transition: color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
 }
 
 .btn:hover:not(:disabled) {
   color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .btn:disabled {
@@ -54,6 +57,19 @@
   transform: translateY(-50%);
   width: 2px;
   height: 24px;
-  background: var(--vsc-fg-strong);
+  background: var(--vsc-accent);
+  box-shadow: 0 0 6px var(--accent-glow);
   border-radius: 0 1px 1px 0;
+  animation: indicatorIn var(--dur-base) var(--ease-spring);
+}
+
+@keyframes indicatorIn {
+  from {
+    transform: translateY(-50%) scaleY(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(-50%) scaleY(1);
+    opacity: 1;
+  }
 }

@@ -6,7 +6,7 @@
   position: relative;
   cursor: col-resize;
   z-index: 2;
-  transition: background 0.1s ease;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 
 /* 加宽可点击命中区域（左右各 3px） */

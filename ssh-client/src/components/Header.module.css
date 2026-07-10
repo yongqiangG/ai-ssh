@@ -34,14 +34,22 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--vsc-fg-muted);
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .iconBtn:hover {
   background: var(--vsc-list-hover);
   color: var(--vsc-fg-strong);
+}
+
+.iconBtn:active {
+  transform: scale(0.94);
 }
 
 .iconBtn.active {

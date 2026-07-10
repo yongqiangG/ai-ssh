@@ -62,6 +62,9 @@
   cursor: pointer;
   user-select: none;
   border-bottom: 2px solid transparent;
+  transition: color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
 }
 
 .tab:hover {
@@ -112,9 +115,10 @@
   border-radius: 3px;
   background: transparent;
   color: var(--vsc-fg-muted);
-  font-size: 13px;
   line-height: 1;
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .tabClose:hover {

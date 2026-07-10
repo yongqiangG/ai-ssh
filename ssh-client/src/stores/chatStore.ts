@@ -11,6 +11,11 @@ interface ChatState {
   /** 下一条消息使用的智能体 */
   agentId: string;
   sending: boolean;
+  /**
+   * 本次会话内「刚到达」的 AI 消息 id（不持久化）。
+   * MessageBubble 据此只对新回复播放流式打字动画，刷新后历史消息不重放。
+   */
+  freshId: string | null;
 
   newConversation: () => void;
   selectConversation: (id: string) => void;
@@ -28,12 +33,13 @@ export const useChatStore = create<ChatState>()(
     (set, get) => {
       const ai = createMockAiService();
 
-      /** 在当前会话追加一条消息（不可变更新） */
+      /** 在当前会话追加一条 AI 消息（不可变更新），并标记为「刚到达」 */
       const appendMessage = (convId: string, msg: ChatMessage) =>
         set((s) => ({
           conversations: s.conversations.map((c) =>
             c.id === convId ? { ...c, messages: [...c.messages, msg] } : c
           ),
+          freshId: msg.id,
         }));
 
       return {
@@ -42,6 +48,7 @@ export const useChatStore = create<ChatState>()(
         currentId: null,
         agentId: ai.agents[0]?.id ?? "general",
         sending: false,
+        freshId: null,
 
         newConversation: () => {
           const conv: Conversation = {

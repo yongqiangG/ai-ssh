@@ -1,14 +1,26 @@
 .list {
-  padding: 4px 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .card {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--vsc-border);
+  padding: 10px 12px;
+  border: 1px solid var(--vsc-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
 
 .card:hover {
   background: var(--vsc-list-hover);
+  border-color: var(--vsc-border-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .cardMain {
@@ -32,7 +44,7 @@
 
 .dot.connected {
   background: var(--vsc-green);
-  box-shadow: 0 0 0 2px rgba(78, 201, 176, 0.2);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
 }
 
 .dot.connecting {
@@ -105,7 +117,7 @@
   align-items: center;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.1s;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 
 .card:hover .actions,
@@ -124,11 +136,13 @@
   cursor: pointer;
   padding: 0;
   flex: 0 0 auto;
-  transition: background 0.15s;
+  transition: background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .switch.on {
   background: var(--vsc-accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .switch:disabled {
@@ -144,11 +158,11 @@
   height: 14px;
   border-radius: 50%;
   background: var(--vsc-accent-fg);
-  transition: left 0.15s;
+  transition: transform var(--dur-base) var(--ease-spring);
 }
 
 .switch.on .knob {
-  left: 18px;
+  transform: translateX(16px);
 }
 
 .confirm {
@@ -166,10 +180,13 @@
   height: 22px;
   padding: 0 8px;
   border: 1px solid var(--vsc-border-strong);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--vsc-input-bg);
   color: var(--vsc-fg);
   font-size: 11px;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 
 .miniBtn:hover {
@@ -183,7 +200,8 @@
 
 .miniDanger:hover {
   background: var(--vsc-danger-bg);
-  color: var(--vsc-accent-fg);
+  color: var(--vsc-red);
+  border-color: var(--vsc-danger-border);
 }
 
 @keyframes pulse {

@@ -89,6 +89,27 @@ export function isTerminalAlive(connectionId: string): boolean {
   return terminals.get(connectionId)?.alive ?? false;
 }
 
+/** 从当前 CSS 变量读取 xterm 主题色（值随 html[data-theme] 切换） */
+function readXtermTheme() {
+  const css = getComputedStyle(document.documentElement);
+  return {
+    background: css.getPropertyValue("--terminal-bg").trim() || "#0a0b10",
+    foreground: css.getPropertyValue("--vsc-fg").trim() || "#c8cad4",
+  };
+}
+
+/**
+ * 把当前主题色应用到所有已存在的终端实例。
+ * xterm 的 theme 是创建时快照，CSS 变量后续变化不会自动生效；
+ * UI 层在主题切换时调用本函数完成同步（见 TerminalPanel）。
+ */
+export function applyTerminalTheme(): void {
+  const theme = readXtermTheme();
+  for (const mt of terminals.values()) {
+    mt.term.options.theme = theme;
+  }
+}
+
 /**
  * 在给定容器里创建 xterm 实例并打开后端会话（新开与断连后重开共用入口）。
  *
@@ -108,18 +129,14 @@ export async function openTerminalIn(
     // 断连后重开：旧实例的会话已失效、日志无法延续，直接丢弃重建
     disposeTerminal(connectionId);
 
-    // xterm 的 theme 只接受具体色值，运行时从 CSS 变量读取以适配当前亮暗主题
-    // （创建后不跟随主题切换，重开终端才会生效——可接受的简化）
-    const css = getComputedStyle(document.documentElement);
+    // xterm 的 theme 只接受具体色值，从 CSS 变量读取当前主题；
+    // 之后的主题切换由 applyTerminalTheme() 统一同步
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: '"Cascadia Mono", Consolas, "Courier New", monospace',
       scrollback: 5000,
-      theme: {
-        background: css.getPropertyValue("--terminal-bg").trim() || "#1e1e1e",
-        foreground: css.getPropertyValue("--vsc-fg").trim() || "#cccccc",
-      },
+      theme: readXtermTheme(),
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -234,6 +251,8 @@ export function attachTerminal(connectionId: string, container: HTMLElement): vo
   if (!mt || !el) return;
   if (el.parentElement === container) return; // 已在目标容器里，无事可做
   container.appendChild(el);
+  // 隐藏期间主题可能已切换，重挂时按当前 CSS 变量补一次同步
+  mt.term.options.theme = readXtermTheme();
   observeContainer(mt, container);
   if (mt.alive) mt.fitAddon.fit();
 }

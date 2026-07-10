@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import MessageBubble from "../components/MessageBubble";
@@ -11,14 +11,20 @@ export default function ChatPanel() {
   const currentId = useChatStore((s) => s.currentId);
   const selectConversation = useChatStore((s) => s.selectConversation);
   const sending = useChatStore((s) => s.sending);
+  const freshId = useChatStore((s) => s.freshId);
 
   const current = conversations.find((c) => c.id === currentId) ?? null;
   const messages = current?.messages ?? [];
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // 稳定引用：打字动画每帧回调，避免触发 MessageBubble 的 effect 重跑
+  const scrollToEnd = useCallback(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, sending]);
+  }, []);
+
+  useEffect(() => {
+    scrollToEnd();
+  }, [messages.length, sending, scrollToEnd]);
 
   return (
     <section className="panel">
@@ -52,7 +58,12 @@ export default function ChatPanel() {
         ) : (
           <div className={styles.messageList}>
             {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
+              <MessageBubble
+                key={m.id}
+                message={m}
+                animate={m.id === freshId}
+                onContentGrow={scrollToEnd}
+              />
             ))}
             {sending && (
               <div className={styles.typingRow}>

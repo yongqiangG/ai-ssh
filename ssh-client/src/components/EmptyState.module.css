@@ -1,4 +1,6 @@
 .empty {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -10,12 +12,86 @@
   padding: 24px;
 }
 
+/* 保证内容浮在光斑之上 */
+.iconWrap,
+.title,
+.hint,
+.action {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== 氛围光斑：indigo / cyan 双色，缓慢漂移 ===== */
+.blobA,
+.blobB {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.blobA {
+  background: var(--ai-grad-a);
+  opacity: 0.1;
+  top: 12%;
+  left: 18%;
+  animation: driftA 18s ease-in-out infinite alternate;
+}
+
+.blobB {
+  background: var(--ai-grad-b);
+  opacity: 0.07;
+  bottom: 10%;
+  right: 15%;
+  animation: driftB 22s ease-in-out infinite alternate;
+}
+
+@keyframes driftA {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(28px, 20px);
+  }
+}
+
+@keyframes driftB {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-24px, -18px);
+  }
+}
+
+/* 图标发光容器 */
+.iconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    135deg,
+    rgba(94, 106, 210, 0.14),
+    rgba(34, 211, 238, 0.08)
+  );
+  border: 1px solid rgba(94, 106, 210, 0.25);
+  box-shadow: 0 0 20px var(--accent-glow);
+  margin-bottom: 4px;
+}
+
 .icon {
-  color: var(--vsc-fg-faint);
+  color: var(--ai-grad-a);
 }
 
 .title {
   font-size: 13px;
+  font-weight: 600;
   color: var(--vsc-fg);
 }
 
