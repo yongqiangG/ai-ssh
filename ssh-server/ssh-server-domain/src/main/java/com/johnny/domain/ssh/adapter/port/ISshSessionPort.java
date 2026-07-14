@@ -58,4 +58,16 @@ public interface ISshSessionPort {
      */
     String exec(String connectionId, String command);
 
+    /**
+     * 在 connectionId 对应连接上开一次性 ChannelExec 执行命令，返回结构化结果（供 AI 工具使用，Q1）。
+     * <p>stdout/stderr 分开采集 + 真实退出码 + 超时强断，与终端 shell 通道隔离，不污染前端轮询缓冲。
+     * <p><b>不抛异常</b>——连接级失败返回 {@code null}（由工具层判空转错误 Map，Q3a）。
+     *
+     * @param connectionId SSH 连接 id
+     * @param command      单条 shell 命令
+     * @param timeoutMs    超时毫秒；超时强断通道，{@code timedOut=true}，连同已捕获输出返回
+     * @return 结构化结果；连接不存在/已断返回 {@code null}
+     */
+    ExecResult exec(String connectionId, String command, long timeoutMs);
+
 }

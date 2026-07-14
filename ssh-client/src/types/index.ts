@@ -18,11 +18,22 @@ export interface SshServer {
 // ===== AI 对话 =====
 export type ChatRole = "user" | "assistant";
 
+export interface ToolCall {
+  toolCallId: string;
+  toolName: string;
+  command?: string;
+  status?: "running" | "success" | "error";
+  output?: string;
+  analysis?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
   timestamp: number;
+  /** 仅 assistant 消息：命令块据此渲染（来自 tool_call / tool_result 事件） */
+  toolCalls?: ToolCall[];
 }
 
 export interface Conversation {

@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
 @Configurable
-// 扫描并注册 @ConfigurationProperties 类（如 AiProperties），绑定 application*.yml 的 ai.* 段
+// 扫描并注册 @ConfigurationProperties 类（如 AgentConfigProperties），绑定 ssh-agent.yml 的 ai.agent.config 段
 @ConfigurationPropertiesScan(basePackages = "com.johnny")
 public class Application {
 

@@ -4,12 +4,14 @@ import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
+import com.johnny.domain.ssh.adapter.port.ExecResult;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -28,8 +30,11 @@ public class SshSessionPort implements ISshSessionPort {
     /** 连接超时时间（毫秒），避免不可达主机导致长时间阻塞 */
     private static final int CONNECT_TIMEOUT = 5000;
 
-    /** 单条命令执行的最大等待时间（毫秒），避免命令卡死阻塞调用线程 */
+    /** 单条命令执行的最大等待时间（毫秒），避免命令卡死阻塞调用线程（旧 exec(String) 用） */
     private static final int EXEC_TIMEOUT = 10000;
+
+    /** exec 通道单流（stdout/stderr 各自）最大保留字节，超出截断（Q4：约 2000+ token） */
+    private static final int EXEC_STREAM_LIMIT = 8 * 1024;
 
     /** 终端退出/命令轮询间隔（毫秒） */
     private static final int POLL_INTERVAL = 50;
@@ -193,6 +198,102 @@ public class SshSessionPort implements ISshSessionPort {
         } finally {
             if (channel != null) {
                 channel.disconnect();
+            }
+        }
+    }
+
+    /**
+     * AI 工具专用 exec 通道（Q1）：同一连接上开一次性 ChannelExec，stdout/stderr 分流采集 +
+     * 真实退出码 + 超时强断 + 各截断 8KB。不抛异常（连接级失败返回 null，Q3a）。
+     */
+    @Override
+    public ExecResult exec(String connectionId, String command, long timeoutMs) {
+        Session session = sessions.get(connectionId);
+        if (session == null || !session.isConnected()) {
+            // 连接不存在/已断：返回 null，由工具层判空转错误 Map（不抛异常，Q3a）
+            return null;
+        }
+        ExecResult result = new ExecResult();
+        ChannelExec channel = null;
+        try {
+            channel = (ChannelExec) session.openChannel("exec");
+            channel.setCommand(command);
+            // stderr 走扩展流，与 stdout 分开采集（Q4）
+            InputStream stdoutStream = channel.getInputStream();
+            InputStream stderrStream = channel.getErrStream();
+            channel.connect(CONNECT_TIMEOUT);
+
+            ByteArrayOutputStream stdoutBuf = new ByteArrayOutputStream();
+            ByteArrayOutputStream stderrBuf = new ByteArrayOutputStream();
+            long deadline = System.currentTimeMillis() + timeoutMs;
+            byte[] buf = new byte[1024];
+
+            while (true) {
+                drainStream(stdoutStream, stdoutBuf, buf, EXEC_STREAM_LIMIT);
+                drainStream(stderrStream, stderrBuf, buf, EXEC_STREAM_LIMIT);
+
+                if (channel.isClosed()) {
+                    // 通道关闭后再收尾读一次，确保不丢尾部输出
+                    drainStream(stdoutStream, stdoutBuf, buf, EXEC_STREAM_LIMIT);
+                    drainStream(stderrStream, stderrBuf, buf, EXEC_STREAM_LIMIT);
+                    result.exitCode = channel.getExitStatus();
+                    break;
+                }
+                if (System.currentTimeMillis() > deadline) {
+                    result.timedOut = true;
+                    log.warn("SSH exec 超时强断 connectionId={} cmd=[{}]", connectionId, command);
+                    break;
+                }
+                Thread.sleep(POLL_INTERVAL);
+            }
+
+            result.stdout = stdoutBuf.toString(StandardCharsets.UTF_8);
+            result.stderr = stderrBuf.toString(StandardCharsets.UTF_8);
+            result.stdoutOriginalBytes = stdoutBuf.size();
+            result.stderrOriginalBytes = stderrBuf.size();
+            result.stdoutTruncated = result.stdoutOriginalBytes > EXEC_STREAM_LIMIT;
+            result.stderrTruncated = result.stderrOriginalBytes > EXEC_STREAM_LIMIT;
+            log.info("SSH exec 完成 connectionId={} cmd=[{}] exit={} timedOut={} stdoutBytes={} stderrBytes={}",
+                    connectionId, command, result.exitCode, result.timedOut,
+                    result.stdoutOriginalBytes, result.stderrOriginalBytes);
+            return result;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            // 中断也走错误路径：返回带状态的 result（exitCode 保持 -1），由工具层转错误 Map
+            result.timedOut = true;
+            return result;
+        } catch (Exception e) {
+            log.error("SSH exec 异常 connectionId={} cmd=[{}]", connectionId, command, e);
+            // 通道级异常：exitCode 保持 -1，由工具层转错误 Map（Q3a）
+            return result;
+        } finally {
+            if (channel != null) {
+                channel.disconnect();
+            }
+        }
+    }
+
+    /**
+     * 把 InputStream 当前可读字节搬进 buffer，超过 maxBytes 后只读丢弃（截断）。
+     * 不阻塞：available()<=0 直接返回。
+     */
+    private void drainStream(InputStream in, ByteArrayOutputStream out, byte[] buf, int maxBytes) throws Exception {
+        // 先把允许保留的部分读进 buffer
+        while (in.available() > 0 && out.size() < maxBytes) {
+            int n = in.read(buf);
+            if (n < 0) {
+                break;
+            }
+            int allow = Math.min(n, maxBytes - out.size());
+            if (allow > 0) {
+                out.write(buf, 0, allow);
+            }
+        }
+        // 超过上限的剩余字节读出丢弃（清空通道缓冲，避免残留阻塞）
+        while (in.available() > 0) {
+            int n = in.read(buf);
+            if (n < 0) {
+                break;
             }
         }
     }

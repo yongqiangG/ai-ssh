@@ -14,6 +14,10 @@ thread:
 
 # 数据库配置；启动时配置数据库资源信息
 spring:
+  config:
+    # 仅 dev 挂载 agent 装配配置（Q10：prod 不挂，避免 api-key 为空搞死启动）
+    import:
+      - "optional:classpath:ssh-agent.yml"
   datasource:
     username: root
     password: 123456
@@ -46,22 +50,5 @@ ssh:
   crypto:
     secret-key: "ZGV2X2RlZmF1bHRfc2VjcmV0X2tleV8zMmJ5dGVzISE="
 
-# ===== AI 对话配置（Google ADK + SpringAI 桥接 OpenAI 兼容端点）=====
-# ⚠️ 必须把 base-url / api-key / model 改成你自己的真实值，否则 chat_stream 会调用失败（401 等）。
-ai:
-  api:
-    # 智谱 BigModel（GLM）OpenAI 兼容端点
-    # 为规避 SpringAI RestClient 路径拼接歧义：base-url 只写 host，完整路径放 completions-path
-    base-url: https://open.bigmodel.cn
-    # api-key 从 ZHIPU_API_KEY 读取（由 application-local.yml 提供或环境变量注入，勿写明文进此文件）
-    api-key: ${ZHIPU_API_KEY:}
-    completions-path: /api/coding/paas/v4/chat/completions   # GLM Coding Plan 专用端点（已 curl 验证 200）
-    model: glm-5.2                            # GLM Coding Plan 推理模型（已 curl 验证 200；大小写不敏感）
-  agent:
-    id: sshAssistant                        # 前端选择与请求携带的 agentId
-    name: sshAssistant                      # 同时作为 ADK appName（会话命名空间）
-    description: AI Shell 助手，可流式回答问题
-    instruction: |                          # 系统提示词（多行）
-      你是一个友好、专业的 AI 助手。请用简洁清晰的中文回答用户的问题。
-      注意：当前为最小闭环，仅支持纯对话，暂未接入 SSH 命令执行能力。
-    output-key: chat_result                 # ADK 写入 session state 的结果 key
+# AI 对话配置已迁至 ssh-agent.yml（由上方 spring.config.import 挂载，Q10）。
+# 旧 ai.api / ai.agent 段已删除，避免与 ssh-agent.yml 的 ai.agent.config 双轨。

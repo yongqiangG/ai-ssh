@@ -186,6 +186,10 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <encoding>${project.build.sourceEncoding}</encoding>
+                    <!-- 开启 -parameters 保留参数名：让 ADK FunctionTool 的 toolContext 参数注入生效
+                         （无 -parameters 时参数名编译成 arg0，工具拿不到 ToolContext → 无法查 terminalSessionId）。
+                         不影响 Controller 的显式 @PathVariable("xxx")——显式名不依赖参数名保留。 -->
+                    <compilerArgument>-parameters</compilerArgument>
                 </configuration>
             </plugin>
             <plugin>

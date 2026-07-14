@@ -1,13 +1,17 @@
 package com.johnny.domain.react.node;
 
+import com.google.adk.agents.RunConfig;
 import com.google.adk.events.Event;
 import com.google.adk.runner.Runner;
 import com.google.genai.types.Content;
+import com.google.genai.types.FunctionCall;
+import com.google.genai.types.FunctionResponse;
 import com.google.genai.types.Part;
 import com.johnny.api.dto.ChatRequestDTO;
 import com.johnny.api.dto.ReActResultDTO;
-import com.johnny.domain.agent.model.RunnerHolder;
+import com.johnny.domain.agent.model.AiAgentRegisterVO;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
+import com.johnny.domain.agent.service.tools.TerminalContext;
 import com.johnny.domain.react.ReActContext;
 import com.johnny.domain.react.engine.StrategyHandler;
 import jakarta.annotation.Resource;
@@ -16,23 +20,19 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * AI 调用节点 —— ReAct 循环的核心（外层）。
  *
- * <p><b>关于「两层 ReAct」：</b>
- * <ul>
- *   <li><b>内层（ADK）</b>：{@code runner.runAsync} 一次调用内部，ADK（经 SpringAI ChatModel）自己完成
- *       「LLM 推理 → 工具执行 → 再推理」。最小闭环无工具，故内层一次返回最终文本。</li>
- *   <li><b>外层（本节点 + 引擎）</b>：把「一次 runAsync」当作 ReAct 的一步，负责控制步数、推送 SSE、异常兜底。
- *       最小闭环单步即结束；未来加工具后，若单次 runAsync 只走单步（SpringAI call 语义），外层循环负责多步驱动。</li>
- * </ul>
+ * <p><b>方案 B（Q7）</b>：vendored MySpringAI 关闭了 Spring AI 内部工具执行，故多轮
+ * 「执行命令 → 观察结果 → 继续推理」全部发生在<b>一次 runAsync 内部</b>（ADK 原生编排）。
+ * 本节点只消费事件流：text → text 事件；functionCalls → tool_call；functionResponses → tool_result。
  *
- * <p><b>stateDelta 坑（重要，预留）：</b>SpringAI 的 ChatModel.call() 会自动执行工具，
- * 导致 ADK 事件流里 {@code event.functionCalls()} 为空，工具结果出现在 {@code event.actions().stateDelta()}。
- * <b>最小闭环无工具，暂不触发</b>；加工具时需在此处解析 stateDelta，参照 WaLiSSH {@code AiCallNode:188-248}。
+ * <p>外层链保持单步：{@link #get} 返回 {@code defaultStrategyHandler}（无回环节点）。
+ * stateDelta 坑随 B 方案消失（functionCall/Response 是一等公民事件），原 TODO 已删除。
  *
- * <p>本节点流程：取 Runner → runAsync 消费事件流 → 每个文本片段推 {@code text} 事件 → 推 {@code round_end} + {@code done} → complete。
+ * <p>ITL（§4.9）：doApply 前 set terminalSessionId，finally 无条件 clear。
  */
 @Slf4j
 @Component("reactAiCallNode")
@@ -43,53 +43,94 @@ public class AiCallNode extends AbstractReActSupport {
 
     @Override
     protected ReActResultDTO doApply(ChatRequestDTO req, ReActContext ctx) throws Exception {
-        RunnerHolder holder = agentRunnerRegistry.get(ctx.getAgentId());
+        AiAgentRegisterVO holder = agentRunnerRegistry.get(ctx.getAgentId());
         Runner runner = holder.getRunner();
         ResponseBodyEmitter emitter = ctx.getEmitter();
         StringBuilder acc = ctx.getAssistantContent();
 
-        // 构造 ADK 用户消息（google-genai 的 Content/Part）
+        // 注册 terminalSessionId（按 ADK sessionId）。取代 ITL：流式 SSE 下工具在池化线程
+        // （HttpClient-1-Worker-*）执行，InheritableThreadLocal 继承失效（实测取到 null）。
+        final String adkSessionId = ctx.getSessionId();
+        TerminalContext.register(adkSessionId, ctx.getTerminalSessionId());
+
         Content userContent = Content.builder()
                 .role("user")
                 .parts(Part.builder().text(ctx.getMessage()).build())
+                .build();
+
+        // RunConfig 熔断 + 流式：maxLlmCalls=10；streamingMode=SSE 让 ADK 走 MySpringAI 流式路径，
+        // LLM 边生成边推 text 事件 → 前端逐步显示（体感优化，避免卡等整段生成完才看到）
+        RunConfig runConfig = RunConfig.builder()
+                .maxLlmCalls(10)
+                .streamingMode(RunConfig.StreamingMode.SSE)
                 .build();
 
         boolean hasError = false;
         String errorMsg = null;
 
         try {
-            // 调用 ADK Runner：返回 rxjava3 Flowable<Event>，blockingIterable 转迭代器逐个消费
-            Iterator<Event> events = runner.runAsync(ctx.getUserId(), ctx.getSessionId(), userContent)
+            // 4 参重载 runAsync(userId, sessionId, content, RunConfig)（反编译 Runner.java:156）
+            Iterator<Event> events = runner.runAsync(
+                    ctx.getUserId(), ctx.getSessionId(), userContent, runConfig)
                     .blockingIterable()
                     .iterator();
 
             while (events.hasNext()) {
                 Event event = events.next();
-                // 取模型文本片段（stringifyContent 返回该事件的文本表示）
-                String text = event.stringifyContent();
-                if (text != null && !text.isBlank()) {
-                    acc.append(text);
-                    sendTextEvent(emitter, text, acc.toString());
+
+                // 1) 纯文本片段 → text 事件。只取 part.text()，避免 stringifyContent 把
+                //    functionCall/functionResponse 也当文本混入 AI 回复（出现 "Function Call: ..." 噪声）
+                if (event.content().isPresent() && event.content().get().parts().isPresent()) {
+                    for (Part p : event.content().get().parts().get()) {
+                        String t = p.text().orElse("");
+                        if (!t.isEmpty()) {
+                            acc.append(t);
+                            sendTextEvent(emitter, t, acc.toString());
+                        }
+                    }
                 }
 
-                // TODO(工具): 加 executeCommand 后，从这里解析工具结果：
-                //   EventActions actions = event.actions();
-                //   Map<String,Object> delta = actions.stateDelta();  // key=工具 outputKey，value=结果
-                //   参照 walissh-server-main/.../react/node/AiCallNode.java:188-248
+                // 2) functionCalls → tool_call 事件（B 方案：ADK 亲自编排后这是一等公民事件）
+                for (FunctionCall fc : event.functionCalls()) {
+                    String args = fc.args()
+                            .map(a -> a.getOrDefault("command", a).toString())
+                            .orElse("");
+                    sendToolCallEvent(emitter,
+                            fc.id().orElse(""),
+                            fc.name().orElse(""),
+                            args);
+                }
+
+                // 3) functionResponses → tool_result 事件
+                for (FunctionResponse fr : event.functionResponses()) {
+                    Map<String, Object> resp = fr.response().orElse(Map.of());
+                    boolean success = Boolean.TRUE.equals(resp.get("success"));
+                    String stdout = String.valueOf(resp.getOrDefault("stdout", ""));
+                    String stderr = String.valueOf(resp.getOrDefault("stderr", ""));
+                    String analysis = resp.get("analysis") == null ? null : String.valueOf(resp.get("analysis"));
+                    String output = success ? stdout : (stderr.isBlank() ? stdout : stdout + "\n[stderr] " + stderr);
+                    sendToolResultEvent(emitter,
+                            fr.id().orElse(""),
+                            fr.name().orElse(""),
+                            success ? "success" : "error",
+                            output,
+                            analysis);
+                }
             }
         } catch (Exception e) {
+            // maxLlmCalls 熔断（LlmCallsLimitExceededException）也走这里 → error 事件
             log.error("ADK Runner 调用失败", e);
             hasError = true;
             errorMsg = e.getMessage();
+        } finally {
+            // 清理注册，防内存泄漏
+            TerminalContext.register(adkSessionId, null);
         }
 
-        // 步数 +1
         ctx.setStep(ctx.getStep() + 1);
-
-        // 推送本轮结束（最小闭环 shouldContinue=false，不再循环）
+        // totalToolCalls：round_end 前端不渲染（chat.ts 忽略 round_end），传 0 不影响闭环
         sendRoundEndEvent(emitter, ctx.getStep(), ctx.getMaxSteps(), false, 0);
 
-        // 构造最终结果
         ReActResultDTO result = ReActResultDTO.builder()
                 .content(acc.toString())
                 .totalSteps(ctx.getStep())
@@ -98,7 +139,6 @@ public class AiCallNode extends AbstractReActSupport {
                 .error(hasError ? errorMsg : null)
                 .build();
 
-        // 结束流
         if (hasError) {
             sendErrorEvent(emitter, errorMsg);
             emitter.completeWithError(new RuntimeException(errorMsg));
@@ -109,18 +149,10 @@ public class AiCallNode extends AbstractReActSupport {
 
         log.info("ReAct AiCallNode 完成 step={} contentLen={} error={}",
                 ctx.getStep(), acc.length(), hasError);
-
         return result;
     }
 
-    /**
-     * 路由决策。
-     *
-     * <p>最小闭环：无工具 → 直接返回 {@link #defaultStrategyHandler}（终止，router 会调用其 apply 返回 null）。
-     *
-     * <p>预留（加工具后）：检测到工具调用时返回 ToolCallNode，其末尾再 router 回本节点形成循环；
-     * 达到 maxSteps 或无工具则终止。参照 WaLiSSH {@code AiCallNode:318-347}。
-     */
+    /** 外层单步：无回环节点（B 方案循环在 runAsync 内）。 */
     @Override
     public StrategyHandler<ChatRequestDTO, ReActContext, ReActResultDTO> get(ChatRequestDTO req, ReActContext ctx) {
         return defaultStrategyHandler;

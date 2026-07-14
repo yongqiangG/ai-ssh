@@ -24,6 +24,8 @@ public class RootNode extends AbstractReActSupport {
         ctx.setUserId(req.getUserId());
         ctx.setAgentId(req.getAgentId());
         ctx.setMessage(req.getMessage());
+        ctx.setTerminalSessionId(req.getTerminalSessionId());
+        log.info("ReAct RootNode 收到 terminalSessionId={}", req.getTerminalSessionId());
         ctx.setStep(0);
         ctx.getAssistantContent().setLength(0);
 

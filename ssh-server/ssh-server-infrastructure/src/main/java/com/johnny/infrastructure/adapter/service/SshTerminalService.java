@@ -137,6 +137,13 @@ public class SshTerminalService implements ISshTerminalService {
         }
     }
 
+    @Override
+    public String getConnectionId(String sessionId) {
+        // TerminalSessionEntity 已有 connectionId 字段（open 时写入），这里只是把它暴露给工具层（Q3b）
+        TerminalSessionEntity entity = sessions.get(sessionId);
+        return entity == null ? null : entity.getConnectionId();
+    }
+
     /** 清理指定连接下的全部旧终端会话（重开终端、避免通道泄漏） */
     private void closeByConnectionId(String connectionId) {
         for (TerminalSessionEntity entity : sessions.values()) {

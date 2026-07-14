@@ -44,6 +44,9 @@ public class ReActEventDTO {
     /** 步数信息（round_end 时） */
     private StepInfo stepInfo;
 
+    /** 错误分析建议（tool_result 失败时，来自工具 analyzeFailure 规则匹配） */
+    private String analysis;
+
     /**
      * ReAct 轮次进度信息。
      */

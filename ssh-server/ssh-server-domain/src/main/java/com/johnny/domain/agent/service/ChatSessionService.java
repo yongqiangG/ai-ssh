@@ -1,7 +1,7 @@
 package com.johnny.domain.agent.service;
 
 import com.google.adk.sessions.Session;
-import com.johnny.domain.agent.model.RunnerHolder;
+import com.johnny.domain.agent.model.AiAgentRegisterVO;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
 import jakarta.annotation.Resource;
@@ -34,7 +34,7 @@ public class ChatSessionService {
      * @param userId  用户标识
      */
     public String createSession(String agentId, String userId) {
-        RunnerHolder holder = agentRunnerRegistry.get(agentId);
+        AiAgentRegisterVO holder = agentRunnerRegistry.get(agentId);
 
         return userSessions.computeIfAbsent(userId, uid -> {
             // ADK 会话由 SessionService 管理（InMemoryRunner 为内存会话）；appName 作命名空间

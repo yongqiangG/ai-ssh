@@ -77,8 +77,8 @@ public class ChatController {
         log.info("ReAct 流式对话开始 agentId={} userId={} sessionId={}",
                 req.getAgentId(), req.getUserId(), req.getSessionId());
 
-        // 3 分钟超时；ADK 一次 runAsync 通常远小于此
-        ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
+        // 10 分钟超时（Q11：多轮工具调用 + LLM 推理可能较长；原 3 分钟）
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter(10 * 60 * 1000L);
 
         // 构造上下文（emitter 塞入，后续节点共享）
         ReActContext ctx = new ReActContext();

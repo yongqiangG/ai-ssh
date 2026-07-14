@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../types";
+import CommandBlock from "./CommandBlock";
 import Icon from "./Icon";
 import styles from "./MessageBubble.module.css";
 
@@ -65,6 +66,10 @@ export default function MessageBubble({
       </div>
       <div className={`${styles.bubble} ${isUser ? styles.userBubble : styles.aiBubble}`}>
         <div className={styles.content}>
+          {!isUser &&
+            message.toolCalls?.map((tc) => (
+              <CommandBlock key={tc.toolCallId} call={tc} />
+            ))}
           {isUser ? message.content : message.content.slice(0, visible)}
           {typing && <span className={styles.caret} />}
         </div>

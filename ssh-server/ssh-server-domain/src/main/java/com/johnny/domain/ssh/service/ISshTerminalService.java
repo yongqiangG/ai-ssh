@@ -60,6 +60,14 @@ public interface ISshTerminalService {
      */
     void close(String sessionId);
 
+    /**
+     * 由终端 sessionId 反查 SSH 连接 id（供 AI 工具层定位 exec 通道，Q3b）。
+     *
+     * @param sessionId 终端会话 id
+     * @return 对应 connectionId；会话不存在返回 null（工具层判空转错误 Map）
+     */
+    String getConnectionId(String sessionId);
+
     /** 打开终端命令（纯 POJO，字段即入参） */
     class OpenCmd {
         public String connectionId;

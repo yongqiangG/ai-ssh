@@ -1,8 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Agent, ChatMessage, Conversation } from "../types";
+import type { Agent, ChatMessage, Conversation, ToolCall } from "../types";
 import { createId } from "../utils/id";
 import { createSession, queryAgents, streamChat } from "../api/chat";
+import { getTerminalSessionId } from "../terminal/terminalManager";
+import { useTerminalStore } from "./terminalStore";
 
 interface ChatState {
   agents: Agent[];
@@ -13,6 +15,11 @@ interface ChatState {
   sending: boolean;
   /** 本次会话内「刚到达」的 AI 消息 id（不持久化） */
   freshId: string | null;
+  /** 全局历史命令（跨会话共享，去重+提末尾，上限 50，持久化 localStorage） */
+  cmdHistory: string[];
+
+  /** 记录一条历史命令（去重+提末尾+上限 50） */
+  pushCmdHistory: (cmd: string) => void;
 
   /** 从后端拉取智能体列表（启动时调一次） */
   loadAgents: () => Promise<void>;
@@ -55,6 +62,7 @@ export const useChatStore = create<ChatState>()(
         agentId: "",
         sending: false,
         freshId: null,
+        cmdHistory: [],
 
         loadAgents: async () => {
           // agents 已加载：补全可能为空的 agentId，避免重复请求后仍无默认选中
@@ -99,9 +107,22 @@ export const useChatStore = create<ChatState>()(
 
         setAgent: (id) => set({ agentId: id }),
 
+        pushCmdHistory: (cmd) => {
+          const c = cmd.trim();
+          if (!c) return;
+          set((s) => {
+            const filtered = s.cmdHistory.filter((h) => h !== c);
+            const next = [...filtered, c];
+            if (next.length > 50) next.splice(0, next.length - 50);
+            return { cmdHistory: next };
+          });
+        },
+
         sendMessage: async (text) => {
           const content = text.trim();
           if (!content || get().sending) return;
+
+          get().pushCmdHistory(content);
 
           const agentId = get().agentId;
           const userMsg: ChatMessage = {
@@ -172,13 +193,51 @@ export const useChatStore = create<ChatState>()(
               }));
             }
 
+            // 取活跃终端 sessionId（让 AI 工具能操作用户终端）；无活跃终端则不带
+            const activeConnId = useTerminalStore.getState().activeId;
+            const terminalSessionId = activeConnId
+              ? getTerminalSessionId(activeConnId)
+              : null;
+
             // 发起流式对话
             abortRef = streamChat({
               agentId,
               sessionId,
               message: content,
+              terminalSessionId,
               onText: (full) => {
                 updateMessage(convId!, assistantId, (m) => ({ ...m, content: full }));
+              },
+              onToolCall: (e) => {
+                // 工具调用开始 → push 到 assistant 消息的 toolCalls
+                updateMessage(convId!, assistantId, (m) => ({
+                  ...m,
+                  toolCalls: [
+                    ...(m.toolCalls ?? []),
+                    {
+                      toolCallId: e.toolCallId ?? "",
+                      toolName: e.toolName ?? "",
+                      command: e.content,
+                      status: "running",
+                    } as ToolCall,
+                  ],
+                }));
+              },
+              onToolResult: (e) => {
+                // 工具执行完成 → 按 toolCallId 配对更新状态/输出
+                updateMessage(convId!, assistantId, (m) => ({
+                  ...m,
+                  toolCalls: (m.toolCalls ?? []).map((tc) =>
+                    tc.toolCallId === e.toolCallId
+                      ? {
+                          ...tc,
+                          status: (e.status as ToolCall["status"]) ?? "success",
+                          output: e.content,
+                          analysis: e.analysis,
+                        }
+                      : tc
+                  ),
+                }));
               },
               onDone: () => {
                 abortRef = null;
@@ -212,6 +271,7 @@ export const useChatStore = create<ChatState>()(
         conversations: s.conversations.map((c) => ({ ...c, sessionId: undefined })),
         currentId: s.currentId,
         agentId: s.agentId,
+        cmdHistory: s.cmdHistory,
       }),
     }
   )

@@ -29,4 +29,7 @@ public class ChatRequestDTO {
 
     /** 用户消息内容 */
     private String message;
+
+    /** 当前绑定的终端会话 id（可空，无活跃终端时不带；后端据此让工具定位 SSH 连接） */
+    private String terminalSessionId;
 }

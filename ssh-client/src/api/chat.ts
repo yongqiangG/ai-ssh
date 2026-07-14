@@ -17,6 +17,8 @@ export interface ReActEvent {
   toolCallId?: string;
   toolName?: string;
   status?: string;
+  /** 工具失败时的中文建议（tool_result，对应后端 ReActEventDTO.analysis） */
+  analysis?: string;
   stepInfo?: {
     currentStep: number;
     maxSteps: number;
@@ -50,8 +52,14 @@ export interface StreamChatOptions {
   agentId: string;
   sessionId: string;
   message: string;
+  /** 当前活跃终端 sessionId（让 AI 工具能操作用户终端）；null/undefined 时不带 */
+  terminalSessionId?: string | null;
   /** 收到累积全文（text 事件）时回调，前端据此整体替换消息 content */
   onText: (fullText: string) => void;
+  /** 工具调用开始（tool_call 事件）：content 为命令文本 */
+  onToolCall?: (e: ReActEvent) => void;
+  /** 工具执行完成（tool_result 事件）：content 为输出，analysis 为失败建议 */
+  onToolResult?: (e: ReActEvent) => void;
   /** 流正常结束（reader done）时回调 */
   onDone: (finalText: string) => void;
   /** 出错回调 */
@@ -84,6 +92,7 @@ export function streamChat(opts: StreamChatOptions): () => void {
       userId: getUserId(),
       sessionId: opts.sessionId,
       message: opts.message,
+      ...(opts.terminalSessionId ? { terminalSessionId: opts.terminalSessionId } : {}),
     }),
     signal: controller.signal,
   })
@@ -171,6 +180,14 @@ function handleEvent(
       opts.onError(evt.content ?? "未知错误");
       break;
     }
-    // tool_call / tool_result / round_end：最小闭环前端不渲染时间线，忽略
+    case "tool_call": {
+      opts.onToolCall?.(evt);
+      break;
+    }
+    case "tool_result": {
+      opts.onToolResult?.(evt);
+      break;
+    }
+    // round_end：前端不渲染时间线，忽略
   }
 }

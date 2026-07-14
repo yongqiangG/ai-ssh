@@ -79,6 +79,14 @@ export function setOnSessionClosed(listener: SessionClosedListener | null): void
   onSessionClosed = listener;
 }
 
+/**
+ * 按 connectionId 取该终端的后端 sessionId（open 请求返回后才有，未 open 完成为 null）。
+ * 供 chatStore.sendMessage 带上 terminalSessionId（让 AI 工具定位活跃终端）。
+ */
+export function getTerminalSessionId(connectionId: string): string | null {
+  return terminals.get(connectionId)?.sessionId ?? null;
+}
+
 /** 该连接是否已有终端实例（含已断连但日志仍保留的） */
 export function hasTerminal(connectionId: string): boolean {
   return terminals.has(connectionId);

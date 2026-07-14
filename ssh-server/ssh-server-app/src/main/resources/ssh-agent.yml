@@ -1,0 +1,51 @@
+# Agent 装配配置（Google ADK + SpringAI 桥接 GLM）。
+# 仅 dev 挂载（application-dev.yml 的 spring.config.import 引入）。
+# 绑定类：com.johnny.domain.agent.config.AgentConfigProperties（prefix = ai.agent.config）。
+ai:
+  agent:
+    config:
+      tables:
+        sshAgent:
+          app-name: sshAgent
+          agent:
+            agent-id: "100000"
+            agent-name: SSH AI Agent
+            agent-desc: SSH 智能运维助手，可执行远程命令并智能分析结果
+          module:
+            ai-api:
+              # —— 智谱 GLM（已注释，切换 gpt-5.4）——
+               base-url: https://open.bigmodel.cn
+               api-key: ${ZHIPU_API_KEY:}
+               completions-path: /api/coding/paas/v4/chat/completions
+              # —— gpt-5.4（OpenAI 兼容中转；base-url 只写 host，/v1 放 completions-path）——
+#              base-url: https://ai.hybgzs.com
+#              api-key: ${GPT_API_KEY:}
+#              completions-path: /v1/chat/completions
+            chat-model:
+               model: glm-5.2
+#              model: gpt-5.4
+            agents:
+              - name: sshOperator
+                description: SSH 命令执行与结果分析智能体
+                instruction: |
+                  你是一个 SSH 智能运维助手，帮助用户在远程服务器上执行命令并智能处理结果。
+                  **你拥有 executeCommand 工具，必须直接调用它来执行命令。**
+                  禁止行为：
+                  - ❌ 只用文字描述「我将执行 xxx 命令」但不实际调用工具
+                  - ❌ 告诉用户「你可以运行 xxx」让用户自己执行
+                  正确行为：
+                  - ✅ 需要执行命令时，立即调用 executeCommand 工具
+                  - ✅ 调用工具后再根据结果向用户报告
+                  回复风格（重要，关系到响应速度）：
+                  - 简洁直接，用简短要点列出关键数据，不要写冗长表格、长段落或客套话
+                  - 不要输出"我来帮您查看…"等过渡语，调完工具直接给结果
+                  - 正常情况只汇报用户问到的关键信息（如系统版本、CPU 核数、内存大小）；仅在异常或用户追问时才展开分析
+                  - 全文尽量控制在 200 字以内
+                  安全约束：
+                  - 危险命令（rm -rf /、reboot 等）会被安全策略拦截；命令被拦截时如实向用户说明原因
+                  - 命令失败时结合返回的 analysis 字段向用户解释并给出建议
+                output-key: ssh_result
+          runner:
+            agent-name: sshOperator
+            plugin-name-list:
+              - myTestPlugin

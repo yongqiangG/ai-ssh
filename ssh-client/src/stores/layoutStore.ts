@@ -37,6 +37,8 @@ interface LayoutState {
   applyRightDrag: (dx: number) => void;
   toggleSidebar: () => void;
   toggleTerminal: () => void;
+  /** 直接设置终端面板显隐（命令卡片「执行」后强制显示终端用） */
+  setShowTerminal: (v: boolean) => void;
   toggleAiPanel: () => void;
   setActiveSidebarView: (v: SidebarView) => void;
 }
@@ -69,6 +71,7 @@ export const useLayoutStore = create<LayoutState>()(
         })),
       toggleSidebar: () => set((s) => ({ showSidebar: !s.showSidebar })),
       toggleTerminal: () => set((s) => ({ showTerminal: !s.showTerminal })),
+      setShowTerminal: (v) => set({ showTerminal: v }),
       toggleAiPanel: () => set((s) => ({ showAiPanel: !s.showAiPanel })),
       setActiveSidebarView: (v) => set({ activeSidebarView: v }),
     }),

@@ -98,4 +98,37 @@ public abstract class AbstractReActSupport
             log.warn("发送 error 事件失败: {}", e.getMessage());
         }
     }
+
+    /** 发送工具调用开始事件（tool_call）：LLM 决定调用工具时。content 为命令文本（args 的 command 字段）。 */
+    protected void sendToolCallEvent(ResponseBodyEmitter emitter, String toolCallId, String toolName, String argsText) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("tool_call");
+        event.setToolCallId(toolCallId);
+        event.setToolName(toolName);
+        event.setContent(argsText);
+        event.setStatus("running");
+        writeNdjson(emitter, event);
+    }
+
+    /** 发送工具结果事件（tool_result）：工具执行完成（含成败 + 输出 + 错误分析）。 */
+    protected void sendToolResultEvent(ResponseBodyEmitter emitter, String toolCallId, String toolName,
+                                       String status, String output, String analysis) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("tool_result");
+        event.setToolCallId(toolCallId);
+        event.setToolName(toolName);
+        event.setStatus(status);           // "success" / "error"
+        event.setContent(output);          // stdout（或含 stderr 的错误信息）
+        event.setAnalysis(analysis);       // 失败时的中文建议（可能为 null）
+        writeNdjson(emitter, event);
+    }
+
+    /** 把 ReActEventDTO 序列化成 NDJSON 行（JSON + '\n'）写入 emitter。 */
+    private void writeNdjson(ResponseBodyEmitter emitter, ReActEventDTO dto) {
+        try {
+            emitter.send(JSON.toJSONString(dto) + "\n");
+        } catch (Exception e) {
+            log.warn("发送 {} 事件失败: {}", dto.getEvent(), e.getMessage());
+        }
+    }
 }

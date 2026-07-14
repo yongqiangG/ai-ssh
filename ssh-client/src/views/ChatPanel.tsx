@@ -16,7 +16,10 @@ export default function ChatPanel() {
 
   const current = conversations.find((c) => c.id === currentId) ?? null;
   const allMessages = current?.messages ?? [];
+  const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // 用户是否手动上滚离开底部（用 ref 同步，避免流式 effect 读到 state 异步旧值导致竞态）
+  const userScrolledUpRef = useRef(false);
 
   // 启动时从后端拉取智能体列表
   useEffect(() => {
@@ -26,6 +29,20 @@ export default function ChatPanel() {
   // 稳定引用：保持滚动到底
   const scrollToEnd = useCallback(() => {
     endRef.current?.scrollIntoView({ block: "end" });
+  }, []);
+
+  // 打字机每字符增长时的滚动回调（传给 MessageBubble）——仅在用户没上滚时滚，
+  // 否则打字机高频 scrollToEnd 会把用户上滚拉回（方案1 关键修复点）。
+  const onContentGrow = useCallback(() => {
+    if (!userScrolledUpRef.current) scrollToEnd();
+  }, [scrollToEnd]);
+
+  // 50px 阈值：距底部 50px 内视为「在底部」。用户上滚离开底部 → userScrolledUpRef=true，暂停 auto-scroll。
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 50;
+    userScrolledUpRef.current = !atBottom;
   }, []);
 
   // sending 中尾部「空 assistant 占位消息」（content 还没被流式填充）不单独渲染气泡，
@@ -43,9 +60,26 @@ export default function ChatPanel() {
   // 流式时同一条 assistant 消息 content 增长，借此触发滚动
   const lastContent =
     visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].content : "";
+  // 流式时仅在用户没上滚时自动到底（方案1：AI 回复时可上滚查看历史）
   useEffect(() => {
+    if (!userScrolledUpRef.current) scrollToEnd();
+  }, [visibleMessages.length, lastContent, scrollToEnd]);
+
+  // 切换会话 → 强制回底（看新会话最新消息）
+  useEffect(() => {
+    userScrolledUpRef.current = false;
     scrollToEnd();
-  }, [visibleMessages.length, sending, lastContent, scrollToEnd]);
+  }, [currentId, scrollToEnd]);
+
+  // 用户发新消息（sending 上升沿）→ 强制回底（看新回复）
+  const prevSending = useRef(false);
+  useEffect(() => {
+    if (sending && !prevSending.current) {
+      userScrolledUpRef.current = false;
+      scrollToEnd();
+    }
+    prevSending.current = sending;
+  }, [sending, scrollToEnd]);
 
   return (
     <section className="panel">
@@ -69,7 +103,7 @@ export default function ChatPanel() {
         </div>
       </div>
 
-      <div className="panel-body">
+      <div className="panel-body" ref={scrollRef} onScroll={onScroll}>
         {allMessages.length === 0 ? (
           <EmptyState
             icon="bot"
@@ -81,7 +115,7 @@ export default function ChatPanel() {
             {visibleMessages.map((m) => (
               // 仅对「本会话刚到达的 AI 回复」播放打字动画（freshId）；历史消息直接全量显示。
               // 流式 content 增长时，useTypewriter 会从当前可见长度继续逐字追赶，呈现打字机效果。
-              <MessageBubble key={m.id} message={m} animate={m.id === freshId} onContentGrow={scrollToEnd} />
+              <MessageBubble key={m.id} message={m} animate={m.id === freshId} onContentGrow={onContentGrow} />
             ))}
             {showTyping && (
               <div className={styles.typingRow}>

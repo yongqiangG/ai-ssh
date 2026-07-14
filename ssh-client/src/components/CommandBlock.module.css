@@ -1,0 +1,92 @@
+.block {
+  margin: 6px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: ui-monospace, SFMono-Regular, "Menlo", "Consolas", monospace;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #fff;
+  background: #c9a227; /* 执行中：黄 */
+}
+
+.badge[data-ok="true"] {
+  background: #3fb950; /* 成功：绿 */
+}
+
+.badge[data-ok="false"][data-running="false"] {
+  background: #f85149; /* 失败：红 */
+}
+
+.cmd {
+  flex: 1;
+  color: #9cdcfe;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.toggle {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.iconBtn {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.iconBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #d4d4d4;
+}
+.iconBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.output {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #d4d4d4;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.analysis {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  color: #dcb67a;
+  white-space: pre-wrap;
+}

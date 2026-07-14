@@ -25,6 +25,9 @@ public class ReActContext {
     /** 本轮用户消息 */
     private String message;
 
+    /** 当前请求绑定的终端会话 id（可空）；由 RootNode 从 ChatRequestDTO 填入，AiCallNode 经 ITL 透传给工具 */
+    private String terminalSessionId;
+
     /** SSE/NDJSON 发射器（向客户端推送 ReAct 事件） */
     private ResponseBodyEmitter emitter;
 
