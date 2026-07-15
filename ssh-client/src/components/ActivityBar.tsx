@@ -12,8 +12,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "servers", icon: "server", label: "服务器" },
-  { id: "files", icon: "files", label: "文件目录" },
+  { id: "servers", icon: "terminal", label: "终端" },
+  { id: "files", icon: "files", label: "文件" },
   { id: "sftp", icon: "sftp", label: "SFTP 传输" },
 ];
 
@@ -22,6 +22,8 @@ export default function ActivityBar() {
   const showSidebar = useLayoutStore((s) => s.showSidebar);
   const setActiveSidebarView = useLayoutStore((s) => s.setActiveSidebarView);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
+  const centerView = useLayoutStore((s) => s.centerView);
+  const setCenterView = useLayoutStore((s) => s.setCenterView);
 
   const mode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggle);
@@ -29,11 +31,20 @@ export default function ActivityBar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const onItemClick = (id: SidebarView) => {
-    if (showSidebar && active === id) {
-      toggleSidebar();
+    if (id === "sftp") {
+      // SFTP：中间工作区切到 SFTP 面板
+      setCenterView("sftp");
       return;
     }
-    setActiveSidebarView(id);
+    if (id === "servers") {
+      // 终端：切回终端工作区 + 侧栏显示连接列表
+      setCenterView("terminal");
+      setActiveSidebarView("servers");
+      if (!showSidebar) toggleSidebar();
+      return;
+    }
+    // files：纯侧栏视图
+    setActiveSidebarView("files");
     if (!showSidebar) toggleSidebar();
   };
 
@@ -42,7 +53,12 @@ export default function ActivityBar() {
       <nav className={styles.bar} aria-label="侧边导航">
         <div className={styles.top}>
           {NAV_ITEMS.map((item) => {
-            const isActive = showSidebar && active === item.id;
+            const isActive =
+              item.id === "sftp"
+                ? centerView === "sftp"
+                : item.id === "servers"
+                ? centerView === "terminal"
+                : showSidebar && active === item.id;
             return (
               <button
                 key={item.id}

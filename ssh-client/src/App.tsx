@@ -4,6 +4,7 @@ import LeftSidebar from "./components/LeftSidebar";
 import Splitter from "./components/Splitter";
 import TerminalPanel from "./views/TerminalPanel";
 import ChatPanel from "./views/ChatPanel";
+import SftpPanel from "./views/SftpPanel";
 import EmptyState from "./components/EmptyState";
 import { useLayoutStore } from "./stores/layoutStore";
 import styles from "./App.module.css";
@@ -19,6 +20,7 @@ export default function App() {
   const applyLeftDrag = useLayoutStore((s) => s.applyLeftDrag);
   const applyRightDrag = useLayoutStore((s) => s.applyRightDrag);
   const toggleTerminal = useLayoutStore((s) => s.toggleTerminal);
+  const centerView = useLayoutStore((s) => s.centerView);
 
   const sidebarWidth = ACTIVITY_BAR_WIDTH + leftWidth;
 
@@ -44,8 +46,10 @@ export default function App() {
           </>
         )}
 
-        <div className={styles.center}>
-          {showTerminal ? (
+        <div id="work-center" className={styles.center}>
+          {centerView === "sftp" ? (
+            <SftpPanel />
+          ) : showTerminal ? (
             <TerminalPanel />
           ) : (
             <EmptyState

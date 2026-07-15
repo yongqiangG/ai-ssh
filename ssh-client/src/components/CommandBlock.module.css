@@ -53,21 +53,41 @@
 
 .iconBtn {
   flex-shrink: 0;
-  padding: 2px 6px;
-  border: none;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
-  font-size: 12px;
   line-height: 1;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
-.iconBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #d4d4d4;
+/* 复制：明亮 accent 描边 */
+.copyBtn {
+  color: var(--vsc-accent);
+  border-color: var(--vsc-accent);
+}
+.copyBtn:hover {
+  background: var(--vsc-accent);
+  color: var(--vsc-accent-fg);
+}
+/* 执行：accent 实心（主操作，最明亮） */
+.runBtn {
+  color: var(--vsc-accent-fg);
+  background: var(--vsc-accent);
+  border-color: var(--vsc-accent);
+}
+.runBtn:hover:not(:disabled) {
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 .iconBtn:disabled {
-  opacity: 0.35;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.15);
   cursor: not-allowed;
 }
 

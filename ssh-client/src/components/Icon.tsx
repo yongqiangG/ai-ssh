@@ -22,7 +22,10 @@ export type IconName =
   | "moon"
   | "settings"
   | "menu"
-  | "check";
+  | "check"
+  | "folder"
+  | "file"
+  | "copy";
 
 // 零依赖内联 SVG（feather/lucide 风格，stroke=currentColor）
 const PATHS: Record<IconName, ReactElement> = {
@@ -135,6 +138,21 @@ const PATHS: Record<IconName, ReactElement> = {
     </>
   ),
   check: <path d="M20 6L9 17l-5-5" />,
+  folder: (
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+  ),
+  file: (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </>
+  ),
 };
 
 interface IconProps {

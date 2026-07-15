@@ -97,7 +97,13 @@ export default function TerminalPanel() {
   const active = tabs.find((t) => t.connectionId === activeId) ?? null;
 
   return (
-    <section className="panel" style={{ background: "var(--terminal-bg)" }}>
+    <section
+      className="panel"
+      style={{
+        background:
+          tabs.length > 0 ? "var(--terminal-bg)" : "var(--vsc-sidebar-bg)",
+      }}
+    >
       <div className="panel-header">
         <div className={styles.titleWrap}>
           <Icon name="terminal" size={14} className={styles.titleIcon} />

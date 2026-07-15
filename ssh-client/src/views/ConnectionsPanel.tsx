@@ -31,6 +31,7 @@ export default function ConnectionsPanel() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const openTab = useTerminalStore((s) => s.openTab);
+  const activeId = useTerminalStore((s) => s.activeId);
 
   useEffect(() => {
     void fetchList();
@@ -109,6 +110,7 @@ export default function ConnectionsPanel() {
               <ConnectionCard
                 key={c.connectionId}
                 connection={c}
+                isCurrent={c.connectionId === activeId}
                 pendingDelete={pendingDelete === c.connectionId}
                 onOpen={() => void openTerminalFor(c)}
                 onToggle={() =>
@@ -145,6 +147,8 @@ export default function ConnectionsPanel() {
 
 interface ConnectionCardProps {
   connection: SshConnection;
+  /** 是否当前选中（终端活跃连接，与 SFTP 连接共用锚点） */
+  isCurrent: boolean;
   pendingDelete: boolean;
   /** 点击卡片主体：自动连接并打开终端 */
   onOpen: () => void;
@@ -157,6 +161,7 @@ interface ConnectionCardProps {
 
 function ConnectionCard({
   connection,
+  isCurrent,
   pendingDelete,
   onOpen,
   onToggle,
@@ -170,7 +175,7 @@ function ConnectionCard({
   const isConnecting = status === "connecting";
 
   return (
-    <div className={styles.card} title={`${connection.username}@${connection.host}:${connection.port}`}>
+    <div className={`${styles.card} ${isCurrent ? styles.cardActive : ""}`} title={`${connection.username}@${connection.host}:${connection.port}`}>
       <div className={`${styles.cardMain} ${styles.clickable}`} onClick={onOpen}>
         <span className={`${styles.dot} ${styles[status]}`} />
         <div className={styles.nameWrap}>

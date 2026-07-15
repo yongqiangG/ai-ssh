@@ -3,6 +3,9 @@ import { persist } from "zustand/middleware";
 
 export type SidebarView = "servers" | "files" | "sftp";
 
+/** 中间工作区视图：终端 ⇄ SFTP（点 ActivityBar sftp 按钮切换） */
+export type CenterView = "terminal" | "sftp";
+
 export const MIN_LEFT_WIDTH = 220;
 export const MAX_LEFT_WIDTH = 560;
 export const MIN_RIGHT_WIDTH = 300;
@@ -25,6 +28,8 @@ interface LayoutState {
 
   /** LeftSidebar 当前激活的视图。 */
   activeSidebarView: SidebarView;
+  /** 中间工作区当前视图（终端 / SFTP）。 */
+  centerView: CenterView;
 
   setLeftWidth: (w: number) => void;
   setRightWidth: (w: number) => void;
@@ -41,6 +46,8 @@ interface LayoutState {
   setShowTerminal: (v: boolean) => void;
   toggleAiPanel: () => void;
   setActiveSidebarView: (v: SidebarView) => void;
+  /** 切换中间工作区视图（终端 ⇄ SFTP） */
+  setCenterView: (v: CenterView) => void;
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -56,6 +63,7 @@ export const useLayoutStore = create<LayoutState>()(
       showTerminal: true,
       showAiPanel: true,
       activeSidebarView: "servers",
+      centerView: "terminal",
 
       setLeftWidth: (w) =>
         set({ leftWidth: clamp(w, MIN_LEFT_WIDTH, MAX_LEFT_WIDTH) }),
@@ -74,6 +82,7 @@ export const useLayoutStore = create<LayoutState>()(
       setShowTerminal: (v) => set({ showTerminal: v }),
       toggleAiPanel: () => set((s) => ({ showAiPanel: !s.showAiPanel })),
       setActiveSidebarView: (v) => set({ activeSidebarView: v }),
+      setCenterView: (v) => set({ centerView: v }),
     }),
     {
       name: "ai-ssh:layout",
@@ -84,6 +93,7 @@ export const useLayoutStore = create<LayoutState>()(
         showTerminal: s.showTerminal,
         showAiPanel: s.showAiPanel,
         activeSidebarView: s.activeSidebarView,
+        centerView: s.centerView,
       }),
     }
   )

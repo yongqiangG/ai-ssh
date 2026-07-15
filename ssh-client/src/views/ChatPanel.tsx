@@ -113,9 +113,8 @@ export default function ChatPanel() {
         ) : (
           <div className={styles.messageList}>
             {visibleMessages.map((m) => (
-              // 仅对「本会话刚到达的 AI 回复」播放打字动画（freshId）；历史消息直接全量显示。
-              // 流式 content 增长时，useTypewriter 会从当前可见长度继续逐字追赶，呈现打字机效果。
-              <MessageBubble key={m.id} message={m} animate={m.id === freshId} onContentGrow={onContentGrow} />
+              // 仅对正在流式返回的 AI 消息显示末尾光标；内容按服务端 chunk 即时渲染。
+              <MessageBubble key={m.id} message={m} animate={sending && m.id === freshId} onContentGrow={onContentGrow} />
             ))}
             {showTyping && (
               <div className={styles.typingRow}>

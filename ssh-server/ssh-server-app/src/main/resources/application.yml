@@ -8,3 +8,10 @@ spring:
       - "optional:file:./config/application-local.yml"
   profiles:
     active: dev
+  servlet:
+    multipart:
+      # 文件传输上限：覆盖 Spring 默认 1MB，与 SftpController.MAX_UPLOAD_BYTES 对齐
+      max-file-size: 100MB
+      max-request-size: 100MB
+      # ≤10MB 留内存；>10MB 落磁盘临时文件，避免大文件占满堆
+      file-size-threshold: 10MB

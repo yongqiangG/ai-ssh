@@ -1,0 +1,113 @@
+.body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dual {
+  flex: 1 1 auto;
+  display: flex;
+  /* gap 用 1px 透明缝 + 父底色实现分隔线：两 pane 自带底色，中间露出 1px */
+  gap: 1px;
+  background: var(--vsc-border);
+  min-height: 0;
+}
+
+.localPane,
+.remotePane {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--vsc-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.connTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--vsc-fg);
+  background: var(--vsc-input-bg);
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.connDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vsc-green);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+}
+
+.connHint {
+  font-size: 11px;
+  color: var(--vsc-fg-muted);
+}
+
+/* ===== 传输进度（底部内联） ===== */
+.transfers {
+  flex: 0 0 auto;
+  max-height: 130px;
+  overflow-y: auto;
+  border-top: 1px solid var(--vsc-border);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--vsc-bg);
+}
+
+.tx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.txDir {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--vsc-accent);
+}
+
+.txName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vsc-fg);
+}
+
+.txBar {
+  flex: 0 0 100px;
+  height: 4px;
+  background: var(--vsc-secondary-bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.txFill {
+  display: block;
+  height: 100%;
+  background: var(--vsc-accent);
+  transition: width var(--dur-fast) linear;
+}
+
+.txOk {
+  color: var(--vsc-green);
+}
+
+.txErr {
+  color: var(--vsc-red);
+}
