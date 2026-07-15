@@ -142,9 +142,9 @@ install_client_dependencies() {
 }
 
 prepare_windows_bundle_tools() {
-  is_windows_host || return
-  [[ -f "$TAURI_PERSONAL_CONFIG" ]] || return
-  [[ -x "$WIX_TOOLS_DIR/candle.exe" && -x "$WIX_TOOLS_DIR/light.exe" ]] && return
+  is_windows_host || return 0
+  [[ -f "$TAURI_PERSONAL_CONFIG" ]] || return 0
+  [[ -x "$WIX_TOOLS_DIR/candle.exe" && -x "$WIX_TOOLS_DIR/light.exe" ]] && return 0
 
   log "Prepare local WiX tools"
 
