@@ -11,7 +11,10 @@ import org.springframework.stereotype.Component;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Base64;
 
@@ -47,6 +50,9 @@ public class AesGcmSecretCipher implements ISecretCipher {
     @Value("${ssh.crypto.secret-key:}")
     private String configuredKey;
 
+    @Value("${ssh.crypto.local-key-file:}")
+    private String localKeyFile;
+
     private SecretKeySpec keySpec;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -59,6 +65,8 @@ public class AesGcmSecretCipher implements ISecretCipher {
         byte[] keyBytes;
         if (configuredKey != null && !configuredKey.isEmpty()) {
             keyBytes = decodeKey(configuredKey);
+        } else if (environment.acceptsProfiles(Profiles.of("single"))) {
+            keyBytes = loadOrCreateLocalKey();
         } else if (environment.acceptsProfiles(Profiles.of("prod"))) {
             throw new IllegalStateException("生产环境必须配置 ssh.crypto.secret-key（环境变量 SSH_SECRET_KEY），且为 Base64 编码的 32 字节密钥");
         } else {
@@ -79,6 +87,26 @@ public class AesGcmSecretCipher implements ISecretCipher {
             throw new IllegalStateException("ssh.crypto.secret-key 解码后必须为 32 字节（AES-256），实际: " + bytes.length);
         }
         return bytes;
+    }
+
+    private byte[] loadOrCreateLocalKey() {
+        Path keyPath = Path.of(localKeyFile == null || localKeyFile.isBlank()
+                ? Path.of(System.getProperty("user.home"), ".ai-ssh", "secret.key").toString()
+                : localKeyFile);
+        try {
+            if (Files.exists(keyPath)) {
+                return decodeKey(Files.readString(keyPath, StandardCharsets.UTF_8).trim());
+            }
+            Files.createDirectories(keyPath.getParent());
+            byte[] key = new byte[32];
+            secureRandom.nextBytes(key);
+            String encoded = Base64.getEncoder().encodeToString(key);
+            Files.writeString(keyPath, encoded, StandardCharsets.UTF_8);
+            log.info("single 模式已生成本机加密密钥: {}", keyPath);
+            return key;
+        } catch (IOException e) {
+            throw new IllegalStateException("读取或生成本机加密密钥失败: " + keyPath, e);
+        }
     }
 
     @Override

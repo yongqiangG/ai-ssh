@@ -9,6 +9,7 @@ import com.johnny.domain.react.engine.StrategyHandler;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
@@ -51,6 +52,9 @@ public class RunnerNode extends AbstractArmoryNode {
                 .runner(runner)
                 .build();
         String beanName = "aiAgentRunner_" + table.getAgent().getAgentId();
+        if (beanFactory instanceof DefaultListableBeanFactory defaultFactory && defaultFactory.containsSingleton(beanName)) {
+            defaultFactory.destroySingleton(beanName);
+        }
         beanFactory.registerSingleton(beanName, vo);
         log.info("armory[RunnerNode] 完成 agentId={} beanName={} plugins={}",
                 table.getAgent().getAgentId(), beanName, table.getRunner().getPluginNameList());

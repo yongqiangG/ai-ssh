@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import MessageBubble from "../components/MessageBubble";
 import ChatInputBar from "../components/ChatInputBar";
+import LlmSettingsModal from "../components/LlmSettingsModal";
 import { useChatStore } from "../stores/chatStore";
 import styles from "./ChatPanel.module.css";
 
 export default function ChatPanel() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const conversations = useChatStore((s) => s.conversations);
   const currentId = useChatStore((s) => s.currentId);
   const selectConversation = useChatStore((s) => s.selectConversation);
   const sending = useChatStore((s) => s.sending);
   const freshId = useChatStore((s) => s.freshId);
-  const loadAgents = useChatStore((s) => s.loadAgents);
 
   const current = conversations.find((c) => c.id === currentId) ?? null;
   const allMessages = current?.messages ?? [];
@@ -20,11 +21,6 @@ export default function ChatPanel() {
   const endRef = useRef<HTMLDivElement>(null);
   // 用户是否手动上滚离开底部（用 ref 同步，避免流式 effect 读到 state 异步旧值导致竞态）
   const userScrolledUpRef = useRef(false);
-
-  // 启动时从后端拉取智能体列表
-  useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
 
   // 稳定引用：保持滚动到底
   const scrollToEnd = useCallback(() => {
@@ -86,6 +82,14 @@ export default function ChatPanel() {
       <div className="panel-header">
         <span className="panel-title">{current ? current.title : "AI 对话"}</span>
         <div className="panel-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            title="模型设置"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Icon name="settings" size={16} />
+          </button>
           {conversations.length > 1 && (
             <select
               className={styles.convSelect}
@@ -134,6 +138,7 @@ export default function ChatPanel() {
       </div>
 
       <ChatInputBar />
+      <LlmSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </section>
   );
 }

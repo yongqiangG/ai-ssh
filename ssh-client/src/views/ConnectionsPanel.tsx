@@ -3,7 +3,9 @@ import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
 import BackendSettingsModal from "../components/BackendSettingsModal";
+import { useBackendStore } from "../stores/backendStore";
 import { useConnectionStore } from "../stores/connectionStore";
+import { useLayoutStore } from "../stores/layoutStore";
 import { useTerminalStore } from "../stores/terminalStore";
 import type { SshConnection } from "../api/sshConnection";
 import type { ConnectionState } from "../types";
@@ -24,6 +26,9 @@ export default function ConnectionsPanel() {
   const connect = useConnectionStore((s) => s.connect);
   const disconnect = useConnectionStore((s) => s.disconnect);
   const remove = useConnectionStore((s) => s.remove);
+  const readyStatus = useBackendStore((s) => s.readyStatus);
+  const readyMessage = useBackendStore((s) => s.readyMessage);
+  const waitForReady = useBackendStore((s) => s.waitForReady);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SshConnection | null>(null);
@@ -32,10 +37,25 @@ export default function ConnectionsPanel() {
 
   const openTab = useTerminalStore((s) => s.openTab);
   const activeId = useTerminalStore((s) => s.activeId);
+  const setCenterView = useLayoutStore((s) => s.setCenterView);
+  const setShowTerminal = useLayoutStore((s) => s.setShowTerminal);
 
   useEffect(() => {
-    void fetchList();
-  }, [fetchList]);
+    if (readyStatus !== "ready") return;
+    const s = useConnectionStore.getState();
+    if (s.connections.length === 0 && !s.loading) void s.fetchList();
+  }, [readyStatus]);
+
+  const reloadAfterReady = async () => {
+    await waitForReady();
+    await fetchList();
+  };
+
+  const activateTerminal = (c: SshConnection) => {
+    setCenterView("terminal");
+    setShowTerminal(true);
+    openTab(c.connectionId, c.name);
+  };
 
   /**
    * 点击卡片主体：自动发起连接并打开终端（无需先选中再点连接按钮）。
@@ -44,14 +64,32 @@ export default function ConnectionsPanel() {
   const openTerminalFor = async (c: SshConnection) => {
     if (c.status === "connecting") return;
     if (c.status === "connected") {
-      openTab(c.connectionId, c.name);
+      activateTerminal(c);
       return;
     }
     try {
       await connect(c.connectionId);
-      openTab(c.connectionId, c.name);
+      activateTerminal(c);
     } catch {
       // 连接失败：store 已把该连接置为 error 并显示在卡片上，这里无需额外处理
+    }
+  };
+
+  const toggleConnection = async (c: SshConnection) => {
+    if (c.status === "connecting") return;
+    if (c.status === "connected") {
+      try {
+        await disconnect(c.connectionId);
+      } catch {
+        // store 会刷新状态并展示错误，这里不打断用户操作。
+      }
+      return;
+    }
+    try {
+      await connect(c.connectionId);
+      activateTerminal(c);
+    } catch {
+      // 连接失败时保持在列表，错误状态由 store 展示。
     }
   };
 
@@ -86,7 +124,25 @@ export default function ConnectionsPanel() {
       </div>
 
       <div className="panel-body">
-        {loading && connections.length === 0 ? (
+        {readyStatus === "checking" ? (
+          <EmptyState
+            icon="server"
+            title="正在启动后端服务"
+            hint="服务就绪后会自动加载服务器列表"
+          />
+        ) : readyStatus === "fail" ? (
+          <EmptyState
+            icon="server"
+            title="后端服务未就绪"
+            hint={readyMessage ?? "请检查 sidecar 启动状态或后端服务地址"}
+            action={
+              <button className="btn" onClick={() => void reloadAfterReady()}>
+                <Icon name="refresh" size={14} />
+                重试
+              </button>
+            }
+          />
+        ) : loading && connections.length === 0 ? (
           <div className={styles.list}>
             <div className={styles.card}>
               <span className={styles.sub}>加载中…</span>
@@ -113,11 +169,7 @@ export default function ConnectionsPanel() {
                 isCurrent={c.connectionId === activeId}
                 pendingDelete={pendingDelete === c.connectionId}
                 onOpen={() => void openTerminalFor(c)}
-                onToggle={() =>
-                  void (c.status === "connected"
-                    ? disconnect(c.connectionId)
-                    : connect(c.connectionId))
-                }
+                onToggle={() => void toggleConnection(c)}
                 onEdit={() => openEdit(c)}
                 onAskDelete={() => setPendingDelete(c.connectionId)}
                 onCancelDelete={() => setPendingDelete(null)}

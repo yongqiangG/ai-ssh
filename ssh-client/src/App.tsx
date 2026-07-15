@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import Header from "./components/Header";
 import ActivityBar from "./components/ActivityBar";
 import LeftSidebar from "./components/LeftSidebar";
@@ -6,6 +7,9 @@ import TerminalPanel from "./views/TerminalPanel";
 import ChatPanel from "./views/ChatPanel";
 import SftpPanel from "./views/SftpPanel";
 import EmptyState from "./components/EmptyState";
+import { useBackendStore } from "./stores/backendStore";
+import { useChatStore } from "./stores/chatStore";
+import { useConnectionStore } from "./stores/connectionStore";
 import { useLayoutStore } from "./stores/layoutStore";
 import styles from "./App.module.css";
 
@@ -21,6 +25,28 @@ export default function App() {
   const applyRightDrag = useLayoutStore((s) => s.applyRightDrag);
   const toggleTerminal = useLayoutStore((s) => s.toggleTerminal);
   const centerView = useLayoutStore((s) => s.centerView);
+  const baseUrl = useBackendStore((s) => s.baseUrl);
+  const waitForReady = useBackendStore((s) => s.waitForReady);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void waitForReady()
+      .then(async () => {
+        if (cancelled) return;
+        await Promise.allSettled([
+          useConnectionStore.getState().fetchList(),
+          useChatStore.getState().loadAgents(),
+        ]);
+      })
+      .catch(() => {
+        // ready 状态和错误信息已写入 backendStore，面板负责展示重试入口。
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [baseUrl, waitForReady]);
 
   const sidebarWidth = ACTIVITY_BAR_WIDTH + leftWidth;
 

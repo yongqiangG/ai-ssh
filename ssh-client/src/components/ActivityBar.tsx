@@ -33,7 +33,9 @@ export default function ActivityBar() {
   const onItemClick = (id: SidebarView) => {
     if (id === "sftp") {
       // SFTP：中间工作区切到 SFTP 面板
+      setActiveSidebarView("servers");
       setCenterView("sftp");
+      if (!showSidebar) toggleSidebar();
       return;
     }
     if (id === "servers") {
@@ -44,6 +46,7 @@ export default function ActivityBar() {
       return;
     }
     // files：纯侧栏视图
+    setCenterView("terminal");
     setActiveSidebarView("files");
     if (!showSidebar) toggleSidebar();
   };
@@ -58,7 +61,7 @@ export default function ActivityBar() {
                 ? centerView === "sftp"
                 : item.id === "servers"
                 ? centerView === "terminal"
-                : showSidebar && active === item.id;
+                : centerView === "terminal" && showSidebar && active === item.id;
             return (
               <button
                 key={item.id}

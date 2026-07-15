@@ -10,6 +10,8 @@ beforeEach(() => {
     baseUrl: "",
     testStatus: "idle",
     testMessage: null,
+    readyStatus: "checking",
+    readyMessage: null,
   });
 });
 
@@ -18,6 +20,20 @@ describe("backendStore", () => {
     useBackendStore.getState().setBaseUrl("http://1.2.3.4:8091");
     expect(useBackendStore.getState().baseUrl).toBe("http://1.2.3.4:8091");
     expect(localStorage.getItem("ai-ssh:baseUrl")).toBe("http://1.2.3.4:8091");
+  });
+
+  it("waitForReady 在 ping 成功后标记 ready", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => okBody });
+    vi.stubGlobal("fetch", fetchMock);
+    useBackendStore.setState({ baseUrl: "http://host:8091" });
+
+    await useBackendStore.getState().waitForReady(100, 1);
+
+    expect(useBackendStore.getState().readyStatus).toBe("ready");
+    expect(useBackendStore.getState().readyMessage).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith("http://host:8091/api/ping", {
+      headers: { "X-User-Id": "default" },
+    });
   });
 
   it("setBaseUrl 会 trim；空串时移除 localStorage", () => {

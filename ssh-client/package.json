@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "scripts\\tauri.cmd",
+    "tauri:raw": "tauri",
     "test": "vitest",
     "test:run": "vitest run"
   },

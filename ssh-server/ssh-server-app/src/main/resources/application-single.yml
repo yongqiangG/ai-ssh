@@ -1,0 +1,41 @@
+server:
+  port: 8091
+
+spring:
+  config:
+    import:
+      - "optional:classpath:ssh-agent.yml"
+      - "optional:classpath:application-local.yml"
+      - "optional:file:./config/application-local.yml"
+  datasource:
+    username: sa
+    password:
+    url: jdbc:h2:file:${user.home}/.ai-ssh/ai-ssh;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:/db/schema-h2.sql
+  h2:
+    console:
+      enabled: false
+
+mybatis:
+  mapper-locations: classpath:/mybatis/mapper/*.xml
+  config-location: classpath:/mybatis/config/mybatis-config.xml
+
+logging:
+  level:
+    root: info
+  config: classpath:logback-spring.xml
+
+ssh:
+  crypto:
+    local-key-file: ${user.home}/.ai-ssh/secret.key
+
+llm:
+  default:
+    provider-name: OpenAI Compatible
+    base-url: https://open.bigmodel.cn
+    completions-path: /api/coding/paas/v4/chat/completions
+    model: glm-5.2

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.johnny.infrastructure.dao.ILlmConfigDao">
+
+    <resultMap id="LlmConfigMap" type="com.johnny.infrastructure.dao.po.LlmConfigPO">
+        <id column="id" property="id"/>
+        <result column="config_id" property="configId"/>
+        <result column="provider_name" property="providerName"/>
+        <result column="base_url" property="baseUrl"/>
+        <result column="api_key" property="apiKey"/>
+        <result column="model" property="model"/>
+        <result column="completions_path" property="completionsPath"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="columns">
+        id, config_id, provider_name, base_url, api_key, model, completions_path, updated_at
+    </sql>
+
+    <select id="queryByConfigId" parameterType="java.lang.String" resultMap="LlmConfigMap">
+        SELECT <include refid="columns"/>
+        FROM llm_config
+        WHERE config_id = #{configId}
+    </select>
+
+    <insert id="insert" parameterType="com.johnny.infrastructure.dao.po.LlmConfigPO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO llm_config
+            (config_id, provider_name, base_url, api_key, model, completions_path)
+        VALUES
+            (#{configId}, #{providerName}, #{baseUrl}, #{apiKey}, #{model}, #{completionsPath})
+    </insert>
+
+    <update id="update" parameterType="com.johnny.infrastructure.dao.po.LlmConfigPO">
+        UPDATE llm_config
+        SET provider_name    = #{providerName},
+            base_url         = #{baseUrl},
+            api_key          = #{apiKey},
+            model            = #{model},
+            completions_path = #{completionsPath},
+            updated_at       = CURRENT_TIMESTAMP
+        WHERE config_id = #{configId}
+    </update>
+
+</mapper>

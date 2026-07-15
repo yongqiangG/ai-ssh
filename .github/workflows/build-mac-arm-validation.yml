@@ -1,0 +1,65 @@
+name: Build macOS ARM Validation Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos-arm:
+    name: Build macOS ARM package
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ssh-client/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ssh-client/src-tauri/target
+          key: macos-arm-cargo-${{ hashFiles('ssh-client/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            macos-arm-cargo-
+
+      - name: Build validation package
+        env:
+          CI: "true"
+          APPLE_SIGNING_IDENTITY: "-"
+          TAURI_TARGET: aarch64-apple-darwin
+        run: bash scripts/build-personal.sh
+
+      - name: Upload macOS bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-client-macos-arm-validation
+          if-no-files-found: error
+          path: |
+            ssh-client/src-tauri/target/release/bundle/macos/**
+            ssh-client/src-tauri/target/release/bundle/dmg/**
+            ssh-client/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/**
+            ssh-client/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/**

@@ -10,6 +10,7 @@
 const BASE_URL_KEY = "ai-ssh:baseUrl";
 const USER_ID_KEY = "ai-ssh:userId";
 const SUCCESS_CODE = "0000";
+const DEFAULT_BASE_URL = import.meta.env.DEV ? "" : "http://127.0.0.1:8091";
 
 /** 后端统一响应结构，对应服务端 Response<T> */
 export interface ApiResponse<T> {
@@ -20,7 +21,7 @@ export interface ApiResponse<T> {
 
 /** 获取后端基地址；"" 表示开发环境走 vite 代理 */
 export function getBaseUrl(): string {
-  return localStorage.getItem(BASE_URL_KEY)?.trim() ?? "";
+  return localStorage.getItem(BASE_URL_KEY)?.trim() || DEFAULT_BASE_URL;
 }
 
 /** 设置并持久化后端基地址 */
