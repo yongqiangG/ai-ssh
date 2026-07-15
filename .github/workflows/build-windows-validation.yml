@@ -1,0 +1,64 @@
+name: Build Windows Validation Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-windows:
+    name: Build Windows package
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ssh-client/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ssh-client/src-tauri/target
+          key: windows-cargo-${{ hashFiles('ssh-client/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            windows-cargo-
+
+      - name: Build validation package
+        env:
+          CI: "true"
+          USE_TAURI_PERSONAL_CONFIG: "false"
+        run: bash scripts/build-personal.sh
+
+      - name: Upload Windows bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-client-windows-validation
+          if-no-files-found: error
+          path: |
+            ssh-client/src-tauri/target/release/bundle/msi/**
+            ssh-client/src-tauri/target/release/bundle/nsis/**

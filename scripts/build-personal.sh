@@ -42,6 +42,10 @@ is_windows_host() {
   [[ "${OS:-}" == "Windows_NT" || "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]
 }
 
+use_tauri_personal_config() {
+  [[ "${USE_TAURI_PERSONAL_CONFIG:-1}" != "0" && "${USE_TAURI_PERSONAL_CONFIG:-true}" != "false" ]]
+}
+
 resolve_java_home() {
   if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/jlink" ]]; then
     printf '%s' "$JAVA_HOME"
@@ -143,6 +147,7 @@ install_client_dependencies() {
 
 prepare_windows_bundle_tools() {
   is_windows_host || return 0
+  use_tauri_personal_config || return 0
   [[ -f "$TAURI_PERSONAL_CONFIG" ]] || return 0
   [[ -x "$WIX_TOOLS_DIR/candle.exe" && -x "$WIX_TOOLS_DIR/light.exe" ]] && return 0
 
@@ -181,7 +186,7 @@ build_tauri() {
   log "6/6 Build Tauri bundle"
   local tauri_script="tauri:raw"
   local build_args=(build)
-  if is_windows_host; then
+  if is_windows_host && [[ "${CI:-}" != "true" ]]; then
     tauri_script="tauri"
   fi
 
@@ -189,7 +194,7 @@ build_tauri() {
     build_args+=(--target "$TAURI_TARGET")
   fi
 
-  if [[ -f "$TAURI_PERSONAL_CONFIG" ]]; then
+  if use_tauri_personal_config && [[ -f "$TAURI_PERSONAL_CONFIG" ]]; then
     build_args+=(--config src-tauri/tauri.personal.conf.json)
     (cd "$CLIENT_DIR" && npm run "$tauri_script" -- "${build_args[@]}")
     return
