@@ -133,7 +133,7 @@ copy_backend_resource() {
 install_client_dependencies() {
   log "5/6 Check frontend dependencies"
   if [[ ! -d "$CLIENT_DIR/node_modules" ]]; then
-    (cd "$CLIENT_DIR" && npm ci)
+    (cd "$CLIENT_DIR" && npm ci --no-audit --no-fund)
   fi
 }
 
