@@ -133,7 +133,11 @@ copy_backend_resource() {
 install_client_dependencies() {
   log "5/6 Check frontend dependencies"
   if [[ ! -d "$CLIENT_DIR/node_modules" ]]; then
-    (cd "$CLIENT_DIR" && npm ci --no-audit --no-fund)
+    if ! (cd "$CLIENT_DIR" && npm ci --no-audit --no-fund); then
+      [[ -f "$CLIENT_DIR/node_modules/@tauri-apps/cli/tauri.js" ]] \
+        || fail "npm ci failed before installing Tauri CLI."
+      printf 'npm ci returned a non-zero exit code after installing dependencies; continuing.\n'
+    fi
   fi
 }
 
