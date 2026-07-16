@@ -28,6 +28,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/nsis-hooks.nsh"
+      }
+    },
     "resources": [
       "resources/backend/ssh-server-app.jar",
       "resources/runtime"
