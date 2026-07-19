@@ -47,7 +47,7 @@ single 无 key 时显示配置引导；既有 vitest/surefire 全绿
 
 **验收标准**：两个前端对话各自 createSession 得到不同 sessionId；新对话不携带旧对话上下文
 
-**状态**：未开始
+**状态**：已完成（Playwright 终验待做）
 
 ## 阶段 4：消息级深度思考按钮（D1）
 
