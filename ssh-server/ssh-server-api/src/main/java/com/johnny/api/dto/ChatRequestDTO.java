@@ -32,4 +32,10 @@ public class ChatRequestDTO {
 
     /** 当前绑定的终端会话 id（可空，无活跃终端时不带；后端据此让工具定位 SSH 连接） */
     private String terminalSessionId;
+
+    /**
+     * 消息级深度思考开关（可空=false）。true 时不注入 thinking.disabled，
+     * 让支持思考的模型（如 GLM）按其默认开启思考；默认关闭以保证首字延迟。
+     */
+    private Boolean thinkingEnabled;
 }

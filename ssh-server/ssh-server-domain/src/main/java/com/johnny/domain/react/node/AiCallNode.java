@@ -12,6 +12,7 @@ import com.johnny.api.dto.ReActResultDTO;
 import com.johnny.domain.agent.model.AiAgentRegisterVO;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
 import com.johnny.domain.agent.service.tools.TerminalContext;
+import com.johnny.domain.agent.service.tools.ThinkingContext;
 import com.johnny.domain.react.ReActContext;
 import com.johnny.domain.react.engine.StrategyHandler;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -52,6 +53,8 @@ public class AiCallNode extends AbstractReActSupport {
         // （HttpClient-1-Worker-*）执行，InheritableThreadLocal 继承失效（实测取到 null）。
         final String adkSessionId = ctx.getSessionId();
         TerminalContext.register(adkSessionId, ctx.getTerminalSessionId());
+        // 消息级思考开关（D1）：runAsync 前置位，finally 复位；拦截器（AiApiNode）读取
+        ThinkingContext.set(ctx.isThinkingEnabled());
 
         // 无绑定终端时注入系统提示：让模型第一轮直接文字回答，
         // 省掉「试探 executeCommand → errorMap → 再转述」的整整一轮 LLM（Q8b）
@@ -143,8 +146,9 @@ public class AiCallNode extends AbstractReActSupport {
             if (events instanceof Disposable d && !d.isDisposed()) {
                 d.dispose();
             }
-            // 清理注册，防内存泄漏
+            // 清理注册，防内存泄漏；思考标志复位为默认关
             TerminalContext.register(adkSessionId, null);
+            ThinkingContext.set(false);
         }
 
         ctx.setStep(ctx.getStep() + 1);

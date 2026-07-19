@@ -60,7 +60,7 @@ single 无 key 时显示配置引导；既有 vitest/surefire 全绿
 **验收标准**：默认行为与现状完全一致（请求体含 thinking.disabled）；按钮开启的那条消息请求体不含 thinking 字段；
 手动跑一次开思考 + SSE 流式对话确认无解析异常
 
-**状态**：未开始
+**状态**：已完成（Playwright 终验待做；开思考实测需 API Key 环境）
 
 ## 最终验收：Playwright 端到端
 

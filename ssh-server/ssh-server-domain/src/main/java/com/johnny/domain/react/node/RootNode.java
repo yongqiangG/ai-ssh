@@ -25,7 +25,9 @@ public class RootNode extends AbstractReActSupport {
         ctx.setAgentId(req.getAgentId());
         ctx.setMessage(req.getMessage());
         ctx.setTerminalSessionId(req.getTerminalSessionId());
-        log.info("ReAct RootNode 收到 terminalSessionId={}", req.getTerminalSessionId());
+        ctx.setThinkingEnabled(Boolean.TRUE.equals(req.getThinkingEnabled()));
+        log.info("ReAct RootNode 收到 terminalSessionId={} thinkingEnabled={}",
+                req.getTerminalSessionId(), ctx.isThinkingEnabled());
         ctx.setStep(0);
         ctx.getAssistantContent().setLength(0);
 

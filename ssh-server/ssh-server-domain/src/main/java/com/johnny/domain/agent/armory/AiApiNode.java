@@ -3,6 +3,7 @@ package com.johnny.domain.agent.armory;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.johnny.domain.agent.config.AgentConfigProperties;
+import com.johnny.domain.agent.service.tools.ThinkingContext;
 import com.johnny.domain.react.engine.StrategyHandler;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
@@ -56,13 +57,16 @@ public class AiApiNode extends AbstractArmoryNode {
     }
 
     /**
-     * 关闭 glm-5.2 思考模式：SpringAI 标准请求体不含 thinking 字段，用 RestClient 拦截器往
-     * chat/completions 请求体注入 thinking.type=disabled → 无 reasoning_content、响应更快。
+     * GLM 思考模式注入：SpringAI 标准请求体不含 thinking 字段，用 RestClient 拦截器往
+     * chat/completions 请求体注入。默认注入 thinking.type=disabled（无 reasoning_content、
+     * 响应更快）；消息级「深度思考」开启时（{@link ThinkingContext}，D1 方案）跳过注入，
+     * GLM 按其默认行为开启思考。
      */
     private ClientHttpRequestInterceptor buildDisableThinkingInterceptor() {
         return (request, body, execution) -> {
             String path = request.getURI().getPath();
-            if (path != null && path.contains("chat/completions") && body != null && body.length > 0) {
+            if (path != null && path.contains("chat/completions") && body != null && body.length > 0
+                    && !ThinkingContext.isEnabled()) {
                 try {
                     JSONObject obj = JSON.parseObject(new String(body, StandardCharsets.UTF_8));
                     // 只对 GLM 系列模型注入 thinking.type=disabled（关闭思考）；gpt 等其它模型注入

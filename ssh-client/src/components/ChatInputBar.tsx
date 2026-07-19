@@ -12,6 +12,8 @@ export default function ChatInputBar() {
   const newConversation = useChatStore((s) => s.newConversation);
   const sending = useChatStore((s) => s.sending);
   const cmdHistory = useChatStore((s) => s.cmdHistory);
+  const thinkingEnabled = useChatStore((s) => s.thinkingEnabled);
+  const toggleThinking = useChatStore((s) => s.toggleThinking);
 
   const [value, setValue] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +101,16 @@ export default function ChatInputBar() {
           </select>
           <Icon name="chevronDown" size={14} className={styles.chevron} />
         </label>
+
+        <button
+          className={`${styles.newBtn} ${thinkingEnabled ? styles.thinkingOn : ""}`}
+          type="button"
+          onClick={toggleThinking}
+          title="深度思考：仅对下一条消息生效（响应更慢、分析更深入，适合复杂问题；发送后自动关闭）"
+        >
+          <Icon name="bot" size={14} />
+          深度思考{thinkingEnabled ? "·开" : ""}
+        </button>
 
         <button
           className={styles.newBtn}

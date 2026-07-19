@@ -132,3 +132,9 @@
   color: var(--vsc-fg-faint);
   cursor: not-allowed;
 }
+
+/* 深度思考按钮开启态：高亮提示当前消息将开启思考 */
+.thinkingOn {
+  color: var(--vsc-accent, #4a9eff);
+  border-color: var(--vsc-accent, #4a9eff);
+}

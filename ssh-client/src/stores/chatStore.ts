@@ -15,6 +15,8 @@ interface ChatState {
   /** 下一条消息使用的智能体 */
   agentId: string;
   sending: boolean;
+  /** 消息级深度思考开关（逐条不粘滞：发送后自动回落为 false，不持久化） */
+  thinkingEnabled: boolean;
   /** 本次会话内「刚到达」的 AI 消息 id（不持久化） */
   freshId: string | null;
   /** 全局历史命令（跨会话共享，去重+提末尾，上限 50，持久化 localStorage） */
@@ -29,6 +31,7 @@ interface ChatState {
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   setAgent: (id: string) => void;
+  toggleThinking: () => void;
   sendMessage: (text: string) => Promise<void>;
   /** 中止当前流式请求（最小闭环前端暂未接停止按钮，预留） */
   stop: () => void;
@@ -64,6 +67,7 @@ export const useChatStore = create<ChatState>()(
         currentId: null,
         agentId: "",
         sending: false,
+        thinkingEnabled: false,
         freshId: null,
         cmdHistory: [],
 
@@ -113,6 +117,9 @@ export const useChatStore = create<ChatState>()(
           }),
 
         setAgent: (id) => set({ agentId: id }),
+
+        toggleThinking: () =>
+          set((s) => ({ thinkingEnabled: !s.thinkingEnabled })),
 
         pushCmdHistory: (cmd) => {
           const c = cmd.trim();
@@ -206,12 +213,17 @@ export const useChatStore = create<ChatState>()(
               ? getTerminalSessionId(activeConnId)
               : null;
 
+            // 深度思考逐条不粘滞：取当前值后立即回落，防止用户忘关一直慢
+            const thinkingEnabled = get().thinkingEnabled;
+            if (thinkingEnabled) set({ thinkingEnabled: false });
+
             // 发起流式对话
             abortRef = streamChat({
               agentId,
               sessionId,
               message: content,
               terminalSessionId,
+              thinkingEnabled,
               onText: (full) => {
                 updateMessage(convId!, assistantId, (m) => ({ ...m, content: full }));
               },
