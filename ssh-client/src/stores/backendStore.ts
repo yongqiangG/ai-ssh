@@ -9,7 +9,8 @@ import {
 export type BackendTestStatus = "idle" | "testing" | "success" | "fail";
 export type BackendReadyStatus = "checking" | "ready" | "fail";
 
-const DEFAULT_READY_TIMEOUT_MS = 30_000;
+// 60s：打包单体时低配机器上 JVM sidecar 冷启动可能较慢，放宽等待窗口
+const DEFAULT_READY_TIMEOUT_MS = 60_000;
 const DEFAULT_READY_INTERVAL_MS = 600;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

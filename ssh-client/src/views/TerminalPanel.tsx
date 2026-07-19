@@ -69,21 +69,25 @@ export default function TerminalPanel() {
   // 失效则把连接标记为 error，并让对应终端（若有）走统一断连收尾。
   // 放在本组件意味着终端面板隐藏时心跳暂停——可接受的简化。
   useEffect(() => {
-    const timer = window.setInterval(async () => {
+    const timer = window.setInterval(() => {
       const { connections, markError } = useConnectionStore.getState();
-      for (const c of connections) {
-        if (c.status !== "connected") continue;
-        try {
-          const alive = await getConnectionStatus(c.connectionId);
-          if (!alive) {
-            markError(c.connectionId);
-            markDisconnected(c.connectionId);
-          }
-        } catch {
-          // 心跳自身网络失败不武断判死（可能是瞬时抖动）；
-          // 终端有独立的「连续 3 次轮询失败」判定兜底
-        }
-      }
+      // 并行核对（连接多时避免串行 await 拖长一轮心跳）
+      void Promise.allSettled(
+        connections
+          .filter((c) => c.status === "connected")
+          .map(async (c) => {
+            try {
+              const alive = await getConnectionStatus(c.connectionId);
+              if (!alive) {
+                markError(c.connectionId);
+                markDisconnected(c.connectionId);
+              }
+            } catch {
+              // 心跳自身网络失败不武断判死（可能是瞬时抖动）；
+              // 终端有独立的「连续 3 次轮询失败」判定兜底
+            }
+          })
+      );
     }, HEARTBEAT_MS);
     return () => clearInterval(timer);
   }, []);

@@ -1,7 +1,6 @@
 package com.johnny.domain.ssh.model.entity;
 
 import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import com.johnny.types.exception.AppException;
 import org.junit.Test;
 
@@ -19,7 +18,6 @@ public class SshConnectionEntityTest {
                 "root", AuthTypeEnum.PASSWORD, "pwd", null, "user_001");
         assertEquals("cid", e.getConnectionId());
         assertEquals("我的服务器", e.getName());
-        assertEquals(ConnectionStatusEnum.DISCONNECTED, e.getStatus());
     }
 
     @Test
@@ -73,15 +71,5 @@ public class SshConnectionEntityTest {
     @Test(expected = AppException.class)
     public void validate_publickey_auth_missing_key() {
         SshConnectionEntity.create("cid", "n", "h", 22, "u", AuthTypeEnum.PUBLIC_KEY, null, "", "u");
-    }
-
-    @Test
-    public void mark_connected_changes_status() {
-        SshConnectionEntity e = SshConnectionEntity.create(
-                "cid", "n", "h", 22, "u", AuthTypeEnum.PASSWORD, "p", null, "u");
-        e.markConnected();
-        assertEquals(ConnectionStatusEnum.CONNECTED, e.getStatus());
-        e.markDisconnected();
-        assertEquals(ConnectionStatusEnum.DISCONNECTED, e.getStatus());
     }
 }

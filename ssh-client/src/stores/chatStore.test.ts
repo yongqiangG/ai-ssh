@@ -23,6 +23,7 @@ vi.mock("../api/chat", () => ({
 }));
 
 import { useChatStore } from "./chatStore";
+import { queryAgents } from "../api/chat";
 
 beforeEach(() => {
   localStorage.clear();
@@ -31,6 +32,33 @@ beforeEach(() => {
     currentId: null,
     agentId: "general",
     sending: false,
+    agents: [],
+    agentsError: null,
+  });
+});
+
+describe("chatStore.loadAgents", () => {
+  it("总是重新拉取（不因已有 agents 而跳过），并保留仍存在的选中项", async () => {
+    useChatStore.setState({
+      agents: [{ id: "ops", name: "运维专家", description: "" }],
+      agentId: "ops",
+    });
+    await useChatStore.getState().loadAgents();
+    const s = useChatStore.getState();
+    expect(vi.mocked(queryAgents)).toHaveBeenCalled();
+    expect(s.agents.map((a) => a.id)).toEqual(["general", "ops"]);
+    expect(s.agentId).toBe("ops"); // 原选中仍存在 → 保留
+    expect(s.agentsError).toBeNull();
+  });
+
+  it("选中项不存在于新列表时回落到首个；失败时写入 agentsError", async () => {
+    useChatStore.setState({ agentId: "gone" });
+    await useChatStore.getState().loadAgents();
+    expect(useChatStore.getState().agentId).toBe("general");
+
+    vi.mocked(queryAgents).mockRejectedValueOnce(new Error("backend not ready"));
+    await useChatStore.getState().loadAgents();
+    expect(useChatStore.getState().agentsError).toBe("backend not ready");
   });
 });
 

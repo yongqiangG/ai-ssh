@@ -4,7 +4,9 @@ import EmptyState from "../components/EmptyState";
 import MessageBubble from "../components/MessageBubble";
 import ChatInputBar from "../components/ChatInputBar";
 import LlmSettingsModal from "../components/LlmSettingsModal";
+import { useBackendStore } from "../stores/backendStore";
 import { useChatStore } from "../stores/chatStore";
+import { getLlmConfig } from "../api/llmConfig";
 import styles from "./ChatPanel.module.css";
 
 export default function ChatPanel() {
@@ -14,6 +16,38 @@ export default function ChatPanel() {
   const selectConversation = useChatStore((s) => s.selectConversation);
   const sending = useChatStore((s) => s.sending);
   const freshId = useChatStore((s) => s.freshId);
+  const agents = useChatStore((s) => s.agents);
+  const agentsError = useChatStore((s) => s.agentsError);
+  const loadAgents = useChatStore((s) => s.loadAgents);
+  const readyStatus = useBackendStore((s) => s.readyStatus);
+  const readyMessage = useBackendStore((s) => s.readyMessage);
+  const waitForReady = useBackendStore((s) => s.waitForReady);
+
+  // agents 为空且已 ready 时区分「未配置模型」与「加载失败」：查一次 llm-config
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (readyStatus !== "ready" || agents.length > 0) return;
+    let cancelled = false;
+    getLlmConfig()
+      .then((c) => {
+        if (!cancelled) setApiKeyConfigured(Boolean(c.apiKeyConfigured));
+      })
+      .catch(() => {
+        if (!cancelled) setApiKeyConfigured(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [readyStatus, agents.length]);
+
+  const retryReady = useCallback(async () => {
+    try {
+      await waitForReady();
+      await loadAgents();
+    } catch {
+      // 失败状态已写入 backendStore/chatStore，由本面板展示
+    }
+  }, [waitForReady, loadAgents]);
 
   const current = conversations.find((c) => c.id === currentId) ?? null;
   const allMessages = current?.messages ?? [];
@@ -108,7 +142,46 @@ export default function ChatPanel() {
       </div>
 
       <div className="panel-body" ref={scrollRef} onScroll={onScroll}>
-        {allMessages.length === 0 ? (
+        {readyStatus === "checking" ? (
+          <EmptyState
+            icon="bot"
+            title="后端服务启动中…"
+            hint="正在等待本地服务就绪，通常只需几秒"
+          />
+        ) : readyStatus === "fail" ? (
+          <EmptyState
+            icon="bot"
+            title="后端服务不可用"
+            hint={readyMessage ?? "无法连接后端服务"}
+            action={
+              <button className="btn" onClick={() => void retryReady()}>
+                重试
+              </button>
+            }
+          />
+        ) : agents.length === 0 && apiKeyConfigured === false ? (
+          <EmptyState
+            icon="bot"
+            title="请先配置模型"
+            hint="尚未配置 LLM API Key，配置后即可开始对话"
+            action={
+              <button className="btn" onClick={() => setSettingsOpen(true)}>
+                打开模型设置
+              </button>
+            }
+          />
+        ) : agents.length === 0 ? (
+          <EmptyState
+            icon="bot"
+            title="智能体加载失败"
+            hint={agentsError ?? "未获取到可用智能体"}
+            action={
+              <button className="btn" onClick={() => void loadAgents()}>
+                重试
+              </button>
+            }
+          />
+        ) : allMessages.length === 0 ? (
           <EmptyState
             icon="bot"
             title="开始新对话"

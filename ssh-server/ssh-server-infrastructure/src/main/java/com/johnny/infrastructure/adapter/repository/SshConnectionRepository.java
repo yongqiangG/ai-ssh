@@ -6,7 +6,6 @@ import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.SshConnectionConfigEntity;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
 import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import com.johnny.infrastructure.dao.ISshConnectionConfigDao;
 import com.johnny.infrastructure.dao.ISshConnectionDao;
 import com.johnny.infrastructure.dao.po.SshConnectionConfigPO;
@@ -53,11 +52,6 @@ public class SshConnectionRepository implements ISshConnectionRepository {
     }
 
     @Override
-    public void updateConnection(SshConnectionEntity connection) {
-        connectionDao.update(toConnectionPO(connection));
-    }
-
-    @Override
     public SshConnectionAggregate queryByConnectionId(String connectionId) {
         SshConnectionPO po = connectionDao.queryByConnectionId(connectionId);
         if (po == null) {
@@ -94,7 +88,6 @@ public class SshConnectionRepository implements ISshConnectionRepository {
                 .authType(e.getAuthType().getCode())
                 .password(cipher.encrypt(e.getPassword()))
                 .privateKey(cipher.encrypt(e.getPrivateKey()))
-                .status(e.getStatus().getCode())
                 .userId(e.getUserId())
                 .build();
     }
@@ -109,7 +102,6 @@ public class SshConnectionRepository implements ISshConnectionRepository {
                 AuthTypeEnum.of(po.getAuthType()),
                 cipher.decrypt(po.getPassword()),
                 cipher.decrypt(po.getPrivateKey()),
-                ConnectionStatusEnum.of(po.getStatus()),
                 po.getUserId());
     }
 

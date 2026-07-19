@@ -1,7 +1,6 @@
 package com.johnny.domain.ssh.model.aggregate;
 
 import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -24,7 +23,6 @@ public class SshConnectionAggregateTest {
         assertEquals(32, cid.length()); // UUID 去掉横线后 32 个十六进制字符
         assertEquals(cid, agg.getConnection().getConnectionId());
         assertEquals(cid, agg.getConfig().getConnectionId());
-        assertEquals(ConnectionStatusEnum.DISCONNECTED, agg.getConnection().getStatus());
         // 默认值已填充
         assertEquals(Integer.valueOf(5000), agg.getConfig().getConnectTimeout());
         assertEquals(Integer.valueOf(30000), agg.getConfig().getKeepaliveInterval());

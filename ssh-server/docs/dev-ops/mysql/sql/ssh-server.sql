@@ -19,7 +19,6 @@ CREATE TABLE `ssh_connection` (
   `auth_type` varchar(16) NOT NULL DEFAULT 'PASSWORD' COMMENT '认证类型 PASSWORD/PUBLIC_KEY',
   `password` varchar(255) DEFAULT NULL COMMENT '密码',
   `private_key` text COMMENT 'SSH私钥(PEM)',
-  `status` tinyint NOT NULL DEFAULT 0 COMMENT '连接状态 0未连接 1已连接',
   `user_id` varchar(64) NOT NULL DEFAULT '' COMMENT '用户ID',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

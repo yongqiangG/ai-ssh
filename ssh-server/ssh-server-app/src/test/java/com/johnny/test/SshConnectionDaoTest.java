@@ -45,7 +45,6 @@ public class SshConnectionDaoTest {
                 .username("root")
                 .authType("PASSWORD")
                 .password("root")
-                .status(0)
                 .userId("user_001")
                 .build();
         sshConnectionDao.insert(connection);
@@ -88,7 +87,6 @@ public class SshConnectionDaoTest {
                 .username("root")
                 .authType("PASSWORD")
                 .password("root")
-                .status(0)
                 .userId(userId)
                 .build();
         sshConnectionDao.insert(conn);
@@ -100,11 +98,9 @@ public class SshConnectionDaoTest {
 
         // 改
         found.setUsername("admin");
-        found.setStatus(1);
         assertEquals("update 应影响 1 行", 1, sshConnectionDao.update(found));
         SshConnectionPO afterUpdate = sshConnectionDao.queryByConnectionId(connectionId);
         assertEquals("admin", afterUpdate.getUsername());
-        assertEquals(Integer.valueOf(1), afterUpdate.getStatus());
 
         // 列表查（按用户）
         List<SshConnectionPO> list = sshConnectionDao.queryByUserId(userId);

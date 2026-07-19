@@ -18,9 +18,6 @@ public interface ISshConnectionRepository {
     /** 更新聚合根（基础表 update + 高级配置 upsert） */
     void update(SshConnectionAggregate aggregate);
 
-    /** 仅更新基础实体（如连接状态变更） */
-    void updateConnection(SshConnectionEntity connection);
-
     /** 按 connectionId 查询聚合根；不存在返回 null */
     SshConnectionAggregate queryByConnectionId(String connectionId);
 

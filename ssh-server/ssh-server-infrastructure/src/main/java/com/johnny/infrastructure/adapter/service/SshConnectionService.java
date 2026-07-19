@@ -58,11 +58,11 @@ public class SshConnectionService implements ISshConnectionService {
         String password = cmd.password != null ? cmd.password : oldConn.getPassword();
         String privateKey = cmd.privateKey != null ? cmd.privateKey : oldConn.getPrivateKey();
 
-        // 重新校验后还原基础实体（保持原 connectionId 与 status）
+        // 重新校验后还原基础实体（保持原 connectionId）
         SshConnectionEntity.validate(name, host, port, username, authType, password, privateKey);
         SshConnectionEntity conn = SshConnectionEntity.restore(
                 oldConn.getConnectionId(), name, host, port, username, authType,
-                password, privateKey, oldConn.getStatus(), oldConn.getUserId());
+                password, privateKey, oldConn.getUserId());
 
         Integer connectTimeout = cmd.connectTimeout != null ? cmd.connectTimeout : oldCfg.getConnectTimeout();
         Integer keepaliveInterval = cmd.keepaliveInterval != null ? cmd.keepaliveInterval : oldCfg.getKeepaliveInterval();
@@ -103,24 +103,15 @@ public class SshConnectionService implements ISshConnectionService {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接不存在: " + connectionId);
         }
         SshConnectionEntity conn = aggregate.getConnection();
-        boolean ok = sessionPort.connect(
+        // 连接状态是运行时事实（sessionPort 内存会话），不落库
+        return sessionPort.connect(
                 conn.getConnectionId(), conn.getHost(), conn.getPort(),
                 conn.getUsername(), conn.getPassword(), conn.getPrivateKey());
-        if (ok) {
-            conn.markConnected();
-            repository.updateConnection(conn);
-        }
-        return ok;
     }
 
     @Override
     public void disconnect(String connectionId) {
         sessionPort.disconnect(connectionId);
-        SshConnectionAggregate aggregate = repository.queryByConnectionId(connectionId);
-        if (aggregate != null) {
-            aggregate.getConnection().markDisconnected();
-            repository.updateConnection(aggregate.getConnection());
-        }
     }
 
     @Override

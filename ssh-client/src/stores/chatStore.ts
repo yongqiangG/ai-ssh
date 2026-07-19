@@ -8,6 +8,8 @@ import { useTerminalStore } from "./terminalStore";
 
 interface ChatState {
   agents: Agent[];
+  /** loadAgents 的失败信息（null=无错误）；配合 agents 为空时的面板空态展示 */
+  agentsError: string | null;
   conversations: Conversation[];
   currentId: string | null;
   /** 下一条消息使用的智能体 */
@@ -21,7 +23,7 @@ interface ChatState {
   /** 记录一条历史命令（去重+提末尾+上限 50） */
   pushCmdHistory: (cmd: string) => void;
 
-  /** 从后端拉取智能体列表（启动时调一次） */
+  /** 从后端拉取智能体列表（启动、重试、保存模型设置后调用；总是重新拉取） */
   loadAgents: () => Promise<void>;
   newConversation: () => void;
   selectConversation: (id: string) => void;
@@ -57,6 +59,7 @@ export const useChatStore = create<ChatState>()(
 
       return {
         agents: [],
+        agentsError: null,
         conversations: [],
         currentId: null,
         agentId: "",
@@ -65,17 +68,21 @@ export const useChatStore = create<ChatState>()(
         cmdHistory: [],
 
         loadAgents: async () => {
-          // agents 已加载：补全可能为空的 agentId，避免重复请求后仍无默认选中
-          if (get().agents.length > 0) {
-            if (!get().agentId) set({ agentId: get().agents[0].id });
-            return;
-          }
+          // 总是重新拉取：后端可能刚完成装配/换了模型配置，不做本地缓存守卫
           try {
             const list = await queryAgents();
-            // 首个 agent 作为默认选中（直接用 list[0]，不保留可能残留的旧 agentId）
-            set({ agents: list, agentId: list[0]?.id ?? "" });
+            set((s) => ({
+              agents: list,
+              agentsError: null,
+              // 已选中的 agent 仍存在则保留，否则回落到首个
+              agentId: list.some((a) => a.id === s.agentId)
+                ? s.agentId
+                : list[0]?.id ?? "",
+            }));
           } catch (e) {
-            console.error("[chatStore] loadAgents 失败", errMsg(e));
+            const msg = errMsg(e);
+            console.error("[chatStore] loadAgents 失败", msg);
+            set({ agentsError: msg });
           }
         },
 

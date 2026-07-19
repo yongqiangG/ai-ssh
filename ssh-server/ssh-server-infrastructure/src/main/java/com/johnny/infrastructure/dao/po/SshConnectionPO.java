@@ -38,9 +38,6 @@ public class SshConnectionPO {
     /** SSH 私钥（PEM 内容） */
     private String privateKey;
 
-    /** 连接状态：0 未连接，1 已连接 */
-    private Integer status;
-
     private String userId;
 
     private Date createdAt;

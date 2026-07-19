@@ -101,7 +101,7 @@ public class SshConnectionController {
     public Response<List<SshConnectionResponseDTO>> list(
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "default") String userId) {
         List<SshConnectionResponseDTO> list = sshConnectionService.list(userId).stream()
-                .map(SshConnectionController::toResponseDTO)
+                .map(this::toResponseDTO)
                 .collect(Collectors.toList());
         return Response.success(list);
     }
@@ -140,16 +140,16 @@ public class SshConnectionController {
     }
 
     /** 聚合根 → 响应 DTO（基础 + 高级配置齐全） */
-    private static SshConnectionResponseDTO toResponseDTO(SshConnectionAggregate aggregate) {
+    private SshConnectionResponseDTO toResponseDTO(SshConnectionAggregate aggregate) {
         return toResponseDTO(aggregate.getConnection(), aggregate.getConfig());
     }
 
     /** 基础实体 → 响应 DTO（列表场景，高级配置字段缺省） */
-    private static SshConnectionResponseDTO toResponseDTO(SshConnectionEntity conn) {
+    private SshConnectionResponseDTO toResponseDTO(SshConnectionEntity conn) {
         return toResponseDTO(conn, null);
     }
 
-    private static SshConnectionResponseDTO toResponseDTO(SshConnectionEntity conn, SshConnectionConfigEntity cfg) {
+    private SshConnectionResponseDTO toResponseDTO(SshConnectionEntity conn, SshConnectionConfigEntity cfg) {
         SshConnectionResponseDTO dto = new SshConnectionResponseDTO();
         dto.setConnectionId(conn.getConnectionId());
         dto.setName(conn.getName());
@@ -159,7 +159,8 @@ public class SshConnectionController {
         dto.setAuthType(conn.getAuthType().getCode());
         dto.setPassword(conn.getPassword());
         dto.setPrivateKey(conn.getPrivateKey());
-        dto.setStatus(conn.getStatus().getCode());
+        // 状态不落库：以内存会话为准实时计算（0 未连接 / 1 已连接，编码与前端约定不变）
+        dto.setStatus(sshConnectionService.isConnected(conn.getConnectionId()) ? 1 : 0);
         dto.setUserId(conn.getUserId());
         if (cfg != null) {
             dto.setConnectTimeout(cfg.getConnectTimeout());

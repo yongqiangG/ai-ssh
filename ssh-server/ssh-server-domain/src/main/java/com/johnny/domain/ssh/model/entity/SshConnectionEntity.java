@@ -1,7 +1,6 @@
 package com.johnny.domain.ssh.model.entity;
 
 import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
-import com.johnny.domain.ssh.model.valobj.ConnectionStatusEnum;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
 import lombok.Getter;
@@ -12,6 +11,9 @@ import org.apache.commons.lang3.StringUtils;
  * <p>
  * 仅暴露 getter，所有写操作通过工厂方法 {@link #create} 完成校验与装配；
  * 已落库数据通过 {@link #restore} 还原（跳过校验）。
+ * <p>
+ * 连接状态是运行时事实（内存中的 JSch 会话），不属于本实体，也不持久化——
+ * 查询实时状态走 {@code ISshSessionPort.isConnected}。
  */
 @Getter
 public class SshConnectionEntity {
@@ -29,7 +31,6 @@ public class SshConnectionEntity {
     private String password;
     /** 明文 SSH 私钥（PEM 格式） */
     private String privateKey;
-    private ConnectionStatusEnum status;
     private String userId;
 
     private SshConnectionEntity() {
@@ -69,7 +70,7 @@ public class SshConnectionEntity {
     }
 
     /**
-     * 新建连接：先校验再装配，初始状态为未连接。
+     * 新建连接：先校验再装配。
      *
      * @throws AppException 校验失败
      */
@@ -86,7 +87,6 @@ public class SshConnectionEntity {
         entity.authType = authType;
         entity.password = password;
         entity.privateKey = privateKey;
-        entity.status = ConnectionStatusEnum.DISCONNECTED;
         entity.userId = userId;
         return entity;
     }
@@ -96,7 +96,7 @@ public class SshConnectionEntity {
      */
     public static SshConnectionEntity restore(String connectionId, String name, String host, int port,
                                               String username, AuthTypeEnum authType, String password,
-                                              String privateKey, ConnectionStatusEnum status, String userId) {
+                                              String privateKey, String userId) {
         SshConnectionEntity entity = new SshConnectionEntity();
         entity.connectionId = connectionId;
         entity.name = name;
@@ -106,18 +106,7 @@ public class SshConnectionEntity {
         entity.authType = authType;
         entity.password = password;
         entity.privateKey = privateKey;
-        entity.status = status;
         entity.userId = userId;
         return entity;
-    }
-
-    /** 标记为已连接 */
-    public void markConnected() {
-        this.status = ConnectionStatusEnum.CONNECTED;
-    }
-
-    /** 标记为未连接 */
-    public void markDisconnected() {
-        this.status = ConnectionStatusEnum.DISCONNECTED;
     }
 }
