@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * AI 对话 HTTP 入口。
@@ -31,8 +33,9 @@ import java.util.List;
  * </ul>
  *
  * <p>{@code chat_stream} 返回 {@link ResponseBodyEmitter} 并立即释放 HTTP 线程；
- * ReAct 责任链在独立线程异步执行，逐事件 emitter.send 写出 NDJSON 行。
- * 对应 WaLiSSH {@code AgentServiceController.chatStream} + {@code AIAgentReActServiceCase}。
+ * ReAct 责任链提交到共享线程池异步执行，逐事件 emitter.send 写出 NDJSON 行。
+ * emitter 的 onError/onTimeout/onCompletion 置 {@link ReActContext} 取消标志，
+ * 配合 AiCallNode 的循环检测实现「客户端断开 → 服务端真停」。
  */
 @Slf4j
 @RestController
@@ -47,6 +50,10 @@ public class ChatController {
 
     @Resource
     private RootNode rootNode;
+
+    /** 共享有界线程池（app 模块 ThreadPoolConfig 装配；拒绝策略 AbortPolicy） */
+    @Resource
+    private ThreadPoolExecutor threadPoolExecutor;
 
     /** 查询已装配智能体列表（前端下拉选择）。 */
     @GetMapping("/agents")
@@ -84,16 +91,31 @@ public class ChatController {
         ReActContext ctx = new ReActContext();
         ctx.setEmitter(emitter);
 
-        // 异步执行责任链，避免阻塞 Servlet 线程
-        String threadName = "react-stream-" + req.getSessionId();
-        new Thread(() -> {
-            try {
-                rootNode.apply(req, ctx);
-            } catch (Exception e) {
-                log.error("ReAct 执行失败", e);
-                emitter.completeWithError(e);
-            }
-        }, threadName).start();
+        // 客户端断开 / 超时 / 正常完成 → 置取消标志，AiCallNode 循环检测后中断并 dispose 上游
+        emitter.onError(t -> {
+            log.info("chat_stream emitter onError（客户端断开）sessionId={}", req.getSessionId());
+            ctx.markCancelled();
+        });
+        emitter.onTimeout(() -> {
+            log.info("chat_stream emitter onTimeout sessionId={}", req.getSessionId());
+            ctx.markCancelled();
+        });
+        emitter.onCompletion(() -> ctx.markCancelled());
+
+        // 提交共享线程池执行；池满拒绝时直接以 error 收尾，不吊着客户端
+        try {
+            threadPoolExecutor.execute(() -> {
+                try {
+                    rootNode.apply(req, ctx);
+                } catch (Exception e) {
+                    log.error("ReAct 执行失败", e);
+                    emitter.completeWithError(e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            log.warn("chat_stream 提交被拒绝（线程池饱和）sessionId={}", req.getSessionId());
+            emitter.completeWithError(new RuntimeException("服务繁忙，请稍后重试"));
+        }
 
         return emitter;
     }

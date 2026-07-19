@@ -9,7 +9,6 @@ import com.johnny.domain.react.engine.AbstractStrategyRouter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 /**
  * ReAct 节点公共基类。
@@ -41,77 +40,63 @@ public abstract class AbstractReActSupport
 
     // ════════════════════════════════════════════════════════════
     //  NDJSON 事件发射（每条 = JSON + '\n'）
+    //  发送失败（客户端断开 / emitter 超时后）置 ctx.cancelled，
+    //  由 AiCallNode 事件循环检测后中断 ReAct。
     // ════════════════════════════════════════════════════════════
 
     /** 发送文本事件：content 为本次片段，fullText 为累积全文（前端用 fullText 整体替换）。 */
-    protected void sendTextEvent(ResponseBodyEmitter emitter, String content, String fullText) {
-        try {
-            ReActEventDTO event = new ReActEventDTO();
-            event.setEvent("text");
-            event.setContent(content);
-            event.setFullText(fullText);
-            emitter.send(JSON.toJSONString(event) + "\n");
-        } catch (Exception e) {
-            log.warn("发送 text 事件失败: {}", e.getMessage());
-        }
+    protected void sendTextEvent(ReActContext ctx, String content, String fullText) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("text");
+        event.setContent(content);
+        event.setFullText(fullText);
+        writeNdjson(ctx, event);
     }
 
     /** 发送轮次结束事件：携带步数进度。 */
-    protected void sendRoundEndEvent(ResponseBodyEmitter emitter, int currentStep, int maxSteps,
+    protected void sendRoundEndEvent(ReActContext ctx, int currentStep, int maxSteps,
                                      boolean shouldContinue, int totalToolCalls) {
-        try {
-            ReActEventDTO.StepInfo stepInfo = new ReActEventDTO.StepInfo();
-            stepInfo.setCurrentStep(currentStep);
-            stepInfo.setMaxSteps(maxSteps);
-            stepInfo.setShouldContinue(shouldContinue);
-            stepInfo.setTotalToolCalls(totalToolCalls);
+        ReActEventDTO.StepInfo stepInfo = new ReActEventDTO.StepInfo();
+        stepInfo.setCurrentStep(currentStep);
+        stepInfo.setMaxSteps(maxSteps);
+        stepInfo.setShouldContinue(shouldContinue);
+        stepInfo.setTotalToolCalls(totalToolCalls);
 
-            ReActEventDTO event = new ReActEventDTO();
-            event.setEvent("round_end");
-            event.setStepInfo(stepInfo);
-            emitter.send(JSON.toJSONString(event) + "\n");
-        } catch (Exception e) {
-            log.warn("发送 round_end 事件失败: {}", e.getMessage());
-        }
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("round_end");
+        event.setStepInfo(stepInfo);
+        writeNdjson(ctx, event);
     }
 
     /** 发送完成事件：content 为最终结果（ReActResultDTO）的 JSON。 */
-    protected void sendDoneEvent(ResponseBodyEmitter emitter, ReActResultDTO result) {
-        try {
-            ReActEventDTO event = new ReActEventDTO();
-            event.setEvent("done");
-            event.setContent(JSON.toJSONString(result));
-            emitter.send(JSON.toJSONString(event) + "\n");
-        } catch (Exception e) {
-            log.warn("发送 done 事件失败: {}", e.getMessage());
-        }
+    protected void sendDoneEvent(ReActContext ctx, ReActResultDTO result) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("done");
+        event.setContent(JSON.toJSONString(result));
+        writeNdjson(ctx, event);
     }
 
     /** 发送错误事件。 */
-    protected void sendErrorEvent(ResponseBodyEmitter emitter, String message) {
-        try {
-            ReActEventDTO event = new ReActEventDTO();
-            event.setEvent("error");
-            event.setContent(message);
-            emitter.send(JSON.toJSONString(event) + "\n");
-        } catch (Exception e) {
-            log.warn("发送 error 事件失败: {}", e.getMessage());
-        }
+    protected void sendErrorEvent(ReActContext ctx, String message) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("error");
+        event.setContent(message);
+        writeNdjson(ctx, event);
     }
 
     /** 发送工具调用开始事件（tool_call）：LLM 决定调用工具时。content 为命令文本（args 的 command 字段）。 */
-    protected void sendToolCallEvent(ResponseBodyEmitter emitter, String toolCallId, String toolName, String argsText) {
+    protected void sendToolCallEvent(ReActContext ctx, String toolCallId, String toolName, String argsText) {
         ReActEventDTO event = new ReActEventDTO();
         event.setEvent("tool_call");
         event.setToolCallId(toolCallId);
         event.setToolName(toolName);
         event.setContent(argsText);
         event.setStatus("running");
-        writeNdjson(emitter, event);
+        writeNdjson(ctx, event);
     }
 
     /** 发送工具结果事件（tool_result）：工具执行完成（含成败 + 输出 + 错误分析）。 */
-    protected void sendToolResultEvent(ResponseBodyEmitter emitter, String toolCallId, String toolName,
+    protected void sendToolResultEvent(ReActContext ctx, String toolCallId, String toolName,
                                        String status, String output, String analysis) {
         ReActEventDTO event = new ReActEventDTO();
         event.setEvent("tool_result");
@@ -120,15 +105,19 @@ public abstract class AbstractReActSupport
         event.setStatus(status);           // "success" / "error"
         event.setContent(output);          // stdout（或含 stderr 的错误信息）
         event.setAnalysis(analysis);       // 失败时的中文建议（可能为 null）
-        writeNdjson(emitter, event);
+        writeNdjson(ctx, event);
     }
 
-    /** 把 ReActEventDTO 序列化成 NDJSON 行（JSON + '\n'）写入 emitter。 */
-    private void writeNdjson(ResponseBodyEmitter emitter, ReActEventDTO dto) {
+    /** 把 ReActEventDTO 序列化成 NDJSON 行（JSON + '\n'）写入 emitter；失败视为客户端已断开 → 置取消标志。 */
+    private void writeNdjson(ReActContext ctx, ReActEventDTO dto) {
+        if (ctx.isCancelled()) {
+            return;
+        }
         try {
-            emitter.send(JSON.toJSONString(dto) + "\n");
+            ctx.getEmitter().send(JSON.toJSONString(dto) + "\n");
         } catch (Exception e) {
-            log.warn("发送 {} 事件失败: {}", dto.getEvent(), e.getMessage());
+            log.info("发送 {} 事件失败（客户端断开或超时），标记取消: {}", dto.getEvent(), e.getMessage());
+            ctx.markCancelled();
         }
     }
 }

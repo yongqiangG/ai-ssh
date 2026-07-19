@@ -6,6 +6,9 @@ import ChatInputBar from "../components/ChatInputBar";
 import LlmSettingsModal from "../components/LlmSettingsModal";
 import { useBackendStore } from "../stores/backendStore";
 import { useChatStore } from "../stores/chatStore";
+import { useLayoutStore } from "../stores/layoutStore";
+import { useTerminalStore } from "../stores/terminalStore";
+import { getTerminalSessionId } from "../terminal/terminalManager";
 import { getLlmConfig } from "../api/llmConfig";
 import styles from "./ChatPanel.module.css";
 
@@ -48,6 +51,21 @@ export default function ChatPanel() {
       // 失败状态已写入 backendStore/chatStore，由本面板展示
     }
   }, [waitForReady, loadAgents]);
+
+  // 终端绑定判定：与 chatStore.sendMessage 的取值逻辑同源
+  // （activeId → getTerminalSessionId），避免「警示条没显示但实际没绑定」的不一致。
+  // 订阅 tabs 保证终端 tab 状态变化（断开/关闭）时本组件重渲染、重新求值。
+  const terminalActiveId = useTerminalStore((s) => s.activeId);
+  useTerminalStore((s) => s.tabs);
+  const terminalBound = Boolean(
+    terminalActiveId && getTerminalSessionId(terminalActiveId)
+  );
+  const setActiveSidebarView = useLayoutStore((s) => s.setActiveSidebarView);
+  const setShowSidebar = useLayoutStore((s) => s.setShowSidebar);
+  const gotoConnections = useCallback(() => {
+    setShowSidebar(true);
+    setActiveSidebarView("servers");
+  }, [setShowSidebar, setActiveSidebarView]);
 
   const current = conversations.find((c) => c.id === currentId) ?? null;
   const allMessages = current?.messages ?? [];
@@ -210,6 +228,17 @@ export default function ChatPanel() {
         )}
       </div>
 
+      {!terminalBound && (
+        <div
+          className={styles.terminalHint}
+          onClick={gotoConnections}
+          role="button"
+          title="点击打开连接面板"
+        >
+          <Icon name="alert" size={14} className={styles.terminalHintIcon} />
+          未连接终端，AI 无法执行命令——纯问答不受影响，点击此处连接服务器
+        </div>
+      )}
       <ChatInputBar />
       <LlmSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </section>

@@ -267,7 +267,29 @@ export const useChatStore = create<ChatState>()(
             abortRef();
             abortRef = null;
           }
-          set({ sending: false });
+          // 中止后把仍在 running 的命令块标为 error，避免永远转圈
+          set((s) => ({
+            sending: false,
+            conversations: s.conversations.map((c) =>
+              c.id === s.currentId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.toolCalls?.some((tc) => tc.status === "running")
+                        ? {
+                            ...m,
+                            toolCalls: m.toolCalls.map((tc) =>
+                              tc.status === "running"
+                                ? { ...tc, status: "error", output: "已停止" }
+                                : tc
+                            ),
+                          }
+                        : m
+                    ),
+                  }
+                : c
+            ),
+          }));
         },
       };
     },

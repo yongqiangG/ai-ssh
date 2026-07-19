@@ -102,3 +102,26 @@
     opacity: 1;
   }
 }
+
+/* 未绑定终端的常驻警示条（P3）：位于输入框上方，点击跳转连接面板 */
+.terminalHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--vsc-fg-muted);
+  background: color-mix(in srgb, var(--vsc-warning, #e5c07b) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--vsc-warning, #e5c07b) 35%, transparent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+}
+.terminalHint:hover {
+  background: color-mix(in srgb, var(--vsc-warning, #e5c07b) 20%, transparent);
+}
+.terminalHintIcon {
+  color: var(--vsc-warning, #e5c07b);
+  flex-shrink: 0;
+}

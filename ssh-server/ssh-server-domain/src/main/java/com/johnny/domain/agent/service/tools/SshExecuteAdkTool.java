@@ -163,7 +163,8 @@ public class SshExecuteAdkTool {
 
     // === 危险命令黑名单（Q12）：命中即拦截 ===
     private static final List<Pattern> BLOCKED = List.of(
-            Pattern.compile("\\brm\\s+(-[a-z]*r[a-z]*f|--force)\\s+(/|~|\\*|\\$HOME)\\b"),
+            // rm 递归强删根/家目录：兼容 -rf 与 -fr 两种字母顺序，以及 --force
+            Pattern.compile("\\brm\\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r|--force)[a-z-]*\\s+(/|~|\\*|\\$HOME)"),
             Pattern.compile("\\bmkfs\\b"),
             Pattern.compile("\\bdd\\s+.*\\bof=/dev/"),
             Pattern.compile("\\b(shutdown|reboot|halt|poweroff|init\\s+0)\\b"),
@@ -173,7 +174,8 @@ public class SshExecuteAdkTool {
             Pattern.compile("\\b>(\\s*)/dev/null\\s+<\\s*/dev/")
     );
 
-    private boolean isBlocked(String command) {
+    /** 包私有静态：便于单测直接验证黑名单规则 */
+    static boolean isBlocked(String command) {
         if (command == null) {
             return false;
         }

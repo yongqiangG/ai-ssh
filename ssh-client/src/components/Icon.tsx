@@ -25,7 +25,9 @@ export type IconName =
   | "check"
   | "folder"
   | "file"
-  | "copy";
+  | "copy"
+  | "stop"
+  | "alert";
 
 // 零依赖内联 SVG（feather/lucide 风格，stroke=currentColor）
 const PATHS: Record<IconName, ReactElement> = {
@@ -151,6 +153,13 @@ const PATHS: Record<IconName, ReactElement> = {
     <>
       <rect x="9" y="9" width="11" height="11" rx="2" />
       <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </>
+  ),
+  stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
+  alert: (
+    <>
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+      <path d="M12 9v4M12 17h.01" />
     </>
   ),
 };

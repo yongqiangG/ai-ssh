@@ -131,15 +131,26 @@ export default function ChatInputBar() {
           }
           disabled={sending}
         />
-        <button
-          className={styles.sendBtn}
-          type="button"
-          onClick={send}
-          disabled={!value.trim() || sending}
-          title="发送"
-        >
-          <Icon name="send" size={16} />
-        </button>
+        {sending ? (
+          <button
+            className={styles.sendBtn}
+            type="button"
+            onClick={() => useChatStore.getState().stop()}
+            title="停止生成"
+          >
+            <Icon name="stop" size={16} />
+          </button>
+        ) : (
+          <button
+            className={styles.sendBtn}
+            type="button"
+            onClick={send}
+            disabled={!value.trim()}
+            title="发送"
+          >
+            <Icon name="send" size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

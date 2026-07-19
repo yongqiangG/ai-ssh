@@ -41,6 +41,8 @@ interface LayoutState {
   /** 右栏贴右：dx > 0 表示鼠标右移，应当缩小宽度。 */
   applyRightDrag: (dx: number) => void;
   toggleSidebar: () => void;
+  /** 直接设置侧栏显隐（chat 警示条跳转连接面板时强制展开用） */
+  setShowSidebar: (v: boolean) => void;
   toggleTerminal: () => void;
   /** 直接设置终端面板显隐（命令卡片「执行」后强制显示终端用） */
   setShowTerminal: (v: boolean) => void;
@@ -78,6 +80,7 @@ export const useLayoutStore = create<LayoutState>()(
           rightWidth: clamp(s.rightWidth - dx, MIN_RIGHT_WIDTH, MAX_RIGHT_WIDTH),
         })),
       toggleSidebar: () => set((s) => ({ showSidebar: !s.showSidebar })),
+      setShowSidebar: (v) => set({ showSidebar: v }),
       toggleTerminal: () => set((s) => ({ showTerminal: !s.showTerminal })),
       setShowTerminal: (v) => set({ showTerminal: v }),
       toggleAiPanel: () => set((s) => ({ showAiPanel: !s.showAiPanel })),
