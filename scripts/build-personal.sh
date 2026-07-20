@@ -123,6 +123,11 @@ build_runtime() {
     --compress=2 \
     --output "$RUNTIME_RESOURCE_DIR"
 
+  # JDK legal files are read-only (444); tauri-build copies resources into the
+  # cargo target dir preserving mode, and fs::copy cannot overwrite a read-only
+  # copy restored from CI cache. Keep the runtime writable so rebuilds succeed.
+  chmod -R u+w "$RUNTIME_RESOURCE_DIR"
+
   [[ -x "$RUNTIME_RESOURCE_DIR/bin/java.exe" || -x "$RUNTIME_RESOURCE_DIR/bin/java" ]] \
     || fail "jlink runtime generation failed."
 }
