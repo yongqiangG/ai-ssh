@@ -4,6 +4,7 @@ import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
 import BackendSettingsModal from "../components/BackendSettingsModal";
 import HostKeyConfirmModal from "../components/HostKeyConfirmModal";
+import ServerMonitorBar from "../components/ServerMonitorBar";
 import { useBackendStore } from "../stores/backendStore";
 import { useConnectionStore } from "../stores/connectionStore";
 import { useLayoutStore } from "../stores/layoutStore";
@@ -183,6 +184,9 @@ export default function ConnectionsPanel() {
           </div>
         )}
       </div>
+
+      {/* C1 监控条：panel-body(flex:1) 之后常驻底部，只采当前激活连接 */}
+      <ServerMonitorBar />
 
       <SshConnectionModal
         open={modalOpen}

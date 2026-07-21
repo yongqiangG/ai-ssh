@@ -1,0 +1,72 @@
+/* ===== C1 激活服务器监控条（连接列表下方常驻） ===== */
+.bar {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--vsc-border, rgba(127, 127, 127, 0.2));
+  padding: 8px 12px 10px;
+  background: var(--vsc-sidebar-bg);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.5));
+  font-size: 11px;
+}
+
+.title {
+  letter-spacing: 0.3px;
+}
+
+.host {
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.empty {
+  padding: 4px 0 2px;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.4));
+  font-size: 11px;
+}
+
+/* 2×2 网格：左栏 220-560px 宽度区间内四列会挤，网格最稳 */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.label {
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.55));
+  font-size: 11px;
+}
+
+.value {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--vsc-fg, #c8cad4);
+}
+
+.yellow {
+  color: var(--vsc-yellow, #fbbf24);
+}
+
+.red {
+  color: var(--vsc-red, #f87171);
+}
