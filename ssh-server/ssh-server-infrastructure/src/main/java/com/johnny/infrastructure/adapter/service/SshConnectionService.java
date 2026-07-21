@@ -1,5 +1,6 @@
 package com.johnny.infrastructure.adapter.service;
 
+import com.johnny.domain.ssh.adapter.port.ConnectParams;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.domain.ssh.adapter.repository.ISshConnectionRepository;
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
@@ -103,10 +104,23 @@ public class SshConnectionService implements ISshConnectionService {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接不存在: " + connectionId);
         }
         SshConnectionEntity conn = aggregate.getConnection();
+        SshConnectionConfigEntity cfg = aggregate.getConfig();
         // 连接状态是运行时事实（sessionPort 内存会话），不落库
-        return sessionPort.connect(
-                conn.getConnectionId(), conn.getHost(), conn.getPort(),
-                conn.getUsername(), conn.getPassword(), conn.getPrivateKey());
+        ConnectParams params = new ConnectParams();
+        params.host = conn.getHost();
+        params.port = conn.getPort();
+        params.username = conn.getUsername();
+        params.password = conn.getPassword();
+        params.privateKey = conn.getPrivateKey();
+        // params.passphrase：迭代 A-2 密钥实体接入后从 ssh_key 填充
+        if (cfg != null) {
+            params.connectTimeout = cfg.getConnectTimeout();
+            params.keepaliveInterval = cfg.getKeepaliveInterval();
+            params.compression = cfg.isCompression();
+            params.strictHostKeyCheck = cfg.isStrictHostKeyCheck();
+            params.knownHosts = cfg.getKnownHosts();
+        }
+        return sessionPort.connect(conn.getConnectionId(), params);
     }
 
     @Override

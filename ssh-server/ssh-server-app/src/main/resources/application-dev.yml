@@ -1,5 +1,7 @@
 server:
   port: 8091
+  # 本地开发仅本机访问（Vite 代理与调试都走 localhost）；prod/server 形态由各自配置决定监听面
+  address: 127.0.0.1
 
 # 线程池配置
 thread:

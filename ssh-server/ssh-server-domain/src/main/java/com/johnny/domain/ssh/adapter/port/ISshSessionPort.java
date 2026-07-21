@@ -13,16 +13,13 @@ public interface ISshSessionPort {
 
     /**
      * 建立 SSH 连接；支持密码与私钥两种认证（提供 privateKey 时优先使用私钥认证）。
+     * <p>高级配置（connectTimeout/keepaliveInterval/compression 等）由 {@link ConnectParams} 携带并真正生效。
      *
      * @param connectionId 连接唯一标识，用于区分多个 SSH 连接
-     * @param host         目标主机地址
-     * @param port         SSH 端口
-     * @param username     登录用户名
-     * @param password     登录密码（使用私钥认证时可传 null）
-     * @param privateKey   SSH 私钥内容（PEM 格式；使用密码认证时可传 null）
+     * @param params       连接参数（凭据 + 高级配置）
      * @return 连接成功返回 true，失败返回 false
      */
-    boolean connect(String connectionId, String host, int port, String username, String password, String privateKey);
+    boolean connect(String connectionId, ConnectParams params);
 
     /**
      * 断开指定连接；若不存在或未连接则不做任何操作。

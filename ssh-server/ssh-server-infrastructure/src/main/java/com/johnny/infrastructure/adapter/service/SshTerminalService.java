@@ -2,6 +2,8 @@ package com.johnny.infrastructure.adapter.service;
 
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.domain.ssh.adapter.port.ITerminalSessionPort;
+import com.johnny.domain.ssh.adapter.repository.ISshConnectionRepository;
+import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.TerminalSessionEntity;
 import com.johnny.domain.ssh.service.ISshTerminalService;
 import com.johnny.types.enums.ResponseCode;
@@ -37,13 +39,16 @@ public class SshTerminalService implements ISshTerminalService {
 
     private final ISshSessionPort sshSessionPort;
     private final ITerminalSessionPort terminalSessionPort;
+    private final ISshConnectionRepository connectionRepository;
 
     /** sessionId -> 终端会话实体 */
     private final Map<String, TerminalSessionEntity> sessions = new ConcurrentHashMap<>();
 
-    public SshTerminalService(ISshSessionPort sshSessionPort, ITerminalSessionPort terminalSessionPort) {
+    public SshTerminalService(ISshSessionPort sshSessionPort, ITerminalSessionPort terminalSessionPort,
+                              ISshConnectionRepository connectionRepository) {
         this.sshSessionPort = sshSessionPort;
         this.terminalSessionPort = terminalSessionPort;
+        this.connectionRepository = connectionRepository;
     }
 
     @Override
@@ -64,7 +69,29 @@ public class SshTerminalService implements ISshTerminalService {
         OpenResult result = new OpenResult();
         result.sessionId = sessionId;
         result.initialOutput = awaitInitialOutput(sessionId);
+        // 启动命令：等初始输出（提示符）稳定后写入 shell stdin，等同用户手敲——回显在终端可见，
+        // 由前端轮询取走（不并入 initialOutput，避免与 motd 混排）
+        runStartupCommand(sessionId, cmd.connectionId);
         return result;
+    }
+
+    /** 连接配置了 startupCommand 时，在新终端 shell 上自动执行（可见回显）；失败不影响终端打开 */
+    private void runStartupCommand(String sessionId, String connectionId) {
+        try {
+            SshConnectionAggregate aggregate = connectionRepository.queryByConnectionId(connectionId);
+            if (aggregate == null || aggregate.getConfig() == null) {
+                return;
+            }
+            String startupCommand = aggregate.getConfig().getStartupCommand();
+            if (startupCommand == null || startupCommand.isBlank()) {
+                return;
+            }
+            terminalSessionPort.write(sessionId, startupCommand.endsWith("\n") ? startupCommand : startupCommand + "\n");
+            log.info("终端启动命令已写入 sessionId={} connectionId={} cmd=[{}]", sessionId, connectionId, startupCommand);
+        } catch (Exception e) {
+            log.warn("终端启动命令执行失败（不影响终端打开）sessionId={} connectionId={} reason={}",
+                    sessionId, connectionId, e.getMessage());
+        }
     }
 
     /**

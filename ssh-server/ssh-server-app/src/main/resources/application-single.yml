@@ -1,5 +1,7 @@
 server:
   port: 8091
+  # 单体版仅供本机 Tauri 客户端调用；不绑 0.0.0.0，避免局域网可无鉴权访问凭据/会话接口
+  address: 127.0.0.1
 
 spring:
   config:

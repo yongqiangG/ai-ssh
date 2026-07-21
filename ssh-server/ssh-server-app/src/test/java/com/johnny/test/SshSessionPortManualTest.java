@@ -1,5 +1,6 @@
 package com.johnny.test;
 
+import com.johnny.domain.ssh.adapter.port.ConnectParams;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.infrastructure.adapter.port.SshSessionPort;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +56,12 @@ public class SshSessionPortManualTest {
     @Test
     public void test_connect_invalidEndpoint_returnsFalse() {
         // 127.0.0.1:1 通常无服务监听，连接会被快速拒绝，应返回 false
-        boolean ok = sshSessionPort.connect(CONN_ID, "127.0.0.1", 1, "nouser", "nopass", null);
+        ConnectParams params = new ConnectParams();
+        params.host = "127.0.0.1";
+        params.port = 1;
+        params.username = "nouser";
+        params.password = "nopass";
+        boolean ok = sshSessionPort.connect(CONN_ID, params);
         assertFalse("连接无效端点应返回 false", ok);
         assertFalse("连接失败后应为未连接状态", sshSessionPort.isConnected(CONN_ID));
         log.info("连接无效端点如期返回 false");
@@ -69,7 +75,7 @@ public class SshSessionPortManualTest {
      */
     @Test
     public void test_openShell_interactive() {
-        boolean ok = sshSessionPort.connect(CONN_ID, HOST, PORT, USERNAME, PASSWORD, null);
+        boolean ok = sshSessionPort.connect(CONN_ID, passwordParams(HOST, PORT, USERNAME, PASSWORD));
         assertTrue("真实服务器连接应成功", ok);
         sshSessionPort.openShell(CONN_ID, System.in, System.out);
     }
@@ -80,7 +86,7 @@ public class SshSessionPortManualTest {
     public static void main(String[] args) {
         ISshSessionPort port = new SshSessionPort();
         try {
-            boolean ok = port.connect(CONN_ID, HOST, PORT, USERNAME, PASSWORD, null);
+            boolean ok = port.connect(CONN_ID, passwordParams(HOST, PORT, USERNAME, PASSWORD));
             if (!ok) {
                 System.out.println("连接失败，请检查主机/凭据");
                 return;
@@ -89,6 +95,16 @@ public class SshSessionPortManualTest {
         } finally {
             port.disconnect(CONN_ID);
         }
+    }
+
+    /** 组装密码认证的连接参数（高级配置走实现默认值） */
+    private static ConnectParams passwordParams(String host, int port, String username, String password) {
+        ConnectParams params = new ConnectParams();
+        params.host = host;
+        params.port = port;
+        params.username = username;
+        params.password = password;
+        return params;
     }
 
 }

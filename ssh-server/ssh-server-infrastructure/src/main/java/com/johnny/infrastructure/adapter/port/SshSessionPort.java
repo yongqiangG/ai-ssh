@@ -4,6 +4,7 @@ import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
+import com.johnny.domain.ssh.adapter.port.ConnectParams;
 import com.johnny.domain.ssh.adapter.port.ExecResult;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.types.enums.ResponseCode;
@@ -43,25 +44,39 @@ public class SshSessionPort implements ISshSessionPort {
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @Override
-    public boolean connect(String connectionId, String host, int port, String username, String password, String privateKey) {
+    public boolean connect(String connectionId, ConnectParams params) {
         disconnect(connectionId);
         try {
             JSch jsch = new JSch();
-            // 提供私钥时优先使用公钥认证
-            boolean useKey = privateKey != null && !privateKey.isEmpty();
+            // 提供私钥时优先使用公钥认证；passphrase 为 null 时按无口令私钥处理
+            boolean useKey = params.privateKey != null && !params.privateKey.isEmpty();
             if (useKey) {
-                jsch.addIdentity(connectionId, privateKey.getBytes(StandardCharsets.UTF_8), null, null);
+                byte[] passphraseBytes = (params.passphrase == null || params.passphrase.isEmpty())
+                        ? null : params.passphrase.getBytes(StandardCharsets.UTF_8);
+                jsch.addIdentity(connectionId, params.privateKey.getBytes(StandardCharsets.UTF_8), null, passphraseBytes);
             }
-            Session newSession = jsch.getSession(username, host, port);
+            Session newSession = jsch.getSession(params.username, params.host, params.port);
             if (!useKey) {
-                newSession.setPassword(password);
+                newSession.setPassword(params.password);
             }
-            // 基础能力阶段跳过首次连接的主机密钥校验；后续应替换为已知主机（known_hosts）策略
+            // TODO(迭代 A-4)：TOFU——strictHostKeyCheck=true 时挂自定义 HostKeyRepository 按 knownHosts 校验；
+            // 当前阶段保持跳过校验（与既有行为一致），字段已透传到位。
             newSession.setConfig("StrictHostKeyChecking", "no");
-            newSession.connect(CONNECT_TIMEOUT);
+            if (params.compression) {
+                newSession.setConfig("compression.s2c", "zlib@openssh.com,zlib,none");
+                newSession.setConfig("compression.c2s", "zlib@openssh.com,zlib,none");
+            }
+            if (params.keepaliveInterval != null && params.keepaliveInterval > 0) {
+                // 周期向服务端发 keepalive 包，防 NAT/防火墙静默断连
+                newSession.setServerAliveInterval(params.keepaliveInterval);
+            }
+            int connectTimeout = (params.connectTimeout != null && params.connectTimeout > 0)
+                    ? params.connectTimeout : CONNECT_TIMEOUT;
+            newSession.connect(connectTimeout);
             sessions.put(connectionId, newSession);
-            log.info("SSH 连接成功 connectionId={} host={} port={} username={} auth={}",
-                    connectionId, host, port, username, useKey ? "key" : "password");
+            log.info("SSH 连接成功 connectionId={} host={} port={} username={} auth={} timeout={} keepalive={} compression={}",
+                    connectionId, params.host, params.port, params.username, useKey ? "key" : "password",
+                    connectTimeout, params.keepaliveInterval, params.compression);
             // 连接成功后立即执行一次 pwd 探测，便于在日志中看到远端真实反馈；
             // 直接复用本类 exec（此时 session 已入表）。不要调 sshConnectionService——
             // 它是 domain 层服务，反向依赖会构成 SshConnectionService ↔ SshSessionPort 循环。
@@ -74,7 +89,8 @@ public class SshSessionPort implements ISshSessionPort {
             }
             return true;
         } catch (Exception e) {
-            log.error("SSH 连接失败 connectionId={} host={} port={} username={}", connectionId, host, port, username, e);
+            log.error("SSH 连接失败 connectionId={} host={} port={} username={}",
+                    connectionId, params.host, params.port, params.username, e);
             return false;
         }
     }
