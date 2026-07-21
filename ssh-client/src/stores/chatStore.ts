@@ -33,14 +33,14 @@ interface ChatState {
   setAgent: (id: string) => void;
   toggleThinking: () => void;
   sendMessage: (text: string) => Promise<void>;
-  /** 中止当前流式请求（最小闭环前端暂未接停止按钮，预留） */
+  /** 中止当前流式请求（ChatInputBar 停止按钮调用；running 命令块标为已停止） */
   stop: () => void;
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const titleFrom = (text: string) => text.trim().slice(0, 24) || "新对话";
 
-/** 流式请求的中止函数（最小闭环前端暂未接停止按钮，预留） */
+/** 当前流式请求的中止函数（sendMessage 写入，stop() 消费） */
 let abortRef: (() => void) | null = null;
 
 export const useChatStore = create<ChatState>()(

@@ -76,7 +76,7 @@ export interface StreamChatOptions {
  * - text：fullText 为累积全文 → onText(fullText)
  * - done：content 是 ReActResultDTO 的 JSON，取其 content 作为最终文本
  * - error：content 为错误信息
- * 返回一个 abort 函数（最小闭环前端暂未接停止按钮，预留）。
+ * 返回一个 abort 函数（chatStore.stop 经 abortRef 调用它实现停止）。
  */
 export function streamChat(opts: StreamChatOptions): () => void {
   const controller = new AbortController();
