@@ -81,7 +81,7 @@ SSH 连接管理走 `connectionStore.ts` + `api/sshConnection.ts`（真实后端
 
 ## 跨项目约定与陷阱
 
-- **Controller 参数必须显式命名**：根 `pom.xml` 把 `maven-compiler-plugin` 锁在 `3.0`（无 `-parameters` 编译参数），`@PathVariable` / `@RequestParam` 必须写名字，如 `@PathVariable("connectionId")`，否则启动期绑定失败。
+- **Controller 参数保持显式命名**：`@PathVariable` / `@RequestParam` 统一写名字（如 `@PathVariable("connectionId")`），这是代码库一致风格。注：根 `pom.xml` 已开启 `-parameters`（为 ADK FunctionTool 的 `ToolContext` 参数注入），技术上非显式也能绑定，但风格不回退。
 - **多模块启动顺序**：被依赖模块改动后必须先在根目录 `mvn install`，再进 `ssh-server-app` 跑 `spring-boot:run`，否则 IDE/启动读到的还是旧 jar。
 - **统一响应码**：前后端成功码均为字符串 `"0000"`；新增接口/解析要保持一致。
 - **DB**：默认 single profile 用 H2 文件库（`~/.ai-ssh/`）；dev profile 连 MySQL `13306`（docker 映射），不是默认 3306。
