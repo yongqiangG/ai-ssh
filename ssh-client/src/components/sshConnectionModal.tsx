@@ -3,6 +3,8 @@ import type { FormEvent, ReactNode } from "react";
 import Icon from "./Icon";
 import styles from "./sshConnectionModal.module.css";
 import type { AuthType, SshConnection, SshConnectionPayload } from "../api/sshConnection";
+import { createKey, listKeys } from "../api/sshKey";
+import type { SshKeyDTO } from "../api/sshKey";
 import { useConnectionStore } from "../stores/connectionStore";
 
 export type SshConnectionModalMode = "create" | "edit";
@@ -24,7 +26,8 @@ interface FormState {
   username: string;
   authType: AuthType;
   password: string;
-  privateKey: string;
+  /** 引用的密钥 keyId（PUBLIC_KEY 认证）；私钥内容经密钥实体管理，不再内嵌 */
+  keyId: string;
   connectTimeout: number;
   keepaliveInterval: number;
   startupCommand: string;
@@ -39,7 +42,7 @@ const DEFAULTS: FormState = {
   username: "root",
   authType: "PASSWORD",
   password: "",
-  privateKey: "",
+  keyId: "",
   connectTimeout: 5000,
   keepaliveInterval: 30000,
   startupCommand: "",
@@ -54,8 +57,9 @@ function fromConnection(c: SshConnection): FormState {
     port: c.port,
     username: c.username,
     authType: c.authType,
-    password: c.password ?? "",
-    privateKey: c.privateKey ?? "",
+    // 凭据不回显：密码留空表示「保持不变」（占位符提示），密钥经 keyId 引用回显
+    password: "",
+    keyId: c.keyId ?? "",
     connectTimeout: c.connectTimeout,
     keepaliveInterval: c.keepaliveInterval,
     startupCommand: c.startupCommand ?? "",
@@ -82,18 +86,81 @@ export default function SshConnectionModal({
   const [form, setForm] = useState<FormState>(DEFAULTS);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // 密钥下拉数据源与内联新建区状态（密钥管理 v1 内嵌于表单，不做独立面板）
+  const [keys, setKeys] = useState<SshKeyDTO[]>([]);
+  const [showNewKey, setShowNewKey] = useState(false);
+  const [newKey, setNewKey] = useState({ name: "", privateKey: "", passphrase: "" });
+  const [creatingKey, setCreatingKey] = useState(false);
+
+  const loadKeys = async () => {
+    try {
+      setKeys(await listKeys());
+    } catch {
+      // 列表加载失败不阻塞表单；下拉空时用户仍可新建密钥触发重载
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
     setTab("basic");
     setError(null);
+    setShowNewKey(false);
+    setNewKey({ name: "", privateKey: "", passphrase: "" });
     setForm(initial ? fromConnection(initial) : DEFAULTS);
+    void loadKeys();
   }, [open, initial]);
 
   if (!open) return null;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  /** 桌面版专属：dialog 选私钥文件 → 读内容填入新建区（仍存内容不存路径） */
+  const pickKeyFile = async () => {
+    try {
+      const { open: openDialog } = await import("@tauri-apps/plugin-dialog");
+      const selected = await openDialog({ multiple: false, title: "选择私钥文件" });
+      if (!selected || typeof selected !== "string") return;
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+      const content = await readTextFile(selected);
+      setNewKey((k) => ({
+        ...k,
+        privateKey: content,
+        name: k.name || selected.replace(/\\/g, "/").split("/").pop() || "",
+      }));
+    } catch (err) {
+      setError(
+        "读取私钥文件失败（浏览器模式或受保护目录）；请直接粘贴私钥内容。" +
+          (err instanceof Error ? ` ${err.message}` : "")
+      );
+    }
+  };
+
+  const handleCreateKey = async () => {
+    const name = newKey.name.trim();
+    const privateKey = newKey.privateKey.trim();
+    if (!name || !privateKey) {
+      setError("密钥名称与私钥内容为必填项");
+      return;
+    }
+    setCreatingKey(true);
+    setError(null);
+    try {
+      const keyId = await createKey({
+        name,
+        privateKey,
+        passphrase: newKey.passphrase || undefined,
+      });
+      await loadKeys();
+      set("keyId", keyId);
+      setShowNewKey(false);
+      setNewKey({ name: "", privateKey: "", passphrase: "" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreatingKey(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -110,6 +177,16 @@ export default function SshConnectionModal({
       setTab("basic");
       return;
     }
+    if (form.authType === "PASSWORD" && mode === "create" && !form.password) {
+      setError("密码认证方式下密码不能为空");
+      setTab("auth");
+      return;
+    }
+    if (form.authType === "PUBLIC_KEY" && !form.keyId) {
+      setError("请选择密钥（或新建一个）");
+      setTab("auth");
+      return;
+    }
 
     const payload: SshConnectionPayload = {
       name,
@@ -117,8 +194,10 @@ export default function SshConnectionModal({
       port: form.port,
       username,
       authType: form.authType,
-      password: form.authType === "PASSWORD" ? form.password : undefined,
-      privateKey: form.authType === "PUBLIC_KEY" ? form.privateKey : undefined,
+      // 留空不改：空字符串不提交（编辑态密码留空 = 保持原密码）
+      password:
+        form.authType === "PASSWORD" && form.password ? form.password : undefined,
+      keyId: form.authType === "PUBLIC_KEY" ? form.keyId : undefined,
       connectTimeout: form.connectTimeout,
       keepaliveInterval: form.keepaliveInterval,
       startupCommand: form.startupCommand.trim(),
@@ -234,19 +313,91 @@ export default function SshConnectionModal({
                     type="password"
                     value={form.password}
                     onChange={(e) => set("password", e.target.value)}
-                    placeholder="••••••"
+                    placeholder={
+                      mode === "edit" && initial?.passwordConfigured
+                        ? "已配置，留空保持不变"
+                        : "••••••"
+                    }
                   />
                 </Field>
               ) : (
-                <Field label="私钥">
-                  <textarea
-                    className="textarea"
-                    rows={4}
-                    value={form.privateKey}
-                    onChange={(e) => set("privateKey", e.target.value)}
-                    placeholder={"-----BEGIN OPENSSH PRIVATE KEY-----"}
-                  />
-                </Field>
+                <>
+                  <Field label="密钥">
+                    <select
+                      className="select"
+                      value={form.keyId}
+                      onChange={(e) => set("keyId", e.target.value)}
+                    >
+                      <option value="">选择密钥…</option>
+                      {keys.map((k) => (
+                        <option key={k.keyId} value={k.keyId}>
+                          {k.name}
+                          {k.passphraseConfigured ? "（带口令）" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowNewKey((v) => !v)}
+                  >
+                    {showNewKey ? "收起新建密钥" : "＋ 新建密钥"}
+                  </button>
+                  {showNewKey && (
+                    <div className={styles.newKeyBox}>
+                      <Field label="密钥名称" required>
+                        <input
+                          className="input"
+                          value={newKey.name}
+                          onChange={(e) =>
+                            setNewKey((k) => ({ ...k, name: e.target.value }))
+                          }
+                          placeholder="如 id_ed25519 / 生产环境密钥"
+                        />
+                      </Field>
+                      <Field label="私钥内容" required>
+                        <textarea
+                          className="textarea"
+                          rows={4}
+                          value={newKey.privateKey}
+                          onChange={(e) =>
+                            setNewKey((k) => ({ ...k, privateKey: e.target.value }))
+                          }
+                          placeholder={"-----BEGIN OPENSSH PRIVATE KEY-----"}
+                        />
+                      </Field>
+                      <div className={styles.row}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={pickKeyFile}
+                        >
+                          从文件导入…
+                        </button>
+                        <Field label="私钥口令（可选）" className={styles.grow}>
+                          <input
+                            className="input"
+                            type="password"
+                            value={newKey.passphrase}
+                            onChange={(e) =>
+                              setNewKey((k) => ({ ...k, passphrase: e.target.value }))
+                            }
+                            placeholder="无口令留空"
+                          />
+                        </Field>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={handleCreateKey}
+                        disabled={creatingKey}
+                      >
+                        {creatingKey ? "保存中…" : "保存密钥"}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

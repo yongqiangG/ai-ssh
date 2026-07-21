@@ -9,7 +9,7 @@ import type { ConnectionState } from "../types";
 /** 认证类型，对应服务端 AuthTypeEnum.code */
 export type AuthType = "PASSWORD" | "PUBLIC_KEY";
 
-/** 服务端返回的连接原始结构（status 为编码 0/1） */
+/** 服务端返回的连接原始结构（status 为编码 0/1）。凭据只写不回显：以布尔/引用回显配置状态 */
 export interface SshConnectionDTO {
   connectionId: string;
   name: string;
@@ -17,8 +17,10 @@ export interface SshConnectionDTO {
   port: number;
   username: string;
   authType: AuthType;
-  password: string;
-  privateKey: string;
+  /** 是否已配置密码（编辑时留空=保持不变） */
+  passwordConfigured: boolean;
+  /** 引用的密钥 keyId（PUBLIC_KEY 认证）；密钥名从密钥列表关联 */
+  keyId?: string;
   /** 0=未连接，1=已连接 */
   status: number;
   userId: string;
@@ -35,7 +37,7 @@ export interface SshConnection extends Omit<SshConnectionDTO, "status"> {
   status: ConnectionState;
 }
 
-/** 新建/编辑提交体 */
+/** 新建/编辑提交体；password 省略=不修改（编辑），keyId 为 PUBLIC_KEY 认证的密钥引用 */
 export interface SshConnectionPayload {
   name: string;
   host: string;
@@ -43,7 +45,7 @@ export interface SshConnectionPayload {
   username: string;
   authType: AuthType;
   password?: string;
-  privateKey?: string;
+  keyId?: string;
   connectTimeout?: number;
   keepaliveInterval?: number;
   startupCommand?: string;

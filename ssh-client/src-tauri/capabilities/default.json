@@ -18,9 +18,7 @@
       "allow": [{ "path": "**" }],
       "deny": [
         { "path": "$HOME/.ai-ssh" },
-        { "path": "$HOME/.ai-ssh/**" },
-        { "path": "$HOME/.ssh" },
-        { "path": "$HOME/.ssh/**" }
+        { "path": "$HOME/.ai-ssh/**" }
       ]
     }
   ]
