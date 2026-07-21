@@ -32,11 +32,13 @@
 
 ## 分阶段落地
 
-1. 后端支持 `single` profile：H2 文件库、本机密钥、无 MySQL 启动。
-2. 增加本地 LLM 配置接口：读取、保存、测试连接，保存后重装配 Agent。
-3. 前端增加模型设置入口，用户填写 `baseUrl`、`apiKey`、`model` 和 `completionsPath`。
-4. Tauri 打包阶段再接入 sidecar 生命周期管理。
-5. 企业版阶段再引入统一 LLM 网关、用户权限、成本控制和审计。
+1. ✅ 后端支持 `single` profile：H2 文件库、本机密钥、无 MySQL 启动。
+2. ✅ 增加本地 LLM 配置接口：读取、保存、测试连接，保存后重装配 Agent（`LlmConfigController` + `AgentRunnerRegistry.rebuild()`）。
+3. ✅ 前端增加模型设置入口，用户填写 `baseUrl`、`apiKey`、`model` 和 `completionsPath`。
+4. ✅ Tauri 打包接入 sidecar 生命周期管理（`lib.rs` 嵌入式 JRE + jar 启动，CI 见 `.github/workflows/build-*-validation.yml`）。
+5. 企业版阶段再引入统一 LLM 网关、用户权限、成本控制和审计。（未开始）
+
+> 现状（2026-07-21）：阶段 1-4 已完成，single 为默认开发 profile（`application.yml`），优先迭代单体形态；两形态代码层保持完全兼容，差异只允许出现在数据库实现与 profile 配置。
 
 ## 安全边界
 
