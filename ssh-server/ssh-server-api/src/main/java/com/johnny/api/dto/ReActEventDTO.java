@@ -10,12 +10,13 @@ import lombok.Data;
  *
  * <p>事件类型（{@link #event}）：
  * <ul>
- *   <li><b>text</b>        —— 模型文本片段。{@link #content} 为本次片段，{@link #fullText} 为累积全文（前端用 fullText 整体替换）</li>
- *   <li><b>tool_call</b>   —— 工具调用开始（最小闭环无工具，暂不产生）</li>
- *   <li><b>tool_result</b> —— 工具执行结果（最小闭环无工具，暂不产生）</li>
- *   <li><b>round_end</b>   —— 一轮 ReAct 结束，含 {@link StepInfo} 进度</li>
- *   <li><b>done</b>        —— 全部完成，{@link #content} 为最终结果 JSON（ReActResultDTO）</li>
- *   <li><b>error</b>       —— 错误，{@link #content} 为错误信息</li>
+ *   <li><b>text</b>            —— 模型文本片段。{@link #content} 为本次片段，{@link #fullText} 为累积全文（前端用 fullText 整体替换）</li>
+ *   <li><b>tool_call</b>       —— 工具调用开始</li>
+ *   <li><b>tool_result</b>     —— 工具执行结果</li>
+ *   <li><b>confirm_request</b> —— 写操作等待用户确认（B1 确认门），携带 {@link #confirmId}，{@link #analysis} 为判定理由</li>
+ *   <li><b>round_end</b>       —— 一轮 ReAct 结束，含 {@link StepInfo} 进度</li>
+ *   <li><b>done</b>            —— 全部完成，{@link #content} 为最终结果 JSON（ReActResultDTO）</li>
+ *   <li><b>error</b>           —— 错误，{@link #content} 为错误信息</li>
  * </ul>
  *
  * <p>本结构与 WaLiSSH 的 ReActEventDTO 完全对齐，便于日后移植其前端时间线渲染。
@@ -23,7 +24,7 @@ import lombok.Data;
 @Data
 public class ReActEventDTO {
 
-    /** 事件类型：text / tool_call / tool_result / round_end / done / error */
+    /** 事件类型：text / tool_call / tool_result / confirm_request / round_end / done / error */
     private String event;
 
     /** 事件内容（文本片段 / 工具结果 / 最终结果 JSON / 错误信息） */

@@ -225,8 +225,9 @@ public class SshSessionPort implements ISshSessionPort {
                 Thread.sleep(POLL_INTERVAL);
             }
             int exitStatus = channel.getExitStatus();
-            log.info("SSH 命令执行完成 connectionId={} cmd=[{}] exit={} output=[{}]",
-                    connectionId, command, exitStatus, output.toString().trim());
+            // 输出只记长度不记全文：内容可能含敏感信息（cat 凭据文件等），不让日志成为二次泄露面
+            log.info("SSH 命令执行完成 connectionId={} cmd=[{}] exit={} outputChars={}",
+                    connectionId, command, exitStatus, output.length());
             return output.toString();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();

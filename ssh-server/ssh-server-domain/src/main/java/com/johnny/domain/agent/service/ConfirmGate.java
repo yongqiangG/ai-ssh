@@ -29,8 +29,16 @@ import java.util.function.Consumer;
 @Component
 public class ConfirmGate {
 
-    /** 等待用户决定的上限（秒）；超时按拒绝处理 */
+    /** 等待用户决定的默认上限（秒）；超时按拒绝处理 */
     public static final long TIMEOUT_SECONDS = 120;
+
+    /** 实际等待上限；默认 {@value #TIMEOUT_SECONDS}s，测试经 {@link #setTimeoutSecondsForTest} 缩短以真走超时分支 */
+    private long timeoutSeconds = TIMEOUT_SECONDS;
+
+    /** 仅测试用：缩短等待上限，让超时=拒绝路径可被单测真实覆盖（不真等 120s） */
+    void setTimeoutSecondsForTest(long timeoutSeconds) {
+        this.timeoutSeconds = timeoutSeconds;
+    }
 
     /** confirm_request 事件载体 */
     public static class ConfirmRequest {
@@ -85,11 +93,11 @@ public class ConfirmGate {
         try {
             emitter.accept(new ConfirmRequest(confirmId, toolCallId, command, reason));
             log.info("确认门挂起等待用户决定 confirmId={} command=[{}] reason={}", confirmId, command, reason);
-            boolean allowed = future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            boolean allowed = future.get(timeoutSeconds, TimeUnit.SECONDS);
             log.info("确认门收到决定 confirmId={} allowed={}", confirmId, allowed);
             return allowed;
         } catch (TimeoutException te) {
-            log.warn("确认门等待超时（{}s）按拒绝处理 confirmId={} command=[{}]", TIMEOUT_SECONDS, confirmId, command);
+            log.warn("确认门等待超时（{}s）按拒绝处理 confirmId={} command=[{}]", timeoutSeconds, confirmId, command);
             return false;
         } catch (Exception e) {
             Thread.currentThread().interrupt();

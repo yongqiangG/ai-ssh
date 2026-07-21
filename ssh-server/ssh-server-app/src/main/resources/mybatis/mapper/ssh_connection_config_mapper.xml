@@ -42,6 +42,12 @@
         WHERE connection_id = #{connectionId}
     </delete>
 
+    <update id="enableStrictHostKeyCheckForLegacy">
+        UPDATE ssh_connection_config
+        SET strict_host_key_check = 1
+        WHERE strict_host_key_check = 0
+    </update>
+
     <select id="queryByConnectionId" parameterType="java.lang.String" resultMap="SshConnectionConfigMap">
         SELECT <include refid="columns"/>
         FROM ssh_connection_config

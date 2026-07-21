@@ -22,4 +22,12 @@ public interface ISshConnectionConfigDao {
     /** 按连接标识查询 */
     SshConnectionConfigPO queryByConnectionId(@Param("connectionId") String connectionId);
 
+    /**
+     * 存量迁移：把 strict_host_key_check=0 的行翻为 1（幂等，迁移后不再命中）。
+     * 迭代 A 只翻转了 DDL 列默认值，此前建的连接静默跳过 host key 校验，启动时统一补齐。
+     *
+     * @return 受影响行数
+     */
+    int enableStrictHostKeyCheckForLegacy();
+
 }

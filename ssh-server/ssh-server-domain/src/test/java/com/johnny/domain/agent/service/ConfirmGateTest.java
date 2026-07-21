@@ -14,9 +14,18 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 确认门挂起/唤醒/拒绝语义测试（超时场景不真等 120s，验证保守拒绝路径即可）。
+ * 确认门挂起/唤醒/拒绝/超时语义测试（超时用注入的短上限真走 future.get 超时分支，不真等 120s）。
  */
 public class ConfirmGateTest {
+
+    @Test
+    public void timeout_without_decision_denies() {
+        ConfirmGate gate = new ConfirmGate();
+        gate.setTimeoutSecondsForTest(0);
+        gate.registerEmitter("s-timeout", cr -> { /* 发射成功但无人决策 */ });
+        // 上限 0s：future.get 立即超时 → 保守拒绝（同步调用即可，无需工具线程）
+        assertFalse("超时必须按拒绝处理", gate.requestConfirm("s-timeout", "fc-t", "rm -f /tmp/x", "命中写规则"));
+    }
 
     @Test
     public void allow_decision_unblocks_with_true() throws Exception {
