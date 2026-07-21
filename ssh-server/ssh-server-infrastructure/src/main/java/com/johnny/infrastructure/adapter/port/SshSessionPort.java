@@ -2,9 +2,11 @@ package com.johnny.infrastructure.adapter.port;
 
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelShell;
+import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.johnny.domain.ssh.adapter.port.ConnectParams;
+import com.johnny.domain.ssh.adapter.port.ConnectResult;
 import com.johnny.domain.ssh.adapter.port.ExecResult;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.types.enums.ResponseCode;
@@ -44,8 +46,9 @@ public class SshSessionPort implements ISshSessionPort {
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @Override
-    public boolean connect(String connectionId, ConnectParams params) {
+    public ConnectResult connect(String connectionId, ConnectParams params) {
         disconnect(connectionId);
+        TofuHostKeyRepository tofu = null;
         try {
             JSch jsch = new JSch();
             // 提供私钥时优先使用公钥认证；passphrase 为 null 时按无口令私钥处理
@@ -59,9 +62,15 @@ public class SshSessionPort implements ISshSessionPort {
             if (!useKey) {
                 newSession.setPassword(params.password);
             }
-            // TODO(迭代 A-4)：TOFU——strictHostKeyCheck=true 时挂自定义 HostKeyRepository 按 knownHosts 校验；
-            // 当前阶段保持跳过校验（与既有行为一致），字段已透传到位。
-            newSession.setConfig("StrictHostKeyChecking", "no");
+            if (params.strictHostKeyCheck) {
+                // TOFU：按连接的 knownHosts 校验，未知/变更指纹拒绝连接并捕获现场
+                tofu = new TofuHostKeyRepository(params.knownHosts);
+                newSession.setHostKeyRepository(tofu);
+                newSession.setConfig("StrictHostKeyChecking", "yes");
+            } else {
+                // 用户显式关闭严格校验（如指纹频繁变化的测试容器场景）
+                newSession.setConfig("StrictHostKeyChecking", "no");
+            }
             if (params.compression) {
                 newSession.setConfig("compression.s2c", "zlib@openssh.com,zlib,none");
                 newSession.setConfig("compression.c2s", "zlib@openssh.com,zlib,none");
@@ -74,9 +83,9 @@ public class SshSessionPort implements ISshSessionPort {
                     ? params.connectTimeout : CONNECT_TIMEOUT;
             newSession.connect(connectTimeout);
             sessions.put(connectionId, newSession);
-            log.info("SSH 连接成功 connectionId={} host={} port={} username={} auth={} timeout={} keepalive={} compression={}",
+            log.info("SSH 连接成功 connectionId={} host={} port={} username={} auth={} timeout={} keepalive={} compression={} strictHostKey={}",
                     connectionId, params.host, params.port, params.username, useKey ? "key" : "password",
-                    connectTimeout, params.keepaliveInterval, params.compression);
+                    connectTimeout, params.keepaliveInterval, params.compression, params.strictHostKeyCheck);
             // 连接成功后立即执行一次 pwd 探测，便于在日志中看到远端真实反馈；
             // 直接复用本类 exec（此时 session 已入表）。不要调 sshConnectionService——
             // 它是 domain 层服务，反向依赖会构成 SshConnectionService ↔ SshSessionPort 循环。
@@ -87,11 +96,26 @@ public class SshSessionPort implements ISshSessionPort {
                 log.warn("SSH 连接成功但探测命令 pwd 失败（不影响连接）connectionId={} reason={}",
                         connectionId, execEx.getMessage());
             }
-            return true;
+            return ConnectResult.ok();
         } catch (Exception e) {
+            // TOFU 拦截：JSch 因 NOT_INCLUDED/CHANGED 拒绝连接时，从仓库取出捕获现场组装结构化结果
+            TofuHostKeyRepository.Capture capture = tofu == null ? null : tofu.getCapture();
+            if (capture != null) {
+                ConnectResult r = new ConnectResult();
+                r.success = false;
+                r.hostKeyStatus = capture.status == HostKeyRepository.CHANGED ? "CHANGED" : "UNKNOWN";
+                r.host = capture.host;
+                r.keyType = capture.keyType;
+                r.fingerprintSha256 = capture.fingerprintSha256;
+                r.oldFingerprintSha256 = capture.oldFingerprintSha256;
+                r.knownHostLine = capture.knownHostLine;
+                log.warn("SSH 连接被主机密钥校验拦下 connectionId={} status={} host={} fingerprint={}",
+                        connectionId, r.hostKeyStatus, r.host, r.fingerprintSha256);
+                return r;
+            }
             log.error("SSH 连接失败 connectionId={} host={} port={} username={}",
                     connectionId, params.host, params.port, params.username, e);
-            return false;
+            return ConnectResult.fail(e.getMessage());
         }
     }
 

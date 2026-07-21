@@ -1,10 +1,13 @@
 package com.johnny.trigger.http;
 
+import com.johnny.api.dto.AcceptHostKeyRequestDTO;
+import com.johnny.api.dto.ConnectResultDTO;
 import com.johnny.api.dto.SshConnectionCreateRequestDTO;
 import com.johnny.api.dto.SshConnectionResponseDTO;
 import com.johnny.api.dto.SshConnectionUpdateRequestDTO;
 import com.johnny.api.dto.SshExecRequestDTO;
 import com.johnny.api.response.Response;
+import com.johnny.domain.ssh.adapter.port.ConnectResult;
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.SshConnectionConfigEntity;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
@@ -113,10 +116,28 @@ public class SshConnectionController {
         return Response.success(null);
     }
 
-    /** 建立连接 */
+    /** 建立连接；strictHostKeyCheck 开启时可能返回指纹确认请求（success=false + hostKeyStatus） */
     @PostMapping("/{connectionId}/connect")
-    public Response<Boolean> connect(@PathVariable("connectionId") String connectionId) {
-        return Response.success(sshConnectionService.connect(connectionId));
+    public Response<ConnectResultDTO> connect(@PathVariable("connectionId") String connectionId) {
+        ConnectResult r = sshConnectionService.connect(connectionId);
+        ConnectResultDTO dto = new ConnectResultDTO();
+        dto.setSuccess(r.success);
+        dto.setHostKeyStatus(r.hostKeyStatus);
+        dto.setHost(r.host);
+        dto.setKeyType(r.keyType);
+        dto.setFingerprintSha256(r.fingerprintSha256);
+        dto.setOldFingerprintSha256(r.oldFingerprintSha256);
+        dto.setKnownHostLine(r.knownHostLine);
+        dto.setError(r.error);
+        return Response.success(dto);
+    }
+
+    /** 用户确认主机指纹：写入连接的 knownHosts（同 host+type 旧记录被替换），随后前端重连 */
+    @PostMapping("/{connectionId}/accept-hostkey")
+    public Response<Void> acceptHostKey(@PathVariable("connectionId") String connectionId,
+                                        @RequestBody AcceptHostKeyRequestDTO req) {
+        sshConnectionService.acceptHostKey(connectionId, req.getKnownHostLine());
+        return Response.success(null);
     }
 
     /** 断开连接 */

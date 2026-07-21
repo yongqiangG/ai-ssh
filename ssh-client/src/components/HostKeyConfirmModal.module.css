@@ -1,0 +1,99 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.dialog {
+  width: 480px;
+  max-width: calc(100vw - 48px);
+  background: var(--bg-elevated, #1e2027);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.dialog.danger {
+  border-color: rgba(239, 68, 68, 0.65);
+  box-shadow: 0 16px 48px rgba(239, 68, 68, 0.18);
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.danger .title {
+  color: #f87171;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+}
+
+.warnText b {
+  color: #f87171;
+}
+
+.fpBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.fpRow {
+  display: flex;
+  gap: 10px;
+}
+
+.fpLabel {
+  flex: 0 0 44px;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+}
+
+.oldFp {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  text-decoration: line-through;
+}
+
+.newFp {
+  color: #f87171;
+}
+
+.error {
+  color: #f87171;
+  font-size: 12px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dangerBtn {
+  background: #dc2626;
+}
+
+.dangerBtn:hover {
+  background: #b91c1c;
+}

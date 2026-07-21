@@ -14,12 +14,14 @@ public interface ISshSessionPort {
     /**
      * 建立 SSH 连接；支持密码与私钥两种认证（提供 privateKey 时优先使用私钥认证）。
      * <p>高级配置（connectTimeout/keepaliveInterval/compression 等）由 {@link ConnectParams} 携带并真正生效。
+     * <p>{@code strictHostKeyCheck=true} 时执行 TOFU 主机密钥校验：未知/变更指纹会拦下连接，
+     * 拦截详情（指纹、待写入行）在返回的 {@link ConnectResult} 中。
      *
      * @param connectionId 连接唯一标识，用于区分多个 SSH 连接
      * @param params       连接参数（凭据 + 高级配置）
-     * @return 连接成功返回 true，失败返回 false
+     * @return 结构化连接结果（成功 / 指纹拦截 / 其他失败）
      */
-    boolean connect(String connectionId, ConnectParams params);
+    ConnectResult connect(String connectionId, ConnectParams params);
 
     /**
      * 断开指定连接；若不存在或未连接则不做任何操作。

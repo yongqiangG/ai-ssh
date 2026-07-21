@@ -1,5 +1,6 @@
 package com.johnny.domain.ssh.service;
 
+import com.johnny.domain.ssh.adapter.port.ConnectResult;
 import com.johnny.domain.ssh.model.aggregate.SshConnectionAggregate;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
 import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
@@ -28,8 +29,11 @@ public interface ISshConnectionService {
     /** 删除连接 */
     void remove(String connectionId);
 
-    /** 建立连接 */
-    boolean connect(String connectionId);
+    /** 建立连接；strictHostKeyCheck 开启时可能被主机指纹校验拦下（结果携带指纹供前端确认） */
+    ConnectResult connect(String connectionId);
+
+    /** 用户确认指纹后写入连接的 knownHosts（同 host+type 的旧记录被替换），随后前端重连 */
+    void acceptHostKey(String connectionId, String knownHostLine);
 
     /** 断开连接 */
     void disconnect(String connectionId);

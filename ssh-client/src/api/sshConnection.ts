@@ -56,6 +56,20 @@ export interface SshConnectionPayload {
 
 const BASE = "/api/ssh/connections";
 
+/** 连接尝试结果（TOFU）：success=false 且 hostKeyStatus 非空 = 被指纹校验拦下待确认 */
+export interface ConnectResultDTO {
+  success: boolean;
+  /** UNKNOWN=首次遇到该主机；CHANGED=指纹与已知记录不一致（疑似重装/中间人） */
+  hostKeyStatus?: "UNKNOWN" | "CHANGED" | null;
+  host?: string;
+  keyType?: string;
+  fingerprintSha256?: string;
+  oldFingerprintSha256?: string;
+  /** 确认后写入 known_hosts 的完整行 */
+  knownHostLine?: string;
+  error?: string;
+}
+
 /** 服务端状态编码 → 客户端状态 */
 function toConnectionState(code: number): ConnectionState {
   return code === 1 ? "connected" : "disconnected";
@@ -92,8 +106,13 @@ export function deleteConnection(id: string): Promise<void> {
   return http.del<void>(`${BASE}/${id}`);
 }
 
-export function connectConnection(id: string): Promise<boolean> {
-  return http.post<boolean>(`${BASE}/${id}/connect`);
+export function connectConnection(id: string): Promise<ConnectResultDTO> {
+  return http.post<ConnectResultDTO>(`${BASE}/${id}/connect`);
+}
+
+/** 用户确认主机指纹：写入连接的 knownHosts，随后调用方重连 */
+export function acceptHostKey(id: string, knownHostLine: string): Promise<void> {
+  return http.post<void>(`${BASE}/${id}/accept-hostkey`, { knownHostLine });
 }
 
 export function disconnectConnection(id: string): Promise<void> {

@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS ssh_connection_config (
   connect_timeout INT NOT NULL DEFAULT 5000,
   keepalive_interval INT NOT NULL DEFAULT 30000,
   startup_command VARCHAR(512),
-  strict_host_key_check TINYINT NOT NULL DEFAULT 0,
+  strict_host_key_check TINYINT NOT NULL DEFAULT 1,
   compression TINYINT NOT NULL DEFAULT 0,
   known_hosts CLOB,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

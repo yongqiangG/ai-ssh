@@ -39,7 +39,7 @@ CREATE TABLE `ssh_connection_config` (
   `connect_timeout` int NOT NULL DEFAULT 5000 COMMENT '连接超时(毫秒)',
   `keepalive_interval` int NOT NULL DEFAULT 30000 COMMENT 'keepalive间隔(毫秒)',
   `startup_command` varchar(512) DEFAULT NULL COMMENT '连接后执行的启动命令',
-  `strict_host_key_check` tinyint NOT NULL DEFAULT 0 COMMENT '严格主机密钥检查 0关 1开',
+  `strict_host_key_check` tinyint NOT NULL DEFAULT 1 COMMENT '严格主机密钥检查(TOFU) 0关 1开(默认)',
   `compression` tinyint NOT NULL DEFAULT 0 COMMENT '是否启用压缩 0关 1开',
   `known_hosts` text COMMENT '已知主机密钥列表',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

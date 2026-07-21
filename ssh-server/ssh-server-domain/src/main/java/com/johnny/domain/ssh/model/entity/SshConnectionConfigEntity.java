@@ -18,8 +18,8 @@ public class SshConnectionConfigEntity {
     public static final int DEFAULT_CONNECT_TIMEOUT = 5000;
     /** 默认 keepalive 间隔（毫秒） */
     public static final int DEFAULT_KEEPALIVE_INTERVAL = 30000;
-    /** 默认是否启用严格主机密钥检查 */
-    public static final boolean DEFAULT_STRICT_HOST_KEY_CHECK = false;
+    /** 默认是否启用严格主机密钥检查（TOFU；安全默认开启，测试容器等场景可显式关闭） */
+    public static final boolean DEFAULT_STRICT_HOST_KEY_CHECK = true;
     /** 默认是否启用压缩 */
     public static final boolean DEFAULT_COMPRESSION = false;
 

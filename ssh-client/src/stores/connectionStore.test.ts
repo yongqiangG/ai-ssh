@@ -63,7 +63,9 @@ describe("connectionStore", () => {
     useConnectionStore.setState({
       connections: [{ ...dto(), status: "disconnected" as const }],
     });
-    (connectConnection as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (connectConnection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+    });
 
     const promise = useConnectionStore.getState().connect("c1");
     // 调用后立即应处于 connecting（乐观更新）
@@ -77,14 +79,37 @@ describe("connectionStore", () => {
     );
   });
 
-  it("connect 服务端返回 false → error", async () => {
+  it("connect 服务端返回失败 → error", async () => {
     useConnectionStore.setState({
       connections: [{ ...dto(), status: "disconnected" as const }],
     });
-    (connectConnection as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    (connectConnection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: "认证失败",
+    });
 
     await useConnectionStore.getState().connect("c1");
     expect(useConnectionStore.getState().connections[0].status).toBe("error");
+  });
+
+  it("connect 被 TOFU 拦截 → pendingHostKey 置位且状态回 disconnected", async () => {
+    useConnectionStore.setState({
+      connections: [{ ...dto(), status: "disconnected" as const }],
+      pendingHostKey: null,
+    });
+    (connectConnection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      hostKeyStatus: "UNKNOWN",
+      host: "10.0.0.1",
+      fingerprintSha256: "SHA256:abc",
+      knownHostLine: "10.0.0.1 ssh-ed25519 AAAA",
+    });
+
+    await useConnectionStore.getState().connect("c1");
+    const s = useConnectionStore.getState();
+    expect(s.connections[0].status).toBe("disconnected");
+    expect(s.pendingHostKey?.connectionId).toBe("c1");
+    expect(s.pendingHostKey?.result.hostKeyStatus).toBe("UNKNOWN");
   });
 
   it("connect 抛异常 → error", async () => {

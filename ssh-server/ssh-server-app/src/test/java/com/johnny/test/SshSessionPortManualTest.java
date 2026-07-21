@@ -61,7 +61,7 @@ public class SshSessionPortManualTest {
         params.port = 1;
         params.username = "nouser";
         params.password = "nopass";
-        boolean ok = sshSessionPort.connect(CONN_ID, params);
+        boolean ok = sshSessionPort.connect(CONN_ID, params).success;
         assertFalse("连接无效端点应返回 false", ok);
         assertFalse("连接失败后应为未连接状态", sshSessionPort.isConnected(CONN_ID));
         log.info("连接无效端点如期返回 false");
@@ -75,7 +75,7 @@ public class SshSessionPortManualTest {
      */
     @Test
     public void test_openShell_interactive() {
-        boolean ok = sshSessionPort.connect(CONN_ID, passwordParams(HOST, PORT, USERNAME, PASSWORD));
+        boolean ok = sshSessionPort.connect(CONN_ID, passwordParams(HOST, PORT, USERNAME, PASSWORD)).success;
         assertTrue("真实服务器连接应成功", ok);
         sshSessionPort.openShell(CONN_ID, System.in, System.out);
     }
@@ -86,7 +86,7 @@ public class SshSessionPortManualTest {
     public static void main(String[] args) {
         ISshSessionPort port = new SshSessionPort();
         try {
-            boolean ok = port.connect(CONN_ID, passwordParams(HOST, PORT, USERNAME, PASSWORD));
+            boolean ok = port.connect(CONN_ID, passwordParams(HOST, PORT, USERNAME, PASSWORD)).success;
             if (!ok) {
                 System.out.println("连接失败，请检查主机/凭据");
                 return;

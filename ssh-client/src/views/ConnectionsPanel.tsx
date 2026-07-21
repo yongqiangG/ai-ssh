@@ -3,6 +3,7 @@ import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
 import BackendSettingsModal from "../components/BackendSettingsModal";
+import HostKeyConfirmModal from "../components/HostKeyConfirmModal";
 import { useBackendStore } from "../stores/backendStore";
 import { useConnectionStore } from "../stores/connectionStore";
 import { useLayoutStore } from "../stores/layoutStore";
@@ -193,6 +194,7 @@ export default function ConnectionsPanel() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+      <HostKeyConfirmModal />
     </section>
   );
 }

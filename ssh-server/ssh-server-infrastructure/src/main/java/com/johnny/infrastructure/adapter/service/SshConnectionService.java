@@ -1,6 +1,7 @@
 package com.johnny.infrastructure.adapter.service;
 
 import com.johnny.domain.ssh.adapter.port.ConnectParams;
+import com.johnny.domain.ssh.adapter.port.ConnectResult;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.domain.ssh.adapter.repository.ISshConnectionRepository;
 import com.johnny.domain.ssh.adapter.repository.ISshKeyRepository;
@@ -107,7 +108,7 @@ public class SshConnectionService implements ISshConnectionService {
     }
 
     @Override
-    public boolean connect(String connectionId) {
+    public ConnectResult connect(String connectionId) {
         SshConnectionAggregate aggregate = repository.queryByConnectionId(connectionId);
         if (aggregate == null) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接不存在: " + connectionId);
@@ -140,6 +141,53 @@ public class SshConnectionService implements ISshConnectionService {
             params.knownHosts = cfg.getKnownHosts();
         }
         return sessionPort.connect(conn.getConnectionId(), params);
+    }
+
+    @Override
+    public void acceptHostKey(String connectionId, String knownHostLine) {
+        if (StringUtils.isBlank(knownHostLine)) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "known_hosts 行不能为空");
+        }
+        String[] parts = knownHostLine.trim().split("\\s+");
+        if (parts.length < 3) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "known_hosts 行格式非法（应为 host keytype base64key）");
+        }
+        SshConnectionAggregate aggregate = repository.queryByConnectionId(connectionId);
+        if (aggregate == null) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接不存在: " + connectionId);
+        }
+        SshConnectionConfigEntity cfg = aggregate.getConfig();
+        String host = parts[0];
+        String type = parts[1];
+        // 合并：同 host+type 的旧记录被新指纹替换（CHANGED 场景的「信任新指纹」）
+        StringBuilder merged = new StringBuilder();
+        String existing = cfg == null ? "" : cfg.getKnownHosts();
+        if (StringUtils.isNotBlank(existing)) {
+            for (String line : existing.split("\\r?\\n")) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                String[] p = trimmed.split("\\s+");
+                boolean sameEntry = p.length >= 2 && p[0].equals(host) && p[1].equals(type);
+                if (!sameEntry) {
+                    merged.append(trimmed).append('\n');
+                }
+            }
+        }
+        merged.append(knownHostLine.trim()).append('\n');
+
+        SshConnectionConfigEntity newCfg = SshConnectionConfigEntity.create(
+                connectionId,
+                cfg == null ? null : cfg.getConnectTimeout(),
+                cfg == null ? null : cfg.getKeepaliveInterval(),
+                cfg == null ? "" : cfg.getStartupCommand(),
+                cfg == null || cfg.isStrictHostKeyCheck(),
+                merged.toString(),
+                cfg != null && cfg.isCompression());
+        newCfg.validate();
+        newCfg.applyDefaults();
+        repository.update(SshConnectionAggregate.restore(aggregate.getConnection(), newCfg));
     }
 
     @Override

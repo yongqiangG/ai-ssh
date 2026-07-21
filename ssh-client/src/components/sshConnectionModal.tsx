@@ -47,7 +47,7 @@ const DEFAULTS: FormState = {
   keepaliveInterval: 30000,
   startupCommand: "",
   compression: false,
-  strictHostKeyCheck: false,
+  strictHostKeyCheck: true,
 };
 
 function fromConnection(c: SshConnection): FormState {
@@ -450,7 +450,7 @@ export default function SshConnectionModal({
                   checked={form.strictHostKeyCheck}
                   onChange={(e) => set("strictHostKeyCheck", e.target.checked)}
                 />
-                <span className={styles.label}>严格主机密钥检查</span>
+                <span className={styles.label}>严格主机密钥校验（推荐，首次连接需确认指纹）</span>
               </label>
               <div className={styles.hint}>
                 高级选项留空或不填时，由服务端填充默认值（超时 5000ms、保活 30000ms）。
