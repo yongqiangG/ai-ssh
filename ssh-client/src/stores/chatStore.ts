@@ -32,11 +32,15 @@ interface ChatState {
   quote: PendingQuote | null;
   /** 附带终端上下文开关（F3；默认关，刻意逐会话重置，不持久化） */
   attachContext: boolean;
+  /** F5 报错检测气泡全局开关（默认开；持久化——关掉是长期意愿不该重启复活） */
+  errorDetectEnabled: boolean;
 
   /** 设置终端引用块（选中即问 / 报错诊断入口调用） */
   setQuote: (quote: PendingQuote | null) => void;
   /** F3 开关 */
   toggleAttachContext: () => void;
+  /** F5 全局开关 */
+  toggleErrorDetect: () => void;
 
   /** 记录一条历史命令（去重+提末尾+上限 50） */
   pushCmdHistory: (cmd: string) => void;
@@ -90,9 +94,12 @@ export const useChatStore = create<ChatState>()(
         cmdHistory: [],
         quote: null,
         attachContext: false,
+        errorDetectEnabled: true,
 
         setQuote: (quote) => set({ quote }),
         toggleAttachContext: () => set((s) => ({ attachContext: !s.attachContext })),
+        toggleErrorDetect: () =>
+          set((s) => ({ errorDetectEnabled: !s.errorDetectEnabled })),
 
         loadAgents: async () => {
           // 总是重新拉取：后端可能刚完成装配/换了模型配置，不做本地缓存守卫
@@ -415,6 +422,7 @@ export const useChatStore = create<ChatState>()(
         currentId: s.currentId,
         agentId: s.agentId,
         cmdHistory: s.cmdHistory,
+        errorDetectEnabled: s.errorDetectEnabled,
       }),
     }
   )

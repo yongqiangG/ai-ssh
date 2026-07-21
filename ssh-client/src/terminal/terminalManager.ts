@@ -30,6 +30,7 @@ import {
   resizeTerminal,
   writeTerminal,
 } from "../api/terminal";
+import { errorKey, findErrorLine } from "../utils/errorDetect";
 
 /** 输出轮询间隔 */
 const POLL_INTERVAL_MS = 50;
@@ -37,6 +38,8 @@ const POLL_INTERVAL_MS = 50;
 const INPUT_FLUSH_MS = 10;
 /** 连续轮询失败该次数即判定断连 */
 const MAX_POLL_ERRORS = 3;
+/** F5 报错防噪窗口：同一终端同类报错（errorKey 相同）该时间内只通知一次 */
+const ERROR_DEDUP_MS = 30_000;
 
 /** 单个连接的终端运行时上下文（资源 + 轮询状态） */
 interface ManagedTerminal {
@@ -59,6 +62,9 @@ interface ManagedTerminal {
   resizeObserver: ResizeObserver | null;
   /** false = 已断连/已释放，一切读写与定时器动作短路 */
   alive: boolean;
+  /** F5 防噪：最近一次通知的报错 key 与时间戳（同 key 在窗口内不重复通知） */
+  lastErrorKey: string | null;
+  lastErrorAt: number;
 }
 
 /** connectionId -> 终端上下文。模块级 Map，跨组件卸载存活 */
@@ -77,6 +83,17 @@ let onSessionClosed: SessionClosedListener | null = null;
 
 export function setOnSessionClosed(listener: SessionClosedListener | null): void {
   onSessionClosed = listener;
+}
+
+/**
+ * F5 报错检测通知：UI 层（TerminalPanel）注册；输出流命中 error 正则且通过防噪后回调。
+ * 全局开关的判断放在 UI 层回调里（本模块不 import chatStore，避免与其形成循环依赖）。
+ */
+type ErrorDetectedListener = (connectionId: string, errorLine: string) => void;
+let onErrorDetected: ErrorDetectedListener | null = null;
+
+export function setOnErrorDetected(listener: ErrorDetectedListener | null): void {
+  onErrorDetected = listener;
 }
 
 /**
@@ -230,6 +247,8 @@ export async function openTerminalIn(
       lastRows: term.rows,
       resizeObserver: null,
       alive: true,
+      lastErrorKey: null,
+      lastErrorAt: 0,
     };
     terminals.set(connectionId, mt);
 
@@ -337,7 +356,16 @@ async function poll(connectionId: string, mt: ManagedTerminal): Promise<void> {
   try {
     const { content, closed } = await readTerminal(mt.sessionId);
     mt.pollErrors = 0;
-    if (content) mt.term.write(content);
+    if (content) {
+      // F5 报错检测：命中时等 write 完成再通知（此时 buffer 已含报错文本，
+      // UI 点击气泡取「报错前后文」才完整）；未命中走无回调的快路径
+      const errLine = onErrorDetected ? findErrorLine(content) : null;
+      if (errLine) {
+        mt.term.write(content, () => notifyErrorDetected(connectionId, mt, errLine));
+      } else {
+        mt.term.write(content);
+      }
+    }
     if (closed) handleDisconnected(connectionId, mt);
   } catch {
     mt.pollErrors += 1;
@@ -347,6 +375,21 @@ async function poll(connectionId: string, mt: ManagedTerminal): Promise<void> {
   } finally {
     mt.pollInFlight = false;
   }
+}
+
+/** F5 防噪后通知：同一终端同类报错（errorKey 相同）在窗口内只回调一次 */
+function notifyErrorDetected(
+  connectionId: string,
+  mt: ManagedTerminal,
+  errorLine: string
+): void {
+  if (!mt.alive) return;
+  const key = errorKey(errorLine);
+  const now = Date.now();
+  if (mt.lastErrorKey === key && now - mt.lastErrorAt < ERROR_DEDUP_MS) return;
+  mt.lastErrorKey = key;
+  mt.lastErrorAt = now;
+  onErrorDetected?.(connectionId, errorLine);
 }
 
 /** 断连收尾：终端里打印提示 → 停轮询 → 通知 UI 层。日志与实例保留供查看 */

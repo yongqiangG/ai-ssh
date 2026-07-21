@@ -184,3 +184,77 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* ===== F5 报错诊断：头部开关 + 右下角气泡 ===== */
+.errorToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.4));
+  cursor: pointer;
+}
+
+.errorToggle:hover {
+  background: rgba(127, 127, 127, 0.15);
+}
+
+.errorToggleOn {
+  color: var(--vsc-accent, #4f8cff);
+}
+
+.errorBubble {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 2px;
+  border: 1px solid var(--vsc-danger-border, rgba(248, 113, 113, 0.45));
+  border-radius: 999px;
+  background: var(--vsc-editor-bg, #14161d);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  animation: bubbleIn 0.15s ease-out;
+  white-space: nowrap;
+}
+
+.errorBubbleMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vsc-red, #f87171);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.errorBubbleMain:hover {
+  background: var(--vsc-danger-bg, rgba(248, 113, 113, 0.14));
+}
+
+.errorBubbleClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.45));
+  cursor: pointer;
+}
+
+.errorBubbleClose:hover {
+  background: rgba(127, 127, 127, 0.18);
+  color: var(--vsc-fg, #fff);
+}

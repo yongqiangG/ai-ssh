@@ -47,6 +47,8 @@ interface LayoutState {
   /** 直接设置终端面板显隐（命令卡片「执行」后强制显示终端用） */
   setShowTerminal: (v: boolean) => void;
   toggleAiPanel: () => void;
+  /** 直接设置 AI 面板显隐（报错诊断气泡直接发送提问时强制展开用） */
+  setShowAiPanel: (v: boolean) => void;
   setActiveSidebarView: (v: SidebarView) => void;
   /** 切换中间工作区视图（终端 ⇄ SFTP） */
   setCenterView: (v: CenterView) => void;
@@ -84,6 +86,7 @@ export const useLayoutStore = create<LayoutState>()(
       toggleTerminal: () => set((s) => ({ showTerminal: !s.showTerminal })),
       setShowTerminal: (v) => set({ showTerminal: v }),
       toggleAiPanel: () => set((s) => ({ showAiPanel: !s.showAiPanel })),
+      setShowAiPanel: (v) => set({ showAiPanel: v }),
       setActiveSidebarView: (v) => set({ activeSidebarView: v }),
       setCenterView: (v) => set({ centerView: v }),
     }),

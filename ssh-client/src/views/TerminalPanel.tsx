@@ -22,6 +22,7 @@ import { useTerminalStore } from "../stores/terminalStore";
 import type { TerminalTab } from "../stores/terminalStore";
 import { useConnectionStore } from "../stores/connectionStore";
 import { useChatStore } from "../stores/chatStore";
+import { useLayoutStore } from "../stores/layoutStore";
 import { useThemeStore } from "../stores/themeStore";
 import { getConnectionStatus } from "../api/sshConnection";
 import {
@@ -31,16 +32,24 @@ import {
   closeTerminalFor,
   fitTerminal,
   focusTerminal,
+  getRecentOutput,
   getSelectionContext,
   hasTerminal,
   markDisconnected,
   openTerminalIn,
+  setOnErrorDetected,
   setOnSessionClosed,
 } from "../terminal/terminalManager";
 import styles from "./TerminalPanel.module.css";
 
 /** 心跳间隔：定期核对「前端认为已连接」的连接在后端是否仍然存活 */
 const HEARTBEAT_MS = 10_000;
+
+/** F5 报错气泡自动消失时间（不打扰原则：不点击就安静走掉） */
+const ERROR_BUBBLE_TTL_MS = 10_000;
+
+/** F5 点击气泡时引用的报错前后文行数（报错常多行，取比 F1 选区 ±2 更宽的窗口） */
+const ERROR_QUOTE_LINES = 12;
 
 export default function TerminalPanel() {
   // 订阅切片：仅这些字段变化时本组件才重渲染
@@ -100,6 +109,50 @@ export default function TerminalPanel() {
     // manager 先释放本地资源并尽力通知后端；store 再移除 tab（触发重渲染）
     void closeTerminalFor(connectionId);
     closeTab(connectionId);
+  };
+
+  // ===== F5 报错诊断：右下角气泡（懒诊断——点击才把报错交给 AI）=====
+  const errorDetectEnabled = useChatStore((s) => s.errorDetectEnabled);
+  const toggleErrorDetect = useChatStore((s) => s.toggleErrorDetect);
+  const [errorBubble, setErrorBubble] = useState<{
+    connectionId: string;
+    line: string;
+  } | null>(null);
+  const errorTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setOnErrorDetected((connectionId, line) => {
+      // 全局开关关闭时不打扰；只提示当前激活终端（后台 tab 的报错脱离用户视野，弹了反而误导）
+      if (!useChatStore.getState().errorDetectEnabled) return;
+      if (useTerminalStore.getState().activeId !== connectionId) return;
+      setErrorBubble({ connectionId, line });
+      if (errorTimerRef.current !== null) window.clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = window.setTimeout(
+        () => setErrorBubble(null),
+        ERROR_BUBBLE_TTL_MS
+      );
+    });
+    return () => {
+      setOnErrorDetected(null);
+      if (errorTimerRef.current !== null) window.clearTimeout(errorTimerRef.current);
+    };
+  }, []);
+
+  // 切换 tab 后残留的气泡属于旧终端，直接收起
+  useEffect(() => {
+    setErrorBubble((b) => (b && b.connectionId !== activeId ? null : b));
+  }, [activeId]);
+
+  /** 点击气泡：引用报错前后文 + 诊断提问直接发送（复用 F1 的 quote 管道） */
+  const askErrorDiagnosis = () => {
+    if (!errorBubble) return;
+    const recent = getRecentOutput(errorBubble.connectionId, ERROR_QUOTE_LINES);
+    setErrorBubble(null);
+    if (!recent) return;
+    useChatStore.getState().setQuote({ text: recent, source: "error" });
+    // 直接发送依赖 AI 面板可见，被隐藏时强制展开
+    useLayoutStore.getState().setShowAiPanel(true);
+    void useChatStore.getState().sendMessage("分析一下这个报错的原因，并给出修复建议");
   };
 
   // ===== F1 选中即问：选区浮动气泡 =====
@@ -190,6 +243,18 @@ export default function TerminalPanel() {
           <span className="panel-title">终端</span>
           {active && <StatusBadge status={active.status} />}
         </div>
+        <button
+          type="button"
+          className={`${styles.errorToggle} ${errorDetectEnabled ? styles.errorToggleOn : ""}`}
+          onClick={toggleErrorDetect}
+          title={
+            errorDetectEnabled
+              ? "报错 AI 提示：开（检测到报错时右下角浮现提问入口，点击关闭）"
+              : "报错 AI 提示：关（点击开启）"
+          }
+        >
+          <Icon name="alert" size={13} />
+        </button>
       </div>
 
       {tabs.length > 0 && (
@@ -249,6 +314,29 @@ export default function TerminalPanel() {
               >
                 <Icon name="bot" size={12} /> 引用到 AI
               </button>
+            )}
+            {errorBubble && (
+              <div
+                className={styles.errorBubble}
+                onMouseUp={(e) => e.stopPropagation()}
+                title={errorBubble.line}
+              >
+                <button
+                  type="button"
+                  className={styles.errorBubbleMain}
+                  onClick={askErrorDiagnosis}
+                >
+                  <Icon name="alert" size={12} /> 检测到报错 · 问问 AI
+                </button>
+                <button
+                  type="button"
+                  className={styles.errorBubbleClose}
+                  title="忽略本次"
+                  onClick={() => setErrorBubble(null)}
+                >
+                  <Icon name="close" size={11} />
+                </button>
+              </div>
             )}
           </div>
         )}
