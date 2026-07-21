@@ -2,6 +2,7 @@ package com.johnny.trigger.http;
 
 import com.johnny.api.dto.AcceptHostKeyRequestDTO;
 import com.johnny.api.dto.ConnectResultDTO;
+import com.johnny.api.dto.ServerMetricsDTO;
 import com.johnny.api.dto.SshConnectionCreateRequestDTO;
 import com.johnny.api.dto.SshConnectionResponseDTO;
 import com.johnny.api.dto.SshConnectionUpdateRequestDTO;
@@ -13,6 +14,7 @@ import com.johnny.domain.ssh.model.entity.SshConnectionConfigEntity;
 import com.johnny.domain.ssh.model.entity.SshConnectionEntity;
 import com.johnny.domain.ssh.model.valobj.AuthTypeEnum;
 import com.johnny.domain.ssh.service.ISshConnectionService;
+import com.johnny.domain.ssh.service.ServerMetricsParser;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -159,6 +162,29 @@ public class SshConnectionController {
     public Response<String> exec(@PathVariable("connectionId") String connectionId,
                                  @RequestBody SshExecRequestDTO req) {
         return Response.success(sshConnectionService.exec(connectionId, req.getCommand()));
+    }
+
+    /**
+     * 激活服务器监控采样（C1 监控条）：复合轻命令一次 exec，走独立 exec 通道不经用户终端。
+     * disk=true 时附带根分区使用率（磁盘变化慢，前端 300s 节奏才带）；未连接时由
+     * exec 内部抛错经全局异常处理返回错误 Response。
+     */
+    @GetMapping("/{connectionId}/metrics")
+    public Response<ServerMetricsDTO> metrics(@PathVariable("connectionId") String connectionId,
+                                              @RequestParam(value = "disk", required = false, defaultValue = "false") boolean disk) {
+        String command = ServerMetricsParser.SAMPLE_COMMAND
+                + (disk ? ServerMetricsParser.DISK_COMMAND_SUFFIX : "");
+        ServerMetricsParser.ServerMetrics m =
+                ServerMetricsParser.parse(sshConnectionService.exec(connectionId, command));
+        ServerMetricsDTO dto = new ServerMetricsDTO();
+        dto.setCpuTotalJiffies(m.cpuTotalJiffies);
+        dto.setCpuIdleJiffies(m.cpuIdleJiffies);
+        dto.setMemTotalBytes(m.memTotalBytes);
+        dto.setMemAvailableBytes(m.memAvailableBytes);
+        dto.setLoad1(m.load1);
+        dto.setCpuCores(m.cpuCores);
+        dto.setDiskUsedPercent(m.diskUsedPercent);
+        return Response.success(dto);
     }
 
     /** 聚合根 → 响应 DTO（基础 + 高级配置齐全） */
