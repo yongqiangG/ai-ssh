@@ -9,7 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `ssh-client/` — Tauri v2 + React 19 + TypeScript + Vite 7 + Zustand 5 的桌面客户端
 - `ssh-server/` — Spring Boot 3.4.3（Java 17）多模块 Maven 项目，DDD 分层，`groupId: com.johnny`
 
-开发计划的**唯一真相源**是 `docs/ROADMAP.md`（优先级/迭代状态只在此维护）；架构决策见 `docs/adr/`（0001 部署双形态：single 单体版优先迭代、server 内部版后续演化，代码层必须完全兼容；0002 Agent 工具调用；0003 SFTP 边界）。
+规划文档按全局规范默认模式（入 git）走 `docs/` 三件套：`situations/`（需求与决议）、`actions/`（执行计划与进度，活任务入口）、`backlog/`（未来工作项）；架构决策见 `docs/adr/`（0001 部署双形态：single 单体版优先迭代、server 内部版后续演化，代码层必须完全兼容；0002 Agent 工具调用；0003 SFTP 边界）。
+
+**产品定位**：具备 AI 运维能力的 SSH 客户端——与「客户端旁挂聊天窗」的本质区别是 AI 能看到终端里发生了什么，并能把结论安全地送回终端执行。三条信任红线：命令执行前永远可见可编辑（只预填不回车）；写操作必须人工确认；高危命令强制防呆（AI 生成与手输同防）。
+
+**已交付简史**：2026-07-21 · 迭代 A 安全地基 + 迭代 B AI 交互确认门 + 迭代 C1 监控条（决议全文见 `docs/situations/260721-three-iterations.md`）；更早：SFTP 双面板（ADR 0003）、Tool 调用闭环（ADR 0002）、single 形态落地（ADR 0001）、模型设置、UI 改版（Linear/Warp 风）。
 
 ## 常用命令
 
