@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ChatMessage } from "../types";
 import CommandBlock from "./CommandBlock";
 import Icon from "./Icon";
@@ -20,6 +20,7 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const typing = !isUser && animate;
+  const [quoteOpen, setQuoteOpen] = useState(false);
 
   useEffect(() => {
     onContentGrow?.();
@@ -32,12 +33,30 @@ export default function MessageBubble({
       </div>
       <div className={`${styles.bubble} ${isUser ? styles.userBubble : styles.aiBubble}`}>
         <div className={styles.content}>
+          {isUser && message.quote && (
+            <div
+              className={styles.quoteBlock}
+              onClick={() => setQuoteOpen((v) => !v)}
+              title={quoteOpen ? "收起引用" : "展开引用"}
+            >
+              <span className={styles.quoteHead}>
+                <Icon name="terminal" size={11} /> 引用终端输出
+                <span className={styles.quoteToggle}>{quoteOpen ? "▾" : "▸"}</span>
+              </span>
+              {quoteOpen && <pre className={styles.quoteBody}>{message.quote}</pre>}
+            </div>
+          )}
           {!isUser &&
             message.toolCalls?.map((tc) => (
               <CommandBlock key={tc.toolCallId} call={tc} />
             ))}
           {isUser ? message.content : <MarkdownContent content={message.content} />}
           {typing && <span className={styles.caret} />}
+          {isUser && message.contextLines != null && (
+            <span className={styles.contextTag}>
+              <Icon name="terminal" size={10} /> 已附终端上下文 · {message.contextLines} 行
+            </span>
+          )}
         </div>
       </div>
     </div>

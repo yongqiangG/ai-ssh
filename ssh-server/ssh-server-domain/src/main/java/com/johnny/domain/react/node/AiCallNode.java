@@ -72,6 +72,11 @@ public class AiCallNode extends AbstractReActSupport {
                     + "\n\n[系统提示：当前未连接终端，无法执行命令，请直接以文字回答；"
                     + "若问题必须执行命令才能解答，请告知用户先在终端面板连接服务器。]";
         }
+        // F3 终端上下文快照：作为背景资料拼在消息前（前端已脱敏；不回显进气泡）
+        if (StringUtils.isNotBlank(ctx.getTerminalContext())) {
+            messageText = "[终端最近输出（背景资料，已脱敏）]\n" + ctx.getTerminalContext()
+                    + "\n[/终端最近输出]\n\n" + messageText;
+        }
 
         Content userContent = Content.builder()
                 .role("user")

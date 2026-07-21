@@ -258,3 +258,50 @@
     opacity: 0;
   }
 }
+
+/* ===== F1 引用块（用户消息内折叠渲染）===== */
+.quoteBlock {
+  margin-bottom: 6px;
+  padding: 6px 9px;
+  border-left: 3px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.quoteHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0.75;
+}
+
+.quoteToggle {
+  margin-left: 4px;
+}
+
+.quoteBody {
+  margin: 6px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+/* ===== F3 上下文小标签 ===== */
+.contextTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 10px;
+  opacity: 0.7;
+}

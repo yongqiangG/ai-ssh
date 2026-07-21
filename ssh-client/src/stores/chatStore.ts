@@ -3,8 +3,15 @@ import { persist } from "zustand/middleware";
 import type { Agent, ChatMessage, Conversation, ToolCall } from "../types";
 import { createId } from "../utils/id";
 import { confirmDecision, createSession, queryAgents, streamChat } from "../api/chat";
-import { getTerminalSessionId } from "../terminal/terminalManager";
+import { getRecentOutput, getTerminalSessionId } from "../terminal/terminalManager";
+import { sanitizeTerminalContext } from "../utils/sanitize";
 import { useTerminalStore } from "./terminalStore";
+
+/** 待发送的终端引用（F1 选中即问 / F5 报错诊断），随下一条消息一起发出后清除 */
+export interface PendingQuote {
+  text: string;
+  source: "selection" | "error";
+}
 
 interface ChatState {
   agents: Agent[];
@@ -21,6 +28,15 @@ interface ChatState {
   freshId: string | null;
   /** 全局历史命令（跨会话共享，去重+提末尾，上限 50，持久化 localStorage） */
   cmdHistory: string[];
+  /** 待发送的终端引用块（F1/F5；随下一条消息发出，不持久化） */
+  quote: PendingQuote | null;
+  /** 附带终端上下文开关（F3；默认关，刻意逐会话重置，不持久化） */
+  attachContext: boolean;
+
+  /** 设置终端引用块（选中即问 / 报错诊断入口调用） */
+  setQuote: (quote: PendingQuote | null) => void;
+  /** F3 开关 */
+  toggleAttachContext: () => void;
 
   /** 记录一条历史命令（去重+提末尾+上限 50） */
   pushCmdHistory: (cmd: string) => void;
@@ -72,6 +88,11 @@ export const useChatStore = create<ChatState>()(
         thinkingEnabled: false,
         freshId: null,
         cmdHistory: [],
+        quote: null,
+        attachContext: false,
+
+        setQuote: (quote) => set({ quote }),
+        toggleAttachContext: () => set((s) => ({ attachContext: !s.attachContext })),
 
         loadAgents: async () => {
           // 总是重新拉取：后端可能刚完成装配/换了模型配置，不做本地缓存守卫
@@ -141,11 +162,26 @@ export const useChatStore = create<ChatState>()(
           get().pushCmdHistory(content);
 
           const agentId = get().agentId;
+          // F1 引用块 + F3 终端上下文：取出后立即清（逐条生效，不粘滞）
+          const quote = get().quote;
+          const attachContext = get().attachContext;
+          if (quote) set({ quote: null });
+
+          // F3：附带活跃终端最近 50 行（脱敏后走独立字段，不进气泡正文）
+          let terminalContext: string | null = null;
+          if (attachContext) {
+            const activeId = useTerminalStore.getState().activeId;
+            const recent = activeId ? getRecentOutput(activeId, 50) : null;
+            terminalContext = recent ? sanitizeTerminalContext(recent) : null;
+          }
+
           const userMsg: ChatMessage = {
             id: createId("msg"),
             role: "user",
             content,
             timestamp: Date.now(),
+            quote: quote?.text,
+            contextLines: terminalContext ? terminalContext.split("\n").length : undefined,
           };
           // 占位的 assistant 消息：流式 onText 会持续更新它的 content
           const assistantMsg: ChatMessage = {
@@ -219,11 +255,15 @@ export const useChatStore = create<ChatState>()(
             const thinkingEnabled = get().thinkingEnabled;
             if (thinkingEnabled) set({ thinkingEnabled: false });
 
-            // 发起流式对话
+            // 发起流式对话；引用块拼进请求 message（展示层只存 userMsg.quote 折叠渲染）
+            const requestMessage = quote
+              ? `[引用终端输出]\n${quote.text}\n[/引用]\n\n${content}`
+              : content;
             abortRef = streamChat({
               agentId,
               sessionId,
-              message: content,
+              message: requestMessage,
+              terminalContext,
               terminalSessionId,
               thinkingEnabled,
               onText: (full) => {

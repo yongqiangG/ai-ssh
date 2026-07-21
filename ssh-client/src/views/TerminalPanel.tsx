@@ -14,20 +14,24 @@
  * manager 断连时经 setOnSessionClosed 回调更新 store，形成单向环：
  * store 状态 → 组件渲染/effect → manager 动作 → 回调 → store 状态。
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import { useTerminalStore } from "../stores/terminalStore";
 import type { TerminalTab } from "../stores/terminalStore";
 import { useConnectionStore } from "../stores/connectionStore";
+import { useChatStore } from "../stores/chatStore";
 import { useThemeStore } from "../stores/themeStore";
 import { getConnectionStatus } from "../api/sshConnection";
 import {
   applyTerminalTheme,
   attachTerminal,
+  clearTerminalSelection,
   closeTerminalFor,
   fitTerminal,
   focusTerminal,
+  getSelectionContext,
   hasTerminal,
   markDisconnected,
   openTerminalIn,
@@ -98,6 +102,78 @@ export default function TerminalPanel() {
     closeTab(connectionId);
   };
 
+  // ===== F1 选中即问：选区浮动气泡 =====
+  const stackRef = useRef<HTMLDivElement>(null);
+  const [bubble, setBubble] = useState<{ x: number; y: number } | null>(null);
+
+  const onStackMouseUp = (e: ReactMouseEvent) => {
+    if (!activeId) return;
+    const { clientX, clientY } = e;
+    // 延迟一帧：mouseup 时 xterm 才最终确定选区
+    window.setTimeout(() => {
+      const sel = getSelectionContext(activeId);
+      const rect = stackRef.current?.getBoundingClientRect();
+      if (sel && rect) {
+        setBubble({ x: clientX - rect.left, y: clientY - rect.top });
+      } else {
+        setBubble(null);
+      }
+    }, 0);
+  };
+
+  /** 反向飞行动效（对称 CommandBlock.flyToTerminal）：引用文本从气泡飞向聊天输入区 */
+  const flyToChat = (fromEl: HTMLElement, text: string) => {
+    const from = fromEl.getBoundingClientRect();
+    const target = document.getElementById("chat-inputbar");
+    const to = target?.getBoundingClientRect() ?? {
+      left: window.innerWidth - 200,
+      top: window.innerHeight - 100,
+      width: 0,
+      height: 0,
+    };
+    const clone = document.createElement("div");
+    clone.textContent = "❝ " + text.slice(0, 60).replace(/\n/g, " ");
+    clone.style.cssText =
+      "position:fixed;z-index:9999;pointer-events:none;left:" +
+      from.left +
+      "px;top:" +
+      from.top +
+      "px;max-width:280px;padding:5px 11px;border-radius:6px;background:var(--vsc-accent);color:var(--vsc-accent-fg);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 20px rgba(0,0,0,0.6),0 0 18px var(--accent-glow)";
+    document.body.appendChild(clone);
+    const dx = to.left + to.width / 2 - from.left;
+    const dy = to.top + to.height / 2 - from.top;
+    requestAnimationFrame(() => {
+      clone.style.transition =
+        "transform .65s cubic-bezier(.45,-.1,.6,1),opacity .65s ease-in";
+      clone.style.transform = "translate(" + dx + "px," + dy + "px) scale(.5)";
+      clone.style.opacity = "0";
+    });
+    if (target) {
+      const prevShadow = target.style.boxShadow;
+      const prevTransition = target.style.transition;
+      target.style.transition = "box-shadow .25s ease-out";
+      target.style.boxShadow = "0 0 0 2px var(--vsc-accent), 0 0 30px var(--accent-glow)";
+      window.setTimeout(() => {
+        target.style.boxShadow = prevShadow;
+        target.style.transition = prevTransition;
+      }, 550);
+    }
+    window.setTimeout(() => clone.remove(), 700);
+  };
+
+  const quoteSelection = (e: ReactMouseEvent) => {
+    if (!activeId) return;
+    const sel = getSelectionContext(activeId);
+    setBubble(null);
+    if (!sel) return;
+    const text = [sel.before, sel.selected, sel.after].filter(Boolean).join("\n");
+    flyToChat(e.currentTarget as HTMLElement, sel.selected);
+    useChatStore.getState().setQuote({ text, source: "selection" });
+    clearTerminalSelection(activeId);
+    // 焦点切到聊天输入框（placeholder 引导 Tab 补全默认提问）
+    document.getElementById("chat-input")?.focus();
+  };
+
   const active = tabs.find((t) => t.connectionId === activeId) ?? null;
 
   return (
@@ -154,7 +230,7 @@ export default function TerminalPanel() {
             hint="在左侧点击一个 SSH 连接即可打开终端"
           />
         ) : (
-          <div className={styles.stack}>
+          <div className={styles.stack} ref={stackRef} onMouseUp={onStackMouseUp}>
             {/* key=connectionId：tab 增删时 React 按 key 复用/卸载对应 Host */}
             {tabs.map((tab) => (
               <TerminalHost
@@ -163,6 +239,17 @@ export default function TerminalPanel() {
                 visible={tab.connectionId === activeId}
               />
             ))}
+            {bubble && (
+              <button
+                type="button"
+                className={styles.selectionBubble}
+                style={{ left: bubble.x, top: Math.max(0, bubble.y - 40) }}
+                onMouseUp={(e) => e.stopPropagation()}
+                onClick={quoteSelection}
+              >
+                <Icon name="bot" size={12} /> 引用到 AI
+              </button>
+            )}
           </div>
         )}
       </div>

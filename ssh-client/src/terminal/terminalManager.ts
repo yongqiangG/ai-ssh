@@ -97,6 +97,71 @@ export function isTerminalAlive(connectionId: string): boolean {
   return terminals.get(connectionId)?.alive ?? false;
 }
 
+/** 终端选区 + 前后文（F1 选中即问）：before/after 为选区前后各 N 行（默认 2） */
+export interface SelectionContext {
+  selected: string;
+  before: string;
+  after: string;
+}
+
+/** 读取 buffer 指定行的文本（translateToString 去尾部空白） */
+function bufferLine(term: Terminal, row: number): string | null {
+  const line = term.buffer.active.getLine(row);
+  return line ? line.translateToString(true) : null;
+}
+
+/**
+ * 取当前选中文本及前后 ±contextLines 行（F1 决议：报错常是「选中结论行、原因在上一行」，
+ * 前后文让 AI 命中率更高）。无选区返回 null。
+ */
+export function getSelectionContext(
+  connectionId: string,
+  contextLines = 2
+): SelectionContext | null {
+  const mt = terminals.get(connectionId);
+  if (!mt) return null;
+  const selected = mt.term.getSelection();
+  if (!selected || !selected.trim()) return null;
+  const pos = mt.term.getSelectionPosition();
+  const before: string[] = [];
+  const after: string[] = [];
+  if (pos) {
+    for (let r = pos.start.y - contextLines; r < pos.start.y; r++) {
+      const t = r >= 0 ? bufferLine(mt.term, r) : null;
+      if (t !== null && t.trim()) before.push(t);
+    }
+    for (let r = pos.end.y + 1; r <= pos.end.y + contextLines; r++) {
+      const t = bufferLine(mt.term, r);
+      if (t !== null && t.trim()) after.push(t);
+    }
+  }
+  return { selected, before: before.join("\n"), after: after.join("\n") };
+}
+
+/** 清除该终端的选区（引用完成后调用） */
+export function clearTerminalSelection(connectionId: string): void {
+  terminals.get(connectionId)?.term.clearSelection();
+}
+
+/**
+ * 读取终端最近 N 行非空输出（F3 终端上下文快照）。
+ * 从 buffer 末尾向上收集，跳过全空行；返回按原顺序拼接的文本。
+ */
+export function getRecentOutput(connectionId: string, lines = 50): string | null {
+  const mt = terminals.get(connectionId);
+  if (!mt) return null;
+  const buf = mt.term.buffer.active;
+  const collected: string[] = [];
+  for (let r = buf.length - 1; r >= 0 && collected.length < lines; r--) {
+    const t = bufferLine(mt.term, r);
+    if (t === null) continue;
+    if (collected.length === 0 && !t.trim()) continue; // 跳过末尾空行
+    collected.push(t);
+  }
+  if (collected.length === 0) return null;
+  return collected.reverse().join("\n");
+}
+
 /** 从当前 CSS 变量读取 xterm 主题色（值随 html[data-theme] 切换） */
 function readXtermTheme() {
   const css = getComputedStyle(document.documentElement);

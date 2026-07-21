@@ -14,6 +14,10 @@ export default function ChatInputBar() {
   const cmdHistory = useChatStore((s) => s.cmdHistory);
   const thinkingEnabled = useChatStore((s) => s.thinkingEnabled);
   const toggleThinking = useChatStore((s) => s.toggleThinking);
+  const quote = useChatStore((s) => s.quote);
+  const setQuote = useChatStore((s) => s.setQuote);
+  const attachContext = useChatStore((s) => s.attachContext);
+  const toggleAttachContext = useChatStore((s) => s.toggleAttachContext);
 
   const [value, setValue] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -21,6 +25,15 @@ export default function ChatInputBar() {
   // cmdHistory 最新在末尾，故 null→length-1 是「最新一条」，index 减=更旧。
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const draftRef = useRef<string>("");
+
+  // F1 Tab 补全的默认提问：引用内容像报错 → 分析；否则 → 解释（error 正则二选一）
+  const looksLikeError =
+    /error|fail|exception|denied|refused|not found|panic|fatal|traceback|无法|失败|错误/i;
+  const defaultQuestion = quote
+    ? looksLikeError.test(quote.text)
+      ? "分析一下这个报错"
+      : "解释一下这段输出"
+    : null;
 
   // textarea 自适应高度
   const resize = () => {
@@ -71,6 +84,12 @@ export default function ChatInputBar() {
       send();
       return;
     }
+    // F1 渐进披露：有引用块且未输入时，Tab 填入默认提问（已输入时 Tab 保持原生焦点行为）
+    if (e.key === "Tab" && defaultQuestion && !value.trim()) {
+      e.preventDefault();
+      setValue(defaultQuestion);
+      return;
+    }
     const el = taRef.current;
     if (e.key === "ArrowUp" && el && isFirstLine(el)) {
       e.preventDefault();
@@ -83,7 +102,7 @@ export default function ChatInputBar() {
   };
 
   return (
-    <div className={styles.bar}>
+    <div className={styles.bar} id="chat-inputbar">
       <div className={styles.toolbar}>
         <label className={styles.agentSelect}>
           <Icon name="bot" size={14} className={styles.agentIcon} />
@@ -113,6 +132,16 @@ export default function ChatInputBar() {
         </button>
 
         <button
+          className={`${styles.newBtn} ${attachContext ? styles.thinkingOn : ""}`}
+          type="button"
+          onClick={toggleAttachContext}
+          title="附带终端上下文：发送时自动附上活跃终端最近 50 行输出（已脱敏），让 AI 看到终端里发生了什么"
+        >
+          <Icon name="terminal" size={14} />
+          终端上下文{attachContext ? "·开" : ""}
+        </button>
+
+        <button
           className={styles.newBtn}
           type="button"
           onClick={newConversation}
@@ -123,9 +152,27 @@ export default function ChatInputBar() {
         </button>
       </div>
 
+      {quote && (
+        <div className={styles.quoteBox}>
+          <span className={styles.quoteIcon}>
+            <Icon name="terminal" size={12} />
+          </span>
+          <pre className={styles.quoteText}>{quote.text}</pre>
+          <button
+            className={styles.quoteRemove}
+            type="button"
+            onClick={() => setQuote(null)}
+            title="移除引用"
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
+
       <div className={styles.inputRow}>
         <textarea
           ref={taRef}
+          id="chat-input"
           className={styles.textarea}
           rows={1}
           value={value}
@@ -139,7 +186,9 @@ export default function ChatInputBar() {
           placeholder={
             sending
               ? "AI 正在回复…"
-              : "输入消息，Enter 发送 / Shift+Enter 换行 / ↑↓ 历史命令"
+              : defaultQuestion
+                ? `按 Tab 快速提问：${defaultQuestion}`
+                : "输入消息，Enter 发送 / Shift+Enter 换行 / ↑↓ 历史命令"
           }
           disabled={sending}
         />

@@ -30,6 +30,9 @@ public class ReActContext {
     /** 当前请求绑定的终端会话 id（可空）；由 RootNode 从 ChatRequestDTO 填入，AiCallNode 透传给工具 */
     private String terminalSessionId;
 
+    /** 终端上下文快照（F3；前端已脱敏，可空）；AiCallNode 拼进 prompt 作背景资料 */
+    private String terminalContext;
+
     /** 消息级深度思考开关（默认 false=注入 thinking.disabled）；由 RootNode 从 ChatRequestDTO 填入 */
     private boolean thinkingEnabled;
 

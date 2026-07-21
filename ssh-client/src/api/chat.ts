@@ -63,6 +63,8 @@ export interface StreamChatOptions {
   message: string;
   /** 当前活跃终端 sessionId（让 AI 工具能操作用户终端）；null/undefined 时不带 */
   terminalSessionId?: string | null;
+  /** 终端上下文快照（F3；已脱敏的最近 N 行，独立字段不进 message 正文）；null 时不带 */
+  terminalContext?: string | null;
   /** 消息级深度思考开关（默认 false）；true 时后端不注入 thinking.disabled */
   thinkingEnabled?: boolean;
   /** 收到累积全文（text 事件）时回调，前端据此整体替换消息 content */
@@ -106,6 +108,7 @@ export function streamChat(opts: StreamChatOptions): () => void {
       sessionId: opts.sessionId,
       message: opts.message,
       ...(opts.terminalSessionId ? { terminalSessionId: opts.terminalSessionId } : {}),
+      ...(opts.terminalContext ? { terminalContext: opts.terminalContext } : {}),
       ...(opts.thinkingEnabled ? { thinkingEnabled: true } : {}),
     }),
     signal: controller.signal,

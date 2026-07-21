@@ -138,3 +138,50 @@
   color: var(--vsc-accent, #4a9eff);
   border-color: var(--vsc-accent, #4a9eff);
 }
+
+/* ===== F1 引用块（输入区上方待发送引用）===== */
+.quoteBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--vsc-accent, #4f8cff);
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.08);
+  font-size: 12px;
+}
+
+.quoteIcon {
+  color: var(--vsc-accent, #4f8cff);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.quoteText {
+  flex: 1;
+  margin: 0;
+  max-height: 76px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.65));
+}
+
+.quoteRemove {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.5));
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.quoteRemove:hover {
+  color: var(--vsc-fg, #fff);
+  background: rgba(255, 255, 255, 0.08);
+}
