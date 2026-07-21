@@ -4,7 +4,7 @@
 
 ## 迭代 A「安全地基」（2026-07-21 开工，开发完成）
 
-> 三迭代规划来自 2026-07-21 规划 grill（P0+P1 逐项过堂，全部决议见各项要点）。发布节奏：迭代 A 末给 1 位最信任的朋友非正式试装；迭代 C 末正式发小圈子。
+> 三迭代规划来自 2026-07-21 规划 grill（P0+P1 逐项过堂，全部决议见各项要点）。发布节奏（2026-07-21 评审 grill 修订）：C2 内序列化——自己走查（含 A/B 共 7 条真机联调债）修完 → 给 1 位最信任的朋友非正式试装 → 反馈处理 → 正式发小圈子。
 > **状态**：六项开发完成并经隔离实例冒烟验证（bind/不回显/密钥引用保护/accept-hostkey/留空不改均实证）；**待真机联调收口**：TOFU 确认弹窗、密钥复用连接、编辑表单三条链路需在真实 SSH 服务器 + 桌面 UI 上走一遍。
 
 **目标**：发布给外人前的信任地基全部落地。
@@ -15,9 +15,9 @@
 | A1 | HTTP 绑定本机 | `server.address: 127.0.0.1`（single + dev；prod/server 形态不加） |
 | A2 | 连接高级配置接线 | `connectTimeout`/`keepaliveInterval`/`compression` 进 connect；`startupCommand` 在终端 shell 通道建立后写 stdin（可见回显）；connect 签名改配置对象 |
 | A3 | 凭据只写不回显 | 连接 DTO 删凭据回传，改 `passwordConfigured` + `keyId`；留空=不改（空串转 undefined）；authType 切换保留对侧凭据 |
-| A4 | host key TOFU | 自定义 HostKeyRepository；未知指纹→`SSH_HOSTKEY_UNKNOWN`+指纹→前端确认卡片→`POST accept-hostkey`→重连；变更→`SSH_HOSTKEY_CHANGED` 红色警告+双重确认；指纹存 per-connection `knownHosts`（OpenSSH 行格式）；`strictHostKeyCheck` 默认翻转 true |
+| A4 | host key TOFU | 自定义 HostKeyRepository；未知指纹→connect 返回 `hostKeyStatus=UNKNOWN`+指纹（结构化字段，非独立响应码）→前端确认卡片→`POST accept-hostkey`→重连；变更→`hostKeyStatus=CHANGED` 红色警告+双重确认；指纹存 per-connection `knownHosts`（OpenSSH 行格式）；`strictHostKeyCheck` 默认翻转 true（存量行启动时迁移补齐） |
 | A5 | 密钥一等实体 | `ssh_key` 表（name/privateKey/passphrase 加密存/userId）+ CRUD（不回显）；连接 `keyId` 引用；存量内嵌私钥自动迁移提升；表单改密钥下拉+新建（粘贴/dialog 选文件，默认 `~/.ssh`）；生成密钥对/部署公钥/ssh-agent 不做 |
-| A6 | Tauri 收紧 | CSP：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http: https:`；fs scope 全盘 allow + **deny `$HOME/.ai-ssh/**`、`$HOME/.ssh/**`** |
+| A6 | Tauri 收紧 | CSP：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' http: https:`；fs scope 全盘 allow（SFTP 本地面板刚需）+ deny `$HOME/.ai-ssh/**`。deny `$HOME/.ssh/**` 已撤销（eac30df）：Tauri deny 压制 dialog 运行时授权，保留则 A5 密钥导入失败；且无鉴权 localhost 后端在时该 deny 为象征性防线，真实防线=CSP+绑定本机 |
 
 ## 迭代 B「AI 交互与确认门」（2026-07-21 开工，开发完成）
 
@@ -35,7 +35,7 @@
 | # | 事项 | 决议要点 |
 |---|---|---|
 | C1 | 激活服务器监控条 | 左栏连接列表下方，四项 CPU/内存/负载/磁盘；只采当前激活连接；CPU/内存/负载 ~10s（复合轻命令一次 exec，/proc/stat 差分），磁盘 300s；阈值着色（磁盘>85%黄>95%红、内存>90%红、load>核数×2红）；无 AI；未连接空态 |
-| C2 | 首次安装走查 + 正式发布 | 全新环境装包→sidecar 拉起（失败有人话提示）→**无模型配置时的首次引导**→建连接→TOFU→终端→AI→命令块全链路；「不修没法给人用」级修复算走查内含；走查过→正式发小圈子 |
+| C2 | 首次安装走查 + 正式发布 | 全新环境装包→sidecar 拉起（失败有人话提示）→**无模型配置时的首次引导**→建连接→TOFU→终端→AI→命令块全链路（A/B 两迭代 7 条待联调链路的真机首验并入走查）；「不修没法给人用」级修复算走查内含；走查过→朋友试装→正式发小圈子 |
 
 ## 候选池
 
