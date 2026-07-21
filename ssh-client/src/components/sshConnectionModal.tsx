@@ -119,7 +119,14 @@ export default function SshConnectionModal({
   const pickKeyFile = async () => {
     try {
       const { open: openDialog } = await import("@tauri-apps/plugin-dialog");
-      const selected = await openDialog({ multiple: false, title: "选择私钥文件" });
+      // 默认落在 ~/.ssh（A5 决议）；目录不存在时对话框自行回退系统默认位置
+      const { homeDir, join } = await import("@tauri-apps/api/path");
+      const sshDir = await join(await homeDir(), ".ssh").catch(() => undefined);
+      const selected = await openDialog({
+        multiple: false,
+        title: "选择私钥文件",
+        defaultPath: sshDir,
+      });
       if (!selected || typeof selected !== "string") return;
       const { readTextFile } = await import("@tauri-apps/plugin-fs");
       const content = await readTextFile(selected);

@@ -29,6 +29,9 @@ const BEARER = /\b((?:Bearer|Basic|Digest)\s+)[A-Za-z0-9._~+/=-]{16,}/gi;
 /** 独立长 base64/hex 串（≥40 字符，常见于密钥材料；避开 URL 路径） */
 const LONG_SECRET = /(?<![/\w])[A-Za-z0-9+/]{40,}={0,2}(?![/\w])/g;
 
+/** 恰好 40 位纯 hex 是 git sha1 形态（运维终端里极常见），不视为秘密——避免 git log 进上下文时 hash 全被打码 */
+const GIT_SHA1 = /^[0-9a-f]{40}$/i;
+
 /**
  * 对终端文本做脱敏；返回打码后的文本。
  */
@@ -42,5 +45,5 @@ export function sanitizeTerminalContext(text: string): string {
     )
     .replace(AWS_KEY, MASK)
     .replace(JWT, MASK)
-    .replace(LONG_SECRET, MASK);
+    .replace(LONG_SECRET, (m) => (GIT_SHA1.test(m) ? m : MASK));
 }

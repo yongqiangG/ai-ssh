@@ -54,3 +54,12 @@ export function findErrorLine(chunk: string): string | null {
 export function errorKey(line: string): string {
   return line.toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").slice(0, 120);
 }
+
+/**
+ * 宽松的「像报错吗」判定（F1 Tab 补全默认提问的二选一文案用）。
+ * 与 findErrorLine 的分工：那边判「输出流出现失败信号」求高置信度（触发弹泡），
+ * 这边判「用户引用的文本像不像报错」宽松即可（只影响默认文案措辞）。
+ * 统一住在本文件，避免两套 error 规则各自漂移。
+ */
+export const LOOSE_ERROR_HINT =
+  /error|fail|exception|denied|refused|not found|panic|fatal|traceback|无法|失败|错误/i;

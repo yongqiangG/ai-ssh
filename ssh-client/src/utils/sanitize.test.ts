@@ -34,4 +34,13 @@ describe("sanitizeTerminalContext", () => {
       "Filesystem  Size  Used Avail Use% Mounted on\n/dev/vda1    40G   12G   26G  32% /\nnginx: master process /usr/sbin/nginx";
     expect(sanitizeTerminalContext(text)).toBe(text);
   });
+
+  it("40 位 git sha1 保留，更长的独立密钥串仍掩码", () => {
+    const sha = "711f070d565575832323cbeeb7b27de338beac30df";
+    const gitLog = `commit ${sha.slice(0, 40)}\nAuthor: dev <dev@x.com>`;
+    expect(sanitizeTerminalContext(gitLog)).toBe(gitLog);
+    // 44 位 base64（AES-256 key 的典型形态）仍须掩码
+    const secret = "n2r5u8xADGKaPdSgVkYp3s6v9yBEHMbQeThWmZq47t1z";
+    expect(sanitizeTerminalContext(`key material: ${secret}`)).not.toContain(secret);
+  });
 });

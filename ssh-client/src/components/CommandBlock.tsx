@@ -13,13 +13,20 @@ import styles from "./CommandBlock.module.css";
  * 命令块：等宽字体，命令行 + 可折叠输出 + 成败徽标（方案3 增强复制/重执行）。
  * 由 MessageBubble 在 AI 消息的 toolCalls 上逐个渲染。
  */
-/** 危险命令前端检测（与后端 SshExecuteAdkTool 黑名单对齐），重执行前 confirm 二次确认 */
+/**
+ * 危险命令前端检测：与后端 SshExecuteAdkTool.BLOCKED 八条一一对应（语义照抄，勿单边增删），
+ * 用于「重执行按钮」前的 confirm 二次确认。
+ */
 const DANGEROUS = [
-  /\brm\s+(-[a-z]*r[a-z]*f|--force)\s+(\/|~|\*|\$HOME)\b/,
+  // rm 递归强删根/家目录（兼容 -rf 与 -fr 两种字母顺序，以及 --force）
+  /\brm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r|--force)[a-z-]*\s+(\/|~|\*|\$HOME)/,
   /\bmkfs\b/,
   /\bdd\s+.*\bof=\/dev\//,
   /\b(shutdown|reboot|halt|poweroff|init\s+0)\b/,
-  /:\(\)\s*\{\s*:\|:&\s*\}\s*;\s*:/,
+  /:\(\)\s*\{\s*:\|:&\s*\}\s*;\s*:/, // fork 炸弹
+  /\b>(\s*)\/dev\/sd[a-z]/,
+  /\bchmod\s+-R\s+000\s+\//,
+  /\b>(\s*)\/dev\/null\s+<\s*\/dev\//,
 ];
 const isDangerous = (cmd: string) => DANGEROUS.some((re) => re.test(cmd));
 

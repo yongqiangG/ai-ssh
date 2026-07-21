@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import Icon from "./Icon";
 import { useChatStore } from "../stores/chatStore";
+import { LOOSE_ERROR_HINT } from "../utils/errorDetect";
 import styles from "./ChatInputBar.module.css";
 
 export default function ChatInputBar() {
@@ -26,11 +27,9 @@ export default function ChatInputBar() {
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const draftRef = useRef<string>("");
 
-  // F1 Tab 补全的默认提问：引用内容像报错 → 分析；否则 → 解释（error 正则二选一）
-  const looksLikeError =
-    /error|fail|exception|denied|refused|not found|panic|fatal|traceback|无法|失败|错误/i;
+  // F1 Tab 补全的默认提问：引用内容像报错 → 分析；否则 → 解释（正则统一在 errorDetect）
   const defaultQuestion = quote
-    ? looksLikeError.test(quote.text)
+    ? LOOSE_ERROR_HINT.test(quote.text)
       ? "分析一下这个报错"
       : "解释一下这段输出"
     : null;

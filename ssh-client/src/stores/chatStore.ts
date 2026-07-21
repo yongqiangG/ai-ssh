@@ -62,6 +62,38 @@ interface ChatState {
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const titleFrom = (text: string) => text.trim().slice(0, 24) || "新对话";
 
+/**
+ * 把指定会话仍在 running / 待确认的命令块统一标为 error（stop 与流 onError 共用）。
+ * 断流后若不清理，pending_confirm 确认卡残留可点，点击会把块置回「执行中」
+ * 且 tool_result 永远不会到来。
+ */
+const failPendingToolCalls = (
+  conversations: Conversation[],
+  convId: string | null,
+  output: string
+): Conversation[] =>
+  conversations.map((c) =>
+    c.id === convId
+      ? {
+          ...c,
+          messages: c.messages.map((m) =>
+            m.toolCalls?.some(
+              (tc) => tc.status === "running" || tc.status === "pending_confirm"
+            )
+              ? {
+                  ...m,
+                  toolCalls: m.toolCalls.map((tc) =>
+                    tc.status === "running" || tc.status === "pending_confirm"
+                      ? { ...tc, status: "error" as const, output, confirmId: undefined }
+                      : tc
+                  ),
+                }
+              : m
+          ),
+        }
+      : c
+  );
+
 /** 当前流式请求的中止函数（sendMessage 写入，stop() 消费） */
 let abortRef: (() => void) | null = null;
 
@@ -347,7 +379,11 @@ export const useChatStore = create<ChatState>()(
               onError: (err) => {
                 abortRef = null;
                 failMsg(err);
-                set({ sending: false });
+                // 断流后清理残留命令块（与 stop 同语义），避免确认卡悬挂可点
+                set((s) => ({
+                  sending: false,
+                  conversations: failPendingToolCalls(s.conversations, convId, "已中断"),
+                }));
               },
             });
           } catch (e) {
@@ -389,27 +425,7 @@ export const useChatStore = create<ChatState>()(
           // 中止后把仍在 running / 待确认的命令块标为 error，避免永远转圈
           set((s) => ({
             sending: false,
-            conversations: s.conversations.map((c) =>
-              c.id === s.currentId
-                ? {
-                    ...c,
-                    messages: c.messages.map((m) =>
-                      m.toolCalls?.some(
-                        (tc) => tc.status === "running" || tc.status === "pending_confirm"
-                      )
-                        ? {
-                            ...m,
-                            toolCalls: m.toolCalls.map((tc) =>
-                              tc.status === "running" || tc.status === "pending_confirm"
-                                ? { ...tc, status: "error", output: "已停止", confirmId: undefined }
-                                : tc
-                            ),
-                          }
-                        : m
-                    ),
-                  }
-                : c
-            ),
+            conversations: failPendingToolCalls(s.conversations, s.currentId, "已停止"),
           }));
         },
       };
