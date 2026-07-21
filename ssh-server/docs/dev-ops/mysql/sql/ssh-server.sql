@@ -18,7 +18,8 @@ CREATE TABLE `ssh_connection` (
   `username` varchar(64) NOT NULL DEFAULT '' COMMENT '用户名',
   `auth_type` varchar(16) NOT NULL DEFAULT 'PASSWORD' COMMENT '认证类型 PASSWORD/PUBLIC_KEY',
   `password` varchar(255) DEFAULT NULL COMMENT '密码',
-  `private_key` text COMMENT 'SSH私钥(PEM)',
+  `private_key` text COMMENT 'SSH私钥(PEM)；已迁移到 ssh_key 的连接此列为空',
+  `key_id` varchar(64) DEFAULT NULL COMMENT '引用的密钥实体 keyId(PUBLIC_KEY 认证)',
   `user_id` varchar(64) NOT NULL DEFAULT '' COMMENT '用户ID',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -45,3 +46,22 @@ CREATE TABLE `ssh_connection_config` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_connection_id` (`connection_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SSH连接高级配置';
+
+-- ----------------------------
+-- Table structure for ssh_key（SSH 密钥一等实体，可被多个连接引用）
+-- ----------------------------
+DROP TABLE IF EXISTS `ssh_key`;
+CREATE TABLE `ssh_key` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `key_id` varchar(64) NOT NULL DEFAULT '' COMMENT '密钥唯一标识(UUID)',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT '密钥显示名',
+  `private_key` text COMMENT 'SSH私钥(PEM，AES-GCM密文)',
+  `passphrase` varchar(1024) DEFAULT NULL COMMENT '私钥口令(AES-GCM密文)',
+  `user_id` varchar(64) NOT NULL DEFAULT '' COMMENT '用户ID',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除 0未删 1已删',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_key_id` (`key_id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SSH密钥';

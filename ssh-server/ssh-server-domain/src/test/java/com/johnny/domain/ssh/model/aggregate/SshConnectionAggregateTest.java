@@ -15,7 +15,7 @@ public class SshConnectionAggregateTest {
     public void create_generates_connectionId_and_applies_defaults() {
         SshConnectionAggregate agg = SshConnectionAggregate.create(
                 "我的连接", "10.0.0.1", 22, "root",
-                AuthTypeEnum.PASSWORD, "pwd", null, "user_001",
+                AuthTypeEnum.PASSWORD, "pwd", null, null, "user_001",
                 null, null, null, false, null, false);
 
         String cid = agg.getConnectionId();
@@ -33,7 +33,7 @@ public class SshConnectionAggregateTest {
     public void create_uses_user_config_when_provided() {
         SshConnectionAggregate agg = SshConnectionAggregate.create(
                 "我的连接", "10.0.0.1", 22, "root",
-                AuthTypeEnum.PASSWORD, "pwd", null, "user_001",
+                AuthTypeEnum.PASSWORD, "pwd", null, null, "user_001",
                 8000, 60000, "ls", true, "known", true);
         assertEquals(Integer.valueOf(8000), agg.getConfig().getConnectTimeout());
         assertEquals(true, agg.getConfig().isStrictHostKeyCheck());

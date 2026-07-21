@@ -19,10 +19,10 @@ public class SshConnectionUpdateRequestDTO {
     private String username;
     /** null 表示不修改；PASSWORD / PUBLIC_KEY */
     private String authType;
-    /** null 表示沿用旧明文 */
+    /** null 表示沿用旧密码（留空不改） */
     private String password;
-    /** null 表示沿用旧明文 */
-    private String privateKey;
+    /** null 表示不修改；引用的密钥 keyId */
+    private String keyId;
 
     private Integer connectTimeout;
     private Integer keepaliveInterval;

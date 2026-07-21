@@ -53,7 +53,7 @@ public class SshConnectionController {
         cmd.username = dto.getUsername();
         cmd.authType = AuthTypeEnum.of(dto.getAuthType());
         cmd.password = dto.getPassword();
-        cmd.privateKey = dto.getPrivateKey();
+        cmd.keyId = dto.getKeyId();
         cmd.connectTimeout = dto.getConnectTimeout();
         cmd.keepaliveInterval = dto.getKeepaliveInterval();
         cmd.startupCommand = dto.getStartupCommand();
@@ -75,7 +75,7 @@ public class SshConnectionController {
         cmd.username = dto.getUsername();
         cmd.authType = dto.getAuthType() == null ? null : AuthTypeEnum.of(dto.getAuthType());
         cmd.password = dto.getPassword();
-        cmd.privateKey = dto.getPrivateKey();
+        cmd.keyId = dto.getKeyId();
         cmd.connectTimeout = dto.getConnectTimeout();
         cmd.keepaliveInterval = dto.getKeepaliveInterval();
         cmd.startupCommand = dto.getStartupCommand();
@@ -157,8 +157,9 @@ public class SshConnectionController {
         dto.setPort(conn.getPort());
         dto.setUsername(conn.getUsername());
         dto.setAuthType(conn.getAuthType().getCode());
-        dto.setPassword(conn.getPassword());
-        dto.setPrivateKey(conn.getPrivateKey());
+        // 凭据只写不回显：密码/私钥永不回传；回填依赖布尔与 keyId 引用（apiKeyConfigured 同款模式）
+        dto.setPasswordConfigured(conn.getPassword() != null && !conn.getPassword().isEmpty());
+        dto.setKeyId(conn.getKeyId());
         // 状态不落库：以内存会话为准实时计算（0 未连接 / 1 已连接，编码与前端约定不变）
         dto.setStatus(sshConnectionService.isConnected(conn.getConnectionId()) ? 1 : 0);
         dto.setUserId(conn.getUserId());

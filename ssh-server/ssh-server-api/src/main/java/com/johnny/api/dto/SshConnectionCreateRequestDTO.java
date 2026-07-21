@@ -23,8 +23,8 @@ public class SshConnectionCreateRequestDTO {
     private String authType;
     /** 密码（PASSWORD 认证下必填） */
     private String password;
-    /** 私钥（PUBLIC_KEY 认证下必填） */
-    private String privateKey;
+    /** 引用的密钥 keyId（PUBLIC_KEY 认证下必填；私钥内容经密钥接口管理，不随连接提交） */
+    private String keyId;
 
     /** 连接超时（毫秒），可选 */
     private Integer connectTimeout;

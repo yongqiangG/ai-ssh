@@ -35,8 +35,11 @@ public class SshConnectionPO {
 
     private String password;
 
-    /** SSH 私钥（PEM 内容） */
+    /** SSH 私钥（PEM 内容）；已迁移到密钥实体的连接此列为空 */
     private String privateKey;
+
+    /** 引用的密钥实体 keyId（PUBLIC_KEY 认证）；密码认证为空 */
+    private String keyId;
 
     private String userId;
 

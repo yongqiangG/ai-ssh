@@ -12,6 +12,7 @@
         <result column="auth_type" property="authType"/>
         <result column="password" property="password"/>
         <result column="private_key" property="privateKey"/>
+        <result column="key_id" property="keyId"/>
         <result column="user_id" property="userId"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
@@ -19,15 +20,15 @@
     </resultMap>
 
     <sql id="columns">
-        id, connection_id, name, host, port, username, auth_type, password, private_key, user_id, created_at, updated_at, deleted
+        id, connection_id, name, host, port, username, auth_type, password, private_key, key_id, user_id, created_at, updated_at, deleted
     </sql>
 
     <insert id="insert" parameterType="com.johnny.infrastructure.dao.po.SshConnectionPO"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO ssh_connection
-            (connection_id, name, host, port, username, auth_type, password, private_key, user_id)
+            (connection_id, name, host, port, username, auth_type, password, private_key, key_id, user_id)
         VALUES
-            (#{connectionId}, #{name}, #{host}, #{port}, #{username}, #{authType}, #{password}, #{privateKey}, #{userId})
+            (#{connectionId}, #{name}, #{host}, #{port}, #{username}, #{authType}, #{password}, #{privateKey}, #{keyId}, #{userId})
     </insert>
 
     <update id="update" parameterType="com.johnny.infrastructure.dao.po.SshConnectionPO">
@@ -38,7 +39,8 @@
             username    = #{username},
             auth_type   = #{authType},
             password    = #{password},
-            private_key = #{privateKey}
+            private_key = #{privateKey},
+            key_id      = #{keyId}
         WHERE connection_id = #{connectionId} AND deleted = 0
     </update>
 
@@ -60,5 +62,26 @@
         WHERE user_id = #{userId} AND deleted = 0
         ORDER BY id DESC
     </select>
+
+    <select id="countByKeyId" parameterType="java.lang.String" resultType="int">
+        SELECT COUNT(*)
+        FROM ssh_connection
+        WHERE key_id = #{keyId} AND deleted = 0
+    </select>
+
+    <select id="queryLegacyWithEmbeddedKey" resultMap="SshConnectionMap">
+        SELECT <include refid="columns"/>
+        FROM ssh_connection
+        WHERE deleted = 0
+          AND private_key IS NOT NULL AND private_key != ''
+          AND (key_id IS NULL OR key_id = '')
+    </select>
+
+    <update id="migrateToKeyRef">
+        UPDATE ssh_connection
+        SET key_id      = #{keyId},
+            private_key = ''
+        WHERE connection_id = #{connectionId} AND deleted = 0
+    </update>
 
 </mapper>

@@ -88,6 +88,7 @@ public class SshConnectionRepository implements ISshConnectionRepository {
                 .authType(e.getAuthType().getCode())
                 .password(cipher.encrypt(e.getPassword()))
                 .privateKey(cipher.encrypt(e.getPrivateKey()))
+                .keyId(e.getKeyId())
                 .userId(e.getUserId())
                 .build();
     }
@@ -102,6 +103,7 @@ public class SshConnectionRepository implements ISshConnectionRepository {
                 AuthTypeEnum.of(po.getAuthType()),
                 cipher.decrypt(po.getPassword()),
                 cipher.decrypt(po.getPrivateKey()),
+                po.getKeyId(),
                 po.getUserId());
     }
 

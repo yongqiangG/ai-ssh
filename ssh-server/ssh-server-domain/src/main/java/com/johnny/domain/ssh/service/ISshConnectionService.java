@@ -48,7 +48,8 @@ public interface ISshConnectionService {
         public int port;
         public String username;
         public String password;
-        public String privateKey;
+        /** PUBLIC_KEY 认证时引用的密钥实体 keyId（私钥不再内嵌于连接） */
+        public String keyId;
         public AuthTypeEnum authType;
         public Integer connectTimeout;
         public Integer keepaliveInterval;
@@ -65,7 +66,8 @@ public interface ISshConnectionService {
         public Integer port;
         public String username;
         public String password;
-        public String privateKey;
+        /** PUBLIC_KEY 认证时引用的密钥实体 keyId */
+        public String keyId;
         public AuthTypeEnum authType;
         public Integer connectTimeout;
         public Integer keepaliveInterval;

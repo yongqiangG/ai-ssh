@@ -27,4 +27,13 @@ public interface ISshConnectionDao {
     /** 按用户查询其全部连接（排除逻辑删除，按 id 倒序） */
     List<SshConnectionPO> queryByUserId(@Param("userId") String userId);
 
+    /** 统计引用指定密钥的连接数（排除逻辑删除；密钥删除前的引用校验） */
+    int countByKeyId(@Param("keyId") String keyId);
+
+    /** 查询仍内嵌私钥且未引用密钥实体的存量连接（private_key 非空且 key_id 空；启动迁移用） */
+    List<SshConnectionPO> queryLegacyWithEmbeddedKey();
+
+    /** 存量迁移：连接改为引用密钥实体并清空内嵌私钥列 */
+    int migrateToKeyRef(@Param("connectionId") String connectionId, @Param("keyId") String keyId);
+
 }

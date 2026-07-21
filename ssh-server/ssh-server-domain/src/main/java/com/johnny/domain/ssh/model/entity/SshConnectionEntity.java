@@ -29,8 +29,10 @@ public class SshConnectionEntity {
     private AuthTypeEnum authType;
     /** 明文密码（领域内流转，落库前由仓储加密） */
     private String password;
-    /** 明文 SSH 私钥（PEM 格式） */
+    /** 明文 SSH 私钥（PEM 格式）；历史内嵌模式遗留，新数据一律走 {@link #keyId} 引用密钥实体 */
     private String privateKey;
+    /** 引用的密钥实体 keyId（PUBLIC_KEY 认证）；密码认证为 null */
+    private String keyId;
     private String userId;
 
     private SshConnectionEntity() {
@@ -42,7 +44,7 @@ public class SshConnectionEntity {
      * @throws AppException 任一校验失败
      */
     public static void validate(String name, String host, int port, String username,
-                                AuthTypeEnum authType, String password, String privateKey) {
+                                AuthTypeEnum authType, String password, String privateKey, String keyId) {
         if (StringUtils.isBlank(name)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "连接名称不能为空");
         }
@@ -64,8 +66,9 @@ public class SshConnectionEntity {
         if (authType == AuthTypeEnum.PASSWORD && StringUtils.isBlank(password)) {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "密码认证方式下密码不能为空");
         }
-        if (authType == AuthTypeEnum.PUBLIC_KEY && StringUtils.isBlank(privateKey)) {
-            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "公钥认证方式下私钥不能为空");
+        // 公钥认证：新数据走 keyId 引用密钥实体；privateKey 仅为历史内嵌数据的兼容读路径
+        if (authType == AuthTypeEnum.PUBLIC_KEY && StringUtils.isBlank(keyId) && StringUtils.isBlank(privateKey)) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "公钥认证方式下必须选择密钥");
         }
     }
 
@@ -76,8 +79,8 @@ public class SshConnectionEntity {
      */
     public static SshConnectionEntity create(String connectionId, String name, String host, int port,
                                              String username, AuthTypeEnum authType, String password,
-                                             String privateKey, String userId) {
-        validate(name, host, port, username, authType, password, privateKey);
+                                             String privateKey, String keyId, String userId) {
+        validate(name, host, port, username, authType, password, privateKey, keyId);
         SshConnectionEntity entity = new SshConnectionEntity();
         entity.connectionId = connectionId;
         entity.name = name;
@@ -87,6 +90,7 @@ public class SshConnectionEntity {
         entity.authType = authType;
         entity.password = password;
         entity.privateKey = privateKey;
+        entity.keyId = keyId;
         entity.userId = userId;
         return entity;
     }
@@ -96,7 +100,7 @@ public class SshConnectionEntity {
      */
     public static SshConnectionEntity restore(String connectionId, String name, String host, int port,
                                               String username, AuthTypeEnum authType, String password,
-                                              String privateKey, String userId) {
+                                              String privateKey, String keyId, String userId) {
         SshConnectionEntity entity = new SshConnectionEntity();
         entity.connectionId = connectionId;
         entity.name = name;
@@ -106,6 +110,7 @@ public class SshConnectionEntity {
         entity.authType = authType;
         entity.password = password;
         entity.privateKey = privateKey;
+        entity.keyId = keyId;
         entity.userId = userId;
         return entity;
     }

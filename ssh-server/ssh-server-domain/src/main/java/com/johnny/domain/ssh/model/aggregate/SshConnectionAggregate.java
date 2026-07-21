@@ -33,16 +33,17 @@ public class SshConnectionAggregate {
      * @throws AppException 任一校验失败
      */
     public static SshConnectionAggregate create(String name, String host, int port, String username,
-                                                AuthTypeEnum authType, String password, String privateKey, String userId,
+                                                AuthTypeEnum authType, String password, String privateKey,
+                                                String keyId, String userId,
                                                 Integer connectTimeout, Integer keepaliveInterval,
                                                 String startupCommand, boolean strictHostKeyCheck,
                                                 String knownHosts, boolean compression) {
-        SshConnectionEntity.validate(name, host, port, username, authType, password, privateKey);
+        SshConnectionEntity.validate(name, host, port, username, authType, password, privateKey, keyId);
 
         String connectionId = UUID.randomUUID().toString().replace("-", "");
 
         SshConnectionEntity connection = SshConnectionEntity.create(
-                connectionId, name, host, port, username, authType, password, privateKey, userId);
+                connectionId, name, host, port, username, authType, password, privateKey, keyId, userId);
 
         SshConnectionConfigEntity config = SshConnectionConfigEntity.create(
                 connectionId, connectTimeout, keepaliveInterval, startupCommand, strictHostKeyCheck, knownHosts, compression);
