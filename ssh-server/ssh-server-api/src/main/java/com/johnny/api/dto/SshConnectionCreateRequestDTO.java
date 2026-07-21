@@ -34,8 +34,8 @@ public class SshConnectionCreateRequestDTO {
     private String startupCommand;
     /** 已知主机密钥，可选 */
     private String knownHosts;
-    /** 是否启用严格主机密钥检查，可选 */
-    private boolean strictHostKeyCheck;
+    /** 是否启用严格主机密钥检查（TOFU）；缺省 null 按安全默认 true 处理 */
+    private Boolean strictHostKeyCheck;
     /** 是否启用压缩，可选 */
     private boolean compression;
 }

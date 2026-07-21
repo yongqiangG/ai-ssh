@@ -39,6 +39,7 @@ public class SshConnectionService implements ISshConnectionService {
 
     @Override
     public String create(CreateCmd cmd) {
+        requireKeyExists(cmd.keyId);
         SshConnectionAggregate aggregate = SshConnectionAggregate.create(
                 cmd.name, cmd.host, cmd.port, cmd.username, cmd.authType,
                 cmd.password, null, cmd.keyId, cmd.userId,
@@ -46,6 +47,13 @@ public class SshConnectionService implements ISshConnectionService {
                 cmd.strictHostKeyCheck, cmd.knownHosts, cmd.compression);
         repository.save(aggregate);
         return aggregate.getConnectionId();
+    }
+
+    /** 引用完整性：keyId 非空时密钥必须存在（写入时校验，不等到 connect 才暴露悬挂引用） */
+    private void requireKeyExists(String keyId) {
+        if (StringUtils.isNotBlank(keyId) && keyRepository.queryByKeyId(keyId) == null) {
+            throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "引用的密钥不存在: " + keyId);
+        }
     }
 
     @Override
@@ -66,6 +74,9 @@ public class SshConnectionService implements ISshConnectionService {
         AuthTypeEnum authType = cmd.authType != null ? cmd.authType : oldConn.getAuthType();
         String password = cmd.password != null ? cmd.password : oldConn.getPassword();
         String keyId = cmd.keyId != null ? cmd.keyId : oldConn.getKeyId();
+        if (cmd.keyId != null) {
+            requireKeyExists(cmd.keyId);
+        }
         // privateKey 不再接受外部写入（密钥统一走 ssh_key 实体）；沿用旧值仅为迁移前数据的读兼容
         String privateKey = oldConn.getPrivateKey();
 

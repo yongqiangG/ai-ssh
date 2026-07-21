@@ -61,7 +61,8 @@ public class SshConnectionController {
         cmd.keepaliveInterval = dto.getKeepaliveInterval();
         cmd.startupCommand = dto.getStartupCommand();
         cmd.knownHosts = dto.getKnownHosts();
-        cmd.strictHostKeyCheck = dto.isStrictHostKeyCheck();
+        // 安全默认：未显式指定时开启严格主机密钥校验（TOFU）
+        cmd.strictHostKeyCheck = dto.getStrictHostKeyCheck() == null || dto.getStrictHostKeyCheck();
         cmd.compression = dto.isCompression();
         String connectionId = sshConnectionService.create(cmd);
         return Response.success(connectionId);
