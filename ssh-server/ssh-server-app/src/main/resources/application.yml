@@ -7,7 +7,7 @@ spring:
       - "optional:classpath:application-local.yml"
       - "optional:file:./config/application-local.yml"
   profiles:
-    active: dev
+    active: single
   servlet:
     multipart:
       # 文件传输上限：覆盖 Spring 默认 1MB，与 SftpController.MAX_UPLOAD_BYTES 对齐
