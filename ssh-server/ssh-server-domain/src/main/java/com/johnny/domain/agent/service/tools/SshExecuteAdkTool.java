@@ -2,6 +2,7 @@ package com.johnny.domain.agent.service.tools;
 
 import com.google.adk.tools.Annotations;
 import com.google.adk.tools.ToolContext;
+import com.johnny.domain.agent.service.ConfirmGate;
 import com.johnny.domain.ssh.adapter.port.ExecResult;
 import com.johnny.domain.ssh.adapter.port.ISshSessionPort;
 import com.johnny.domain.ssh.service.ISshTerminalService;
@@ -38,35 +39,52 @@ public class SshExecuteAdkTool {
     @Resource
     private ISshSessionPort sshSessionPort;
 
+    @Resource
+    private ConfirmGate confirmGate;
+
     /**
      * 执行一条远程命令。
-     * <p>调用链：黑名单 → ITL 取 terminalSessionId → 映射 connectionId → 校验连接 → exec → 组装 8 字段 Map。
+     * <p>调用链：黑名单 → 确认门（写操作挂起等用户允许，B1）→ 终端绑定校验 → exec → 组装结果 Map。
      *
      * @param command 要执行的 shell 命令（单条）
+     * @param intent  模型自评意图：read=只读查询；write=会修改系统状态（确认门双通道之一）
      * @return 结构化结果 Map，LLM 直接消费其 JSON
      */
     public Map<String, Object> executeCommand(
             ToolContext toolContext,
             @Annotations.Schema(name = "command",
                     description = "要在远程服务器上执行的单条 shell 命令，例如 cat /etc/os-release")
-            String command) {
+            String command,
+            @Annotations.Schema(name = "intent", optional = true,
+                    description = "命令意图自评：read=只读查询不改变系统状态；write=会修改文件/进程/服务/配置等系统状态。必须如实声明")
+            String intent) {
 
+        String adkSessionId = toolContext.invocationContext().session().id();
         // 1) 按 ADK sessionId 查询绑定的终端 sessionId（取代 ITL：流式下工具在池化线程执行，ITL 失效）
-        String terminalSessionId = TerminalContext.getTerminalSessionId(
-                toolContext.invocationContext().session().id());
-        log.info("🔧 工具入口 thread={} adkSessionId={} terminalSessionId={} command=[{}]",
-                Thread.currentThread().getName(),
-                toolContext.invocationContext().session().id(),
-                terminalSessionId, command);
+        String terminalSessionId = TerminalContext.getTerminalSessionId(adkSessionId);
+        log.info("🔧 工具入口 thread={} adkSessionId={} terminalSessionId={} intent={} command=[{}]",
+                Thread.currentThread().getName(), adkSessionId, terminalSessionId, intent, command);
 
-        // 2) 黑名单校验（Q12）——命中即拦截，不执行
+        // 2) 黑名单校验（Q12）——命中即拦截，不执行（确认门之前的硬底线）
         if (isBlocked(command)) {
             log.warn("命令被安全策略拦截 command=[{}]", command);
             return errorMap(command, "该命令被安全策略拦截，禁止执行（危险命令）",
                     "命令命中黑名单，请换用安全的等价命令或联系管理员。");
         }
 
-        // 3) 校验终端绑定
+        // 3) 确认门（B1）：写模式规则 OR 模型自评 write → 挂起等用户允许；拒绝/超时不执行
+        if (CommandClassifier.needsConfirm(command, intent)) {
+            String reason = CommandClassifier.matchesWritePattern(command)
+                    ? "命令命中写操作规则" : "模型声明该命令会修改系统状态";
+            boolean allowed = confirmGate.requestConfirm(
+                    adkSessionId, toolContext.functionCallId().orElse(""), command, reason);
+            if (!allowed) {
+                return errorMap(command, "用户未允许执行该写操作命令",
+                        "用户拒绝或未在时限内确认。请询问用户意图，或改用只读命令完成任务。");
+            }
+        }
+
+        // 4) 校验终端绑定
         if (terminalSessionId == null || terminalSessionId.isBlank()) {
             return errorMap(command, "未绑定终端会话，请先在终端面板连接服务器",
                     "请用户在左侧终端面板先连接一台服务器，再提问。");

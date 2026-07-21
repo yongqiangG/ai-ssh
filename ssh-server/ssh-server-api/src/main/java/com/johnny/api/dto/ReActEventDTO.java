@@ -44,8 +44,11 @@ public class ReActEventDTO {
     /** 步数信息（round_end 时） */
     private StepInfo stepInfo;
 
-    /** 错误分析建议（tool_result 失败时，来自工具 analyzeFailure 规则匹配） */
+    /** 错误分析建议（tool_result 失败时，来自工具 analyzeFailure 规则匹配）；confirm_request 时为判定理由 */
     private String analysis;
+
+    /** 确认请求 ID（event=confirm_request 时；前端携带它调 confirm 端点放行/拒绝） */
+    private String confirmId;
 
     /**
      * ReAct 轮次进度信息。

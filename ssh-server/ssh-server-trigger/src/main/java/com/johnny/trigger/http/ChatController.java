@@ -2,10 +2,12 @@ package com.johnny.trigger.http;
 
 import com.johnny.api.dto.AgentDTO;
 import com.johnny.api.dto.ChatRequestDTO;
+import com.johnny.api.dto.ConfirmDecisionRequestDTO;
 import com.johnny.api.dto.CreateSessionResponseDTO;
 import com.johnny.api.response.Response;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
 import com.johnny.domain.agent.service.ChatSessionService;
+import com.johnny.domain.agent.service.ConfirmGate;
 import com.johnny.domain.react.ReActContext;
 import com.johnny.domain.react.node.RootNode;
 import jakarta.annotation.Resource;
@@ -51,6 +53,9 @@ public class ChatController {
     @Resource
     private RootNode rootNode;
 
+    @Resource
+    private ConfirmGate confirmGate;
+
     /** 共享有界线程池（app 模块 ThreadPoolConfig 装配；拒绝策略 AbortPolicy） */
     @Resource
     private ThreadPoolExecutor threadPoolExecutor;
@@ -66,6 +71,17 @@ public class ChatController {
     public Response<CreateSessionResponseDTO> createSession(@RequestBody ChatRequestDTO req) {
         String sessionId = chatSessionService.createSession(req.getAgentId(), req.getUserId());
         return Response.success(CreateSessionResponseDTO.builder().sessionId(sessionId).build());
+    }
+
+    /**
+     * 写操作确认决定（B1 确认门）：前端用户点「允许/拒绝」后调用，唤醒挂起的工具线程。
+     * 返回 false 表示该确认已超时清理或 confirmId 无效（前端提示重试）。
+     */
+    @PostMapping("/chat/confirm")
+    public Response<Boolean> confirm(@RequestBody ConfirmDecisionRequestDTO req) {
+        boolean found = confirmGate.decide(req.getConfirmId(), req.isAllow());
+        log.info("确认门决定 confirmId={} allow={} found={}", req.getConfirmId(), req.isAllow(), found);
+        return Response.success(found);
     }
 
     /**

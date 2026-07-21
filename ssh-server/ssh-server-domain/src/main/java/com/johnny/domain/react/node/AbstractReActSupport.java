@@ -108,6 +108,20 @@ public abstract class AbstractReActSupport
         writeNdjson(ctx, event);
     }
 
+    /** 发送写操作确认请求（confirm_request）：工具挂起等待，前端渲染允许/拒绝（B1）。 */
+    protected void sendConfirmRequestEvent(ReActContext ctx, String confirmId, String toolCallId,
+                                           String command, String reason) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("confirm_request");
+        event.setConfirmId(confirmId);
+        event.setToolCallId(toolCallId);
+        event.setToolName("executeCommand");
+        event.setContent(command);
+        event.setStatus("pending_confirm");
+        event.setAnalysis(reason);
+        writeNdjson(ctx, event);
+    }
+
     /** 把 ReActEventDTO 序列化成 NDJSON 行（JSON + '\n'）写入 emitter；失败视为客户端已断开 → 置取消标志。 */
     private void writeNdjson(ReActContext ctx, ReActEventDTO dto) {
         if (ctx.isCancelled()) {

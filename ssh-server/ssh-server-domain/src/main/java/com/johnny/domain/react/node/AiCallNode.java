@@ -11,6 +11,7 @@ import com.johnny.api.dto.ChatRequestDTO;
 import com.johnny.api.dto.ReActResultDTO;
 import com.johnny.domain.agent.model.AiAgentRegisterVO;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
+import com.johnny.domain.agent.service.ConfirmGate;
 import com.johnny.domain.agent.service.tools.TerminalContext;
 import com.johnny.domain.agent.service.tools.ThinkingContext;
 import com.johnny.domain.react.ReActContext;
@@ -43,6 +44,9 @@ public class AiCallNode extends AbstractReActSupport {
     @Resource
     private AgentRunnerRegistry agentRunnerRegistry;
 
+    @Resource
+    private ConfirmGate confirmGate;
+
     @Override
     protected ReActResultDTO doApply(ChatRequestDTO req, ReActContext ctx) throws Exception {
         AiAgentRegisterVO holder = agentRunnerRegistry.get(ctx.getAgentId());
@@ -55,6 +59,10 @@ public class AiCallNode extends AbstractReActSupport {
         TerminalContext.register(adkSessionId, ctx.getTerminalSessionId());
         // 消息级思考开关（D1）：runAsync 前置位，finally 复位；拦截器（AiApiNode）读取
         ThinkingContext.set(ctx.isThinkingEnabled());
+        // 确认门（B1）：注册本请求的 confirm_request 发射通道——工具线程判定写操作后经此
+        // 把确认请求写进 NDJSON 流并挂起（emitter.send 有同步保护，跨线程安全）
+        confirmGate.registerEmitter(adkSessionId, cr ->
+                sendConfirmRequestEvent(ctx, cr.confirmId, cr.toolCallId, cr.command, cr.reason));
 
         // 无绑定终端时注入系统提示：让模型第一轮直接文字回答，
         // 省掉「试探 executeCommand → errorMap → 再转述」的整整一轮 LLM（Q8b）
@@ -148,6 +156,7 @@ public class AiCallNode extends AbstractReActSupport {
             }
             // 清理注册，防内存泄漏；思考标志复位为默认关
             TerminalContext.register(adkSessionId, null);
+            confirmGate.registerEmitter(adkSessionId, null);
             ThinkingContext.set(false);
         }
 
