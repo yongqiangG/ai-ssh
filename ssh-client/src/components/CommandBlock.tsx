@@ -3,6 +3,7 @@ import type { MouseEvent } from "react";
 import type { ToolCall } from "../types";
 import { useTerminalStore } from "../stores/terminalStore";
 import { useLayoutStore } from "../stores/layoutStore";
+import { useChatStore } from "../stores/chatStore";
 import { getTerminalSessionId, focusTerminal } from "../terminal/terminalManager";
 import { sendTerminalCommand } from "../api/terminal";
 import Icon from "./Icon";
@@ -31,6 +32,7 @@ export default function CommandBlock({ call }: { call: ToolCall }) {
 
   const status = call.status ?? "running";
   const ok = status === "success";
+  const pendingConfirm = status === "pending_confirm";
   const hasOutput = Boolean(call.output || call.analysis);
   // 活跃终端的 sessionId（无活跃连接或未开终端则为 null → 执行按钮禁用）
   const terminalSessionId = activeConnId ? getTerminalSessionId(activeConnId) : null;
@@ -111,10 +113,21 @@ export default function CommandBlock({ call }: { call: ToolCall }) {
   };
 
   return (
-    <div className={styles.block}>
+    <div className={`${styles.block} ${pendingConfirm ? styles.confirmBlock : ""}`}>
       <div className={styles.header} onClick={() => setOpen((v) => !v)}>
-        <span className={styles.badge} data-ok={ok} data-running={status === "running"}>
-          {status === "running" ? "执行中" : ok ? "成功" : "失败"}
+        <span
+          className={styles.badge}
+          data-ok={ok}
+          data-running={status === "running"}
+          data-confirm={pendingConfirm}
+        >
+          {pendingConfirm
+            ? "待确认"
+            : status === "running"
+              ? "执行中"
+              : ok
+                ? "成功"
+                : "失败"}
         </span>
         <code className={styles.cmd}>{call.command}</code>
         <button
@@ -136,7 +149,36 @@ export default function CommandBlock({ call }: { call: ToolCall }) {
         </button>
         {hasOutput && <span className={styles.toggle}>{open ? "▾" : "▸"}</span>}
       </div>
-      {open && hasOutput && (
+      {pendingConfirm && (
+        <div className={styles.confirmBar} onClick={(e) => e.stopPropagation()}>
+          <span className={styles.confirmReason}>
+            ⚠️ 写操作需要你的确认{call.analysis ? `（${call.analysis}）` : ""}
+          </span>
+          <div className={styles.confirmActions}>
+            <button
+              type="button"
+              className={styles.denyBtn}
+              onClick={() =>
+                call.confirmId &&
+                useChatStore.getState().decideConfirm(call.confirmId, false)
+              }
+            >
+              拒绝
+            </button>
+            <button
+              type="button"
+              className={styles.allowBtn}
+              onClick={() =>
+                call.confirmId &&
+                useChatStore.getState().decideConfirm(call.confirmId, true)
+              }
+            >
+              允许执行
+            </button>
+          </div>
+        </div>
+      )}
+      {open && hasOutput && !pendingConfirm && (
         <pre className={styles.output} onClick={(e) => e.stopPropagation()}>
           {call.output}
           {call.analysis && <span className={styles.analysis}>💡 {call.analysis}</span>}

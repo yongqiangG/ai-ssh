@@ -11,14 +11,23 @@ import type { Agent } from "../types";
 
 /** 后端 ReAct 事件（ReActEventDTO） */
 export interface ReActEvent {
-  event: "text" | "tool_call" | "tool_result" | "round_end" | "done" | "error";
+  event:
+    | "text"
+    | "tool_call"
+    | "tool_result"
+    | "confirm_request"
+    | "round_end"
+    | "done"
+    | "error";
   content?: string;
   fullText?: string;
   toolCallId?: string;
   toolName?: string;
   status?: string;
-  /** 工具失败时的中文建议（tool_result，对应后端 ReActEventDTO.analysis） */
+  /** 工具失败时的中文建议（tool_result）；confirm_request 时为判定理由 */
   analysis?: string;
+  /** 写操作确认 ID（confirm_request 时；携带它调 confirmDecision 放行/拒绝） */
+  confirmId?: string;
   stepInfo?: {
     currentStep: number;
     maxSteps: number;
@@ -62,6 +71,8 @@ export interface StreamChatOptions {
   onToolCall?: (e: ReActEvent) => void;
   /** 工具执行完成（tool_result 事件）：content 为输出，analysis 为失败建议 */
   onToolResult?: (e: ReActEvent) => void;
+  /** 写操作确认请求（confirm_request 事件）：后端工具挂起等待，前端渲染允许/拒绝（B1） */
+  onConfirmRequest?: (e: ReActEvent) => void;
   /** 流正常结束（reader done）时回调 */
   onDone: (finalText: string) => void;
   /** 出错回调 */
@@ -191,6 +202,15 @@ function handleEvent(
       opts.onToolResult?.(evt);
       break;
     }
+    case "confirm_request": {
+      opts.onConfirmRequest?.(evt);
+      break;
+    }
     // round_end：前端不渲染时间线，忽略
   }
+}
+
+/** 写操作确认决定：用户点「允许/拒绝」后调用，唤醒后端挂起的工具线程 */
+export function confirmDecision(confirmId: string, allow: boolean): Promise<boolean> {
+  return http.post<boolean>("/api/v1/chat/confirm", { confirmId, allow });
 }

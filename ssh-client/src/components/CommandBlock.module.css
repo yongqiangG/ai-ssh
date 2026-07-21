@@ -110,3 +110,62 @@
   color: #dcb67a;
   white-space: pre-wrap;
 }
+
+/* ===== 写操作确认态（B1 确认门）===== */
+.confirmBlock {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.12);
+}
+
+.badge[data-confirm="true"] {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+
+.confirmBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.07);
+  font-size: 12px;
+}
+
+.confirmReason {
+  color: #fbbf24;
+  line-height: 1.5;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.allowBtn,
+.denyBtn {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.allowBtn {
+  background: #d97706;
+  color: #fff;
+}
+
+.denyBtn {
+  background: transparent;
+  border-color: var(--vsc-border, rgba(255, 255, 255, 0.2));
+  color: var(--vsc-fg, rgba(255, 255, 255, 0.8));
+}
+
+.allowBtn:hover,
+.denyBtn:hover {
+  filter: brightness(1.15);
+}

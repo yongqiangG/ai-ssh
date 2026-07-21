@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Agent, ChatMessage, Conversation, ToolCall } from "../types";
 import { createId } from "../utils/id";
-import { createSession, queryAgents, streamChat } from "../api/chat";
+import { confirmDecision, createSession, queryAgents, streamChat } from "../api/chat";
 import { getTerminalSessionId } from "../terminal/terminalManager";
 import { useTerminalStore } from "./terminalStore";
 
@@ -33,6 +33,8 @@ interface ChatState {
   setAgent: (id: string) => void;
   toggleThinking: () => void;
   sendMessage: (text: string) => Promise<void>;
+  /** 写操作确认决定（B1）：调 confirm 端点唤醒后端，本地把命令块转回执行态 */
+  decideConfirm: (confirmId: string, allow: boolean) => Promise<void>;
   /** 中止当前流式请求（ChatInputBar 停止按钮调用；running 命令块标为已停止） */
   stop: () => void;
 }
@@ -253,10 +255,43 @@ export const useChatStore = create<ChatState>()(
                           status: (e.status as ToolCall["status"]) ?? "success",
                           output: e.content,
                           analysis: e.analysis,
+                          confirmId: undefined,
                         }
                       : tc
                   ),
                 }));
+              },
+              onConfirmRequest: (e) => {
+                // 写操作确认（B1）：按 toolCallId 把对应命令块置为待确认态；
+                // toolCallId 缺失时兜底挂到最后一个 running 块（工具串行执行，即当前块）
+                updateMessage(convId!, assistantId, (m) => {
+                  const list = m.toolCalls ?? [];
+                  let targetIdx = list.findIndex(
+                    (tc) => tc.toolCallId && tc.toolCallId === e.toolCallId
+                  );
+                  if (targetIdx < 0) {
+                    for (let i = list.length - 1; i >= 0; i--) {
+                      if (list[i].status === "running") {
+                        targetIdx = i;
+                        break;
+                      }
+                    }
+                  }
+                  if (targetIdx < 0) return m;
+                  return {
+                    ...m,
+                    toolCalls: list.map((tc, i) =>
+                      i === targetIdx
+                        ? {
+                            ...tc,
+                            status: "pending_confirm" as const,
+                            confirmId: e.confirmId,
+                            analysis: e.analysis,
+                          }
+                        : tc
+                    ),
+                  };
+                });
               },
               onDone: () => {
                 abortRef = null;
@@ -274,12 +309,37 @@ export const useChatStore = create<ChatState>()(
           }
         },
 
+        decideConfirm: async (confirmId, allow) => {
+          try {
+            await confirmDecision(confirmId, allow);
+          } finally {
+            // 本地把匹配的命令块转回执行态；拒绝时后端随即发 tool_result=error 覆盖为终态
+            set((s) => ({
+              conversations: s.conversations.map((c) => ({
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.toolCalls?.some((tc) => tc.confirmId === confirmId)
+                    ? {
+                        ...m,
+                        toolCalls: m.toolCalls.map((tc) =>
+                          tc.confirmId === confirmId
+                            ? { ...tc, status: "running" as const, confirmId: undefined }
+                            : tc
+                        ),
+                      }
+                    : m
+                ),
+              })),
+            }));
+          }
+        },
+
         stop: () => {
           if (abortRef) {
             abortRef();
             abortRef = null;
           }
-          // 中止后把仍在 running 的命令块标为 error，避免永远转圈
+          // 中止后把仍在 running / 待确认的命令块标为 error，避免永远转圈
           set((s) => ({
             sending: false,
             conversations: s.conversations.map((c) =>
@@ -287,12 +347,14 @@ export const useChatStore = create<ChatState>()(
                 ? {
                     ...c,
                     messages: c.messages.map((m) =>
-                      m.toolCalls?.some((tc) => tc.status === "running")
+                      m.toolCalls?.some(
+                        (tc) => tc.status === "running" || tc.status === "pending_confirm"
+                      )
                         ? {
                             ...m,
                             toolCalls: m.toolCalls.map((tc) =>
-                              tc.status === "running"
-                                ? { ...tc, status: "error", output: "已停止" }
+                              tc.status === "running" || tc.status === "pending_confirm"
+                                ? { ...tc, status: "error", output: "已停止", confirmId: undefined }
                                 : tc
                             ),
                           }

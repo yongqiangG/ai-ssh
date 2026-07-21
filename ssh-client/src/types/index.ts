@@ -5,9 +5,11 @@ export interface ToolCall {
   toolCallId: string;
   toolName: string;
   command?: string;
-  status?: "running" | "success" | "error";
+  status?: "running" | "pending_confirm" | "success" | "error";
   output?: string;
   analysis?: string;
+  /** 写操作确认 ID（status=pending_confirm 时；允许/拒绝按钮携带它调 confirm 端点） */
+  confirmId?: string;
 }
 
 export interface ChatMessage {
