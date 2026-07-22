@@ -86,10 +86,11 @@ fn describe_port_owner(port: u16) -> String {
 
 #[cfg(windows)]
 fn find_listener_pid(port: u16) -> Option<u32> {
-    let output = std::process::Command::new("netstat")
-        .args(["-ano", "-p", "tcp"])
-        .output()
-        .ok()?;
+    let mut command = std::process::Command::new("netstat");
+    command.args(["-ano", "-p", "tcp"]);
+    // release 版是 windows_subsystem GUI 进程，spawn 控制台程序必须压掉闪窗
+    crate::hide_console(&mut command);
+    let output = command.output().ok()?;
     parse_netstat_listener_pid(&String::from_utf8_lossy(&output.stdout), port)
 }
 
@@ -108,6 +109,7 @@ fn find_listener_pid(port: u16) -> Option<u32> {
 }
 
 /// netstat -ano 输出中找 «本地地址以 :port 结尾 且 LISTENING» 行的 PID 列
+#[cfg_attr(not(windows), allow(dead_code))]
 fn parse_netstat_listener_pid(output: &str, port: u16) -> Option<u32> {
     let suffix = format!(":{port}");
     output.lines().find_map(|line| {
