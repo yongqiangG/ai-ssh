@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * <p>核心契约：{@link #executeCommand(String)} <b>永不抛异常</b>——任何失败都返回 {@code success:false} 的错误 Map，
  * 让 LLM 把失败当观察结果、转述给用户（Q3a）。
  *
- * <p>反编译参考：{@code docs/decompiled/google-adk/com/google/adk/tools/FunctionTool.java}
+ * <p>反编译参考：{@code decompiled/google-adk/com/google/adk/tools/FunctionTool.java}
  * （{@code create(Object,String)} 实例方法注册、参数 @Schema 校验规则 line 112-127）。
  *
  * <p><b>注意</b>：项目根 pom 把 maven-compiler-plugin 锁在 3.0 无 {@code -parameters}，

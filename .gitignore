@@ -26,4 +26,4 @@ node_modules/
 ssh-client/src-tauri/resources/
 
 # 反编译参考源码（上游 jar 可复现，不入库）
-docs/decompiled/
+/decompiled/

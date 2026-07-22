@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * 例如 beforeToolCallback 返回非空 Map 会跳过工具执行、拿返回值当结果。
  * 故全部用 {@code Maybe.fromAction(()->...)} 返回 empty（fromAction 执行副作用后产 empty）。
  *
- * <p>字段取法借鉴反编译的 {@code com.google.adk.plugins.LoggingPlugin}（docs/decompiled/），
+ * <p>字段取法借鉴反编译的 {@code com.google.adk.plugins.LoggingPlugin}（decompiled/），
  * 但输出中文格式化、对照 §1 样例。
  */
 @Slf4j
