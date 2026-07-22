@@ -70,4 +70,12 @@
 **测试用例**：即上述矩阵本身。
 
 **验证**：
-**状态**：未开始
+- Windows（2026-07-22 本机 release 就地构建实测，全通过）：
+  - ①正常关窗：WM_CLOSE 后端 ~500ms 退，log_info.log 实证链路 `stdin EOF → GracefulShutdown → HikariPool Shutdown`（H2 干净落盘），PID 档案已销
+  - ②taskkill /F 杀壳：后端 1s 内被 Job Object 带走，8091 释放；PID 档案按设计留存为下次自愈证据
+  - ③人为孤儿（手工 java 起 8091 + 伪造档案 PID 32108）：启动即清孤儿，新后端 25444 接管，档案更新
+  - ④无关进程占 8091（PowerShell TcpListener PID 20660）：占用者未被杀，无后端 spawn，失败页截屏实证含「powershell.exe (PID 20660) 占用，查无…清理」+ 日志目录线索
+  - ⑤双开：第二实例不落地（shell 仍 1 个），后端不受扰动
+  - ⑥升级模拟：由③覆盖——自愈证据链以档案内记录的 java 路径为比对基准，与版本/安装目录无关；CDS 归档过期清理为既有已验功能
+- macOS：待真机走查（①kill -9 杀壳验哨兵跟随退、③④⑤同上），跑完补录于此
+**状态**：进行中（Windows 列全通过，等 macOS 列）
