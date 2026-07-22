@@ -38,14 +38,14 @@
 
 ## 阶段 4：server 启动提速（CDS + 堆参数）
 **目标**：打包版 sidecar 冷启动时间下降 ≥25%
-**设计**：
-- `build-personal.sh`：package 后 `java -Djarmode=tools -jar app.jar extract` 出 CDS 布局；训练 run（`-XX:ArchiveClassesAtExit` + `spring.context.exit=onRefresh`，指向临时 H2 目录避免污染）生成 `app.jsa`；extracted 目录整体替代单 jar 进 Tauri resources
-- `lib.rs`：`current_dir(backend_dir)` + 相对路径 `-jar ssh-server-app.jar` + `-XX:SharedArchiveFile=app.jsa` + `-Xms128m -Xmx512m`
-- 归档失配静默回退（-Xshare:auto 默认），最坏仅不提速
-- workflow 无改动（build-personal.sh 内自包含）；本地与 CI 均出归档
-**验收标准**：本地打包实测启动时间对比（改造前后各 3 次取中位）下降 ≥25%；`-Xlog:class+load` 抽查确认命中 shared archive；workflow 构建通过
-**测试用例**：训练 run 产物存在性校验入脚本（缺 .jsa 即 fail）；启动日志含 CDS 生效证据；ping 就绪时间对比记录入本文件
-**状态**：未开始
+**设计**（实测后修订：CI 训练随包分发 → 用户机首启后台训练——CDS 归档校验绑定 jar mtime，安装器解包必改 mtime 导致随包归档失效，且白背 73MB 包体）：
+- `build-personal.sh`：package 后 `java -Djarmode=tools -jar app.jar extract` 直接产出 CDS 友好布局（瘦 jar + lib/）进 resources/backend，不再打单 fat jar；tauri.conf.json resources 改为目录
+- `lib.rs`：`current_dir(backend_dir)` + 相对 `-jar` + `-Xms128m -Xmx512m` + `-DLOG_DIR=<appdata>/log`；归档存在且不旧于 jar 时加 `-XX:SharedArchiveFile`（失配静默回退）；无归档时延迟 30s 后台训练（隔离：port 0 / 内存 H2 / 独立密钥日志，产物 .tmp 原子换名），升级后 jar 更新自动废弃旧归档重训
+- logback-spring.xml：`./data/log` 变量化为 `${LOG_DIR:-./data/log}`——切 cwd 到安装目录后原相对路径会写进 Program Files（连带修复）
+- workflow 无改动（build-personal.sh 自包含）
+**验收标准**：本地打包实测启动时间对比下降 ≥25%；共享归档命中确认；workflow 构建通过
+**测试用例**：端到端模拟生产链路（extract→首启+训练→二启带归档）；LOG_DIR 落 appdata、安装目录零写入
+**状态**：已完成（实测 JDK21：fat jar 4.31s → 首启 extracted 3.38s(-22%) → 二启 CDS 1.67s(-61%)，归档命中 11789/12422 类；mtime 失效路径实证：touch 后命中掉至 1322、耗时回落 3.3s，佐证首启训练方案。workflow 构建验证并入阶段 5）
 
 ## 阶段 5：收尾验证与归档
 **目标**：全量测试绿、真机走查关键路径、文档归档

@@ -133,10 +133,16 @@ build_runtime() {
 }
 
 copy_backend_resource() {
-  log "4/6 Copy backend resource into Tauri"
+  log "4/6 Extract backend into Tauri (CDS-friendly layout)"
   rm -rf "$BACKEND_RESOURCE_DIR"
-  mkdir -p "$BACKEND_RESOURCE_DIR"
-  cp -f "$BACKEND_JAR" "$BACKEND_RESOURCE_DIR/ssh-server-app.jar"
+  mkdir -p "$RESOURCE_DIR"
+  # CDS 友好布局（瘦 jar + lib/ 平铺）：相比 fat jar 直启可减约 25% 启动时间；
+  # CDS 归档不在构建期生成——归档校验绑定 jar 的 mtime，安装器解包必然改动
+  # mtime 导致随包归档失效，改为用户机首次启动后由 Rust 侧后台训练生成
+  # （见 ssh-client/src-tauri/src/lib.rs）。
+  java -Djarmode=tools -jar "$BACKEND_JAR" extract --destination "$BACKEND_RESOURCE_DIR"
+  [[ -f "$BACKEND_RESOURCE_DIR/ssh-server-app.jar" && -d "$BACKEND_RESOURCE_DIR/lib" ]] \
+    || fail "Backend CDS-friendly extraction failed."
 }
 
 install_client_dependencies() {

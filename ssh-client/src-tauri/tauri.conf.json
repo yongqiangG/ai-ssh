@@ -34,7 +34,7 @@
       }
     },
     "resources": [
-      "resources/backend/ssh-server-app.jar",
+      "resources/backend",
       "resources/runtime"
     ],
     "icon": [

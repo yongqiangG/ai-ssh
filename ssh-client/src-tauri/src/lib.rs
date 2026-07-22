@@ -1,13 +1,18 @@
 use std::{
     fs::{self, OpenOptions},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
+    thread,
+    time::Duration,
 };
 
 use tauri::{Emitter, Manager, WindowEvent};
 
 const BACKEND_PORT: &str = "8091";
+const BACKEND_JAR_NAME: &str = "ssh-server-app.jar";
+/// 首启训练的延迟：错开主后端冷启动的 CPU 峰值窗口
+const CDS_TRAINING_DELAY_SECS: u64 = 30;
 
 struct BackendProcess(Mutex<Option<Child>>);
 
@@ -49,6 +54,105 @@ fn backend_log_dir(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|e| format!("resolve app data dir failed: {e}"))
 }
 
+/// 定位 extracted 布局的后端目录（ssh-server-app.jar + lib/，由
+/// build-personal.sh 的 jarmode=tools extract 产出）
+fn find_backend_dir(resource_dir: &Path) -> Option<PathBuf> {
+    [
+        resource_dir.join("backend"),
+        resource_dir.join("resources").join("backend"),
+    ]
+    .into_iter()
+    .find(|dir| dir.join(BACKEND_JAR_NAME).exists())
+}
+
+/// 可用的 CDS 归档路径。归档由用户机首启后台训练生成（构建期生成无效：
+/// CDS 校验绑定 jar mtime，安装器解包会改动 mtime 导致随包归档失配回退）。
+/// jar 比归档新（应用升级）时删除过期归档，等待本次启动后重训。
+fn usable_cds_archive(data_dir: &Path, backend_jar: &Path) -> Option<PathBuf> {
+    let archive = data_dir.join("cds").join("app.jsa");
+    if !archive.exists() {
+        return None;
+    }
+    let jar_mtime = fs::metadata(backend_jar).and_then(|m| m.modified()).ok();
+    let archive_mtime = fs::metadata(&archive).and_then(|m| m.modified()).ok();
+    if let (Some(jar), Some(arc)) = (jar_mtime, archive_mtime) {
+        if jar > arc {
+            let _ = fs::remove_file(&archive);
+            return None;
+        }
+    }
+    Some(archive)
+}
+
+#[cfg(windows)]
+fn hide_console(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_console(_command: &mut Command) {}
+
+/// 后台训练 CDS 归档：起一个短命 JVM（context refresh 完即退），全量隔离
+/// （随机端口 / 内存 H2 / 独立密钥与日志），产物先写 .tmp 成功后原子换名。
+/// 训练进程生命周期只有几秒且自然退出，不纳入 BackendProcess 管理；
+/// 应用在训练期间退出最多残留一个数秒后自灭的进程。
+fn spawn_cds_training(java_bin: PathBuf, backend_dir: PathBuf, data_dir: PathBuf) {
+    thread::spawn(move || {
+        thread::sleep(Duration::from_secs(CDS_TRAINING_DELAY_SECS));
+
+        let cds_dir = data_dir.join("cds");
+        let archive = cds_dir.join("app.jsa");
+        if archive.exists() || fs::create_dir_all(&cds_dir).is_err() {
+            return;
+        }
+        let tmp = cds_dir.join("app.jsa.tmp");
+        let _ = fs::remove_file(&tmp);
+
+        let log = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(cds_dir.join("training.log"));
+        let Ok(log) = log else { return };
+        let Ok(log_err) = log.try_clone() else { return };
+
+        let mut command = Command::new(java_bin);
+        command
+            .current_dir(&backend_dir)
+            .arg(format!("-XX:ArchiveClassesAtExit={}", tmp.display()))
+            .arg("-Dspring.context.exit=onRefresh")
+            .arg("-Dspring.profiles.active=single")
+            .arg("-Dserver.port=0")
+            .arg("-Dspring.datasource.url=jdbc:h2:mem:cds-training;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE")
+            .arg(format!(
+                "-Dssh.crypto.local-key-file={}",
+                cds_dir.join("training-secret.key").display()
+            ))
+            .arg(format!("-DLOG_DIR={}", cds_dir.join("log").display()))
+            .arg("-Xms128m")
+            .arg("-Xmx512m")
+            .arg("-jar")
+            .arg(BACKEND_JAR_NAME)
+            .stdout(Stdio::from(log))
+            .stderr(Stdio::from(log_err))
+            .stdin(Stdio::null());
+        hide_console(&mut command);
+
+        if let Ok(mut child) = command.spawn() {
+            match child.wait() {
+                Ok(status) if status.success() && tmp.exists() => {
+                    let _ = fs::rename(&tmp, &archive);
+                }
+                _ => {
+                    let _ = fs::remove_file(&tmp);
+                }
+            }
+        }
+        let _ = fs::remove_file(cds_dir.join("training-secret.key"));
+    });
+}
+
 fn start_backend(app: &tauri::App) -> Result<Child, String> {
     let resource_dir = app
         .path()
@@ -61,16 +165,15 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
 
     fs::create_dir_all(&data_dir).map_err(|e| format!("create backend log dir failed: {e}"))?;
 
-    let backend_jar = normalize_windows_path(
-        first_existing_path([
-            resource_dir.join("backend").join("ssh-server-app.jar"),
-            resource_dir
-                .join("resources")
-                .join("backend")
-                .join("ssh-server-app.jar"),
-        ])
-        .ok_or_else(|| format!("backend jar not found under {}", resource_dir.display()))?,
-    );
+    let backend_dir = normalize_windows_path(find_backend_dir(&resource_dir).ok_or_else(
+        || {
+            format!(
+                "backend dir with {BACKEND_JAR_NAME} not found under {}",
+                resource_dir.display()
+            )
+        },
+    )?);
+    let backend_jar = backend_dir.join(BACKEND_JAR_NAME);
 
     let java_name = if cfg!(windows) { "java.exe" } else { "java" };
     let java_bin = normalize_windows_path(
@@ -96,38 +199,55 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
         .open(data_dir.join("backend.err.log"))
         .map_err(|e| format!("open backend stderr log failed: {e}"))?;
 
+    let cds_archive = usable_cds_archive(&data_dir, &backend_jar);
+
     let jar_size = fs::metadata(&backend_jar).map(|m| m.len()).unwrap_or(0);
     let java_size = fs::metadata(&java_bin).map(|m| m.len()).unwrap_or(0);
     let launch_log = format!(
-        "java={}\njava_size={}\njar={}\njar_size={}\n",
+        "java={}\njava_size={}\nbackend_dir={}\njar_size={}\ncds={}\n",
         java_bin.display(),
         java_size,
-        backend_jar.display(),
-        jar_size
+        backend_dir.display(),
+        jar_size,
+        cds_archive
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "none (training pending)".to_string())
     );
     let _ = fs::write(data_dir.join("backend-launch.log"), launch_log);
 
-    let mut command = Command::new(java_bin);
+    // CDS classpath 校验要求与训练时一致的工作目录 + 相对 jar 路径
+    let mut command = Command::new(&java_bin);
     command
+        .current_dir(&backend_dir)
         .arg("-Dspring.profiles.active=single")
         .arg(format!("-Dserver.port={BACKEND_PORT}"))
+        .arg("-Xms128m")
+        .arg("-Xmx512m")
+        .arg(format!("-DLOG_DIR={}", data_dir.join("log").display()));
+    if let Some(archive) = &cds_archive {
+        // 归档失配时 -Xshare:auto 默认静默回退常规加载，不会启动失败
+        command.arg(format!("-XX:SharedArchiveFile={}", archive.display()));
+    }
+    command
         .arg("-jar")
-        .arg(backend_jar)
+        .arg(BACKEND_JAR_NAME)
         .arg(format!("--server.port={BACKEND_PORT}"))
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))
         .stdin(Stdio::null());
+    hide_console(&mut command);
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        command.creation_flags(CREATE_NO_WINDOW);
+    let child = command
+        .spawn()
+        .map_err(|e| format!("start backend failed: {e}"))?;
+
+    // 无可用归档（首启或升级后过期）：错峰后台训练，下次启动开始加速
+    if cds_archive.is_none() {
+        spawn_cds_training(java_bin, backend_dir, data_dir);
     }
 
-    command
-        .spawn()
-        .map_err(|e| format!("start backend failed: {e}"))
+    Ok(child)
 }
 
 fn first_existing_path<const N: usize>(candidates: [PathBuf; N]) -> Option<PathBuf> {
