@@ -33,8 +33,8 @@
 
 **测试用例**：真机场景归阶段 4 矩阵（Windows ②）。
 
-**验证**：
-**状态**：未开始
+**验证**：`cargo check` 过（win32job v2，cfg(windows) 隔离不污染 mac 构建）；job 句柄 mem::forget 保活到进程终结，assign 失败仅记 backend-job.log 不阻断启动（哨兵/自愈兜底）。内核级杀伤实证归阶段 4 矩阵。
+**状态**：已完成
 
 ## 阶段 3：启动自愈 + single-instance
 

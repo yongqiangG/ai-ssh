@@ -108,6 +108,34 @@ fn hide_console(command: &mut Command) {
 #[cfg(not(windows))]
 fn hide_console(_command: &mut Command) {}
 
+/// Windows 内核级父死子亡：把后端 JVM 挂进 KILL_ON_JOB_CLOSE 的 Job Object。
+/// 壳进程无论如何消亡（崩溃/taskkill/正常退出），OS 关闭 job 句柄即杀后端，
+/// 连 stdin 哨兵杀不动的僵死 JVM 也能兜住。job 句柄有意 forget 保活到进程终结
+/// ——提前 drop 会立即误杀后端。失败仅记日志不阻断启动：还有哨兵与启动自愈兜底。
+#[cfg(windows)]
+fn confine_backend_to_job(child: &Child, data_dir: &Path) {
+    use std::os::windows::io::AsRawHandle;
+
+    let confined = win32job::Job::create()
+        .and_then(|job| {
+            let mut info = job.query_extended_limit_info()?;
+            info.limit_kill_on_job_close();
+            job.set_extended_limit_info(&mut info)?;
+            job.assign_process(child.as_raw_handle() as _)?;
+            std::mem::forget(job);
+            Ok(())
+        });
+    if let Err(e) = confined {
+        let _ = fs::write(
+            data_dir.join("backend-job.log"),
+            format!("assign backend to job object failed: {e}\n"),
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn confine_backend_to_job(_child: &Child, _data_dir: &Path) {}
+
 /// 后台训练 CDS 归档：起一个短命 JVM（context refresh 完即退），全量隔离
 /// （随机端口 / 内存 H2 / 独立密钥与日志），产物先写 .tmp 成功后原子换名。
 /// 训练进程生命周期只有几秒且自然退出，不纳入 BackendProcess 管理；
@@ -258,6 +286,8 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
     let child = command
         .spawn()
         .map_err(|e| format!("start backend failed: {e}"))?;
+
+    confine_backend_to_job(&child, &data_dir);
 
     // 无可用归档（首启或升级后过期）：错峰后台训练，下次启动开始加速
     if cds_archive.is_none() {

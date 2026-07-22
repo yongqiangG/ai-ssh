@@ -25,3 +25,7 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# 内核级父死子亡：后端 JVM 挂进 KILL_ON_JOB_CLOSE 的 Job Object
+[target.'cfg(windows)'.dependencies]
+win32job = "2"
+
