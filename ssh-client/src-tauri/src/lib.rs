@@ -9,7 +9,9 @@ use std::{
 
 use tauri::{Emitter, Manager, WindowEvent};
 
-const BACKEND_PORT: &str = "8091";
+mod lifecycle;
+
+const BACKEND_PORT: u16 = 8091;
 const BACKEND_JAR_NAME: &str = "ssh-server-app.jar";
 /// 首启训练的延迟：错开主后端冷启动的 CPU 峰值窗口
 const CDS_TRAINING_DELAY_SECS: u64 = 30;
@@ -207,6 +209,12 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
 
     fs::create_dir_all(&data_dir).map_err(|e| format!("create backend log dir failed: {e}"))?;
 
+    // 启动自愈（仅 release）：8091 被占时按 PID 档案识别孤儿——证据确凿才杀，
+    // 查无实据即失败快报。dev 下 8091 是开发者手动后端，壳不插手。
+    if !cfg!(debug_assertions) {
+        lifecycle::heal_orphan_backend(&data_dir, BACKEND_PORT)?;
+    }
+
     let backend_dir = normalize_windows_path(find_backend_dir(&resource_dir).ok_or_else(
         || {
             format!(
@@ -288,6 +296,8 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
         .map_err(|e| format!("start backend failed: {e}"))?;
 
     confine_backend_to_job(&child, &data_dir);
+    // 落档进程证据：下次启动若发现孤儿，凭此识别与清理
+    lifecycle::write_pid_file(&data_dir, child.id(), &java_bin);
 
     // 无可用归档（首启或升级后过期）：错峰后台训练，下次启动开始加速
     if cds_archive.is_none() {
@@ -319,6 +329,15 @@ fn normalize_windows_path(path: PathBuf) -> PathBuf {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 双开归一必须最先注册：第二实例不落地，只拉起已有窗口。
+        // 由此立住自愈公理——探测到 8091 被占时本应用必无其他活实例
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(BackendProcess(Mutex::new(None)))
         .manage(BackendLaunchFailure(Mutex::new(None)))
         .setup(|app| {
@@ -360,6 +379,10 @@ pub fn run() {
                 // 先藏窗口再同步等待优雅退出（≤3s），用户观感是秒关
                 let _ = window.hide();
                 window.state::<BackendProcess>().stop();
+                // 后端已确认终结，进程证据随之销档
+                if let Ok(data_dir) = window.app_handle().path().app_data_dir() {
+                    lifecycle::remove_pid_file(&data_dir);
+                }
             }
         })
         .run(tauri::generate_context!())

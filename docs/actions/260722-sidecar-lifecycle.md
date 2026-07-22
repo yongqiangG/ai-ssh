@@ -43,15 +43,15 @@
 **设计**：
 - 先挂 `tauri-plugin-single-instance`（Builder 插件链最前，第二实例拉起已有窗口），立公理：8091 占用者若 PID 校验通过必是孤儿
 - PID 文件 `app_data_dir/backend.pid`：spawn 返回即写（PID + 我们 java 的可执行路径）；优雅退出 `stop()` 与自愈 kill 成功后删除
-- 自愈流程（release-only，`!cfg!(debug_assertions)` 与快报同门）：spawn 前探测 8091 → 被占则读 PID 文件校验「存活 + 可执行路径匹配打包 runtime java」→ 通过即杀并等端口释放再 spawn；PID 文件缺失/校验不过 → 不杀，查占用者 PID/进程名（netstat/lsof）注入 BootSplash 失败页
-- 前端失败页新增占用者信息展示分支
+- 自愈流程（release-only，`!cfg!(debug_assertions)` 与快报同门）：spawn 前探测 8091 → 被占则读 PID 文件校验「存活 + 可执行路径匹配档案记录的 java」→ 通过即杀并等端口释放（≤5s）再 spawn；PID 文件缺失/校验不过 → 不杀，netstat（win）/lsof（mac）查占用者 PID+进程名折进错误串
+- 前端零改动：错误串走既有 `backend-launch-failed` 快报链路，BootSplash 失败页原样渲染 readyMessage（就地修订：原设计的「失败页新增展示分支」不需要）
 
 **验收标准**：人为孤儿下次启动被自动清理且新后端就绪；用无关进程占 8091 时失败页展示占用者且该进程未被杀；双开只拉前台不起第二 JVM。
 
 **测试用例**：Rust 单测——PID 文件解析/存活校验/路径匹配纯逻辑函数；真机场景归阶段 4 矩阵（③④⑤⑥）。
 
-**验证**：
-**状态**：未开始
+**验证**：`cargo test` 8/8 绿（PID 档案解析×3、路径等同性×2、netstat 解析×2、lsof 解析×1）；`heal_orphan_backend` 四分支（无档案/档案过期/进程不符/杀后端口未释放）均查无实据不杀、纯事实错误串交外层包装。孤儿清理/误杀防护/双开真机实证归阶段 4 矩阵。
+**状态**：已完成
 
 ## 阶段 4：双平台真机杀伤矩阵
 
