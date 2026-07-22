@@ -3,6 +3,7 @@ import Header from "./components/Header";
 import ActivityBar from "./components/ActivityBar";
 import LeftSidebar from "./components/LeftSidebar";
 import Splitter from "./components/Splitter";
+import BootSplash from "./components/BootSplash";
 import TerminalPanel from "./views/TerminalPanel";
 import ChatPanel from "./views/ChatPanel";
 import SftpPanel from "./views/SftpPanel";
@@ -26,29 +27,29 @@ export default function App() {
   const toggleTerminal = useLayoutStore((s) => s.toggleTerminal);
   const centerView = useLayoutStore((s) => s.centerView);
   const baseUrl = useBackendStore((s) => s.baseUrl);
-  const waitForReady = useBackendStore((s) => s.waitForReady);
+  const bootPhase = useBackendStore((s) => s.bootPhase);
+  const boot = useBackendStore((s) => s.boot);
 
+  // 一次性启动门：应用生命周期内只成功一次（boot 内部防重入与终态守卫）
   useEffect(() => {
-    let cancelled = false;
+    void boot();
+  }, [boot]);
 
-    void waitForReady()
-      .then(async () => {
-        if (cancelled) return;
-        await Promise.allSettled([
-          useConnectionStore.getState().fetchList(),
-          useChatStore.getState().loadAgents(),
-        ]);
-      })
-      .catch(() => {
-        // ready 状态和错误信息已写入 backendStore，面板负责展示重试入口。
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [baseUrl, waitForReady]);
+  // 就绪后加载业务数据；done 后改 baseUrl 走这里静默刷新，不再回遮罩
+  useEffect(() => {
+    if (bootPhase !== "done") return;
+    void Promise.allSettled([
+      useConnectionStore.getState().fetchList(),
+      useChatStore.getState().loadAgents(),
+    ]);
+  }, [bootPhase, baseUrl]);
 
   const sidebarWidth = ACTIVITY_BAR_WIDTH + leftWidth;
+
+  // 启动门未通过（booting/failed）时全屏遮罩接管，主界面不挂载
+  if (bootPhase !== "done") {
+    return <BootSplash />;
+  }
 
   return (
     <div className={styles.app}>

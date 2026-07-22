@@ -12,6 +12,8 @@ beforeEach(() => {
     testMessage: null,
     readyStatus: "checking",
     readyMessage: null,
+    bootPhase: "booting",
+    bootInflight: false,
   });
 });
 
@@ -96,5 +98,76 @@ describe("backendStore", () => {
     useBackendStore.getState().resetTest();
     expect(useBackendStore.getState().testStatus).toBe("idle");
     expect(useBackendStore.getState().testMessage).toBeNull();
+  });
+});
+
+describe("bootPhase 一次性启动门", () => {
+  it("boot 成功：booting → done，readyStatus 同步 ready", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: async () => okBody })
+    );
+
+    await useBackendStore.getState().boot(100, 1);
+
+    expect(useBackendStore.getState().bootPhase).toBe("done");
+    expect(useBackendStore.getState().readyStatus).toBe("ready");
+  });
+
+  it("boot 失败（超时）：→ failed 且 readyMessage 非空", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    await useBackendStore.getState().boot(30, 1);
+
+    expect(useBackendStore.getState().bootPhase).toBe("failed");
+    expect(useBackendStore.getState().readyMessage).toBeTruthy();
+  });
+
+  it("failed 后重试成功 → done", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("down")));
+    await useBackendStore.getState().boot(30, 1);
+    expect(useBackendStore.getState().bootPhase).toBe("failed");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: async () => okBody })
+    );
+    await useBackendStore.getState().boot(100, 1);
+    expect(useBackendStore.getState().bootPhase).toBe("done");
+  });
+
+  it("done 后 setBaseUrl 不回退 bootPhase（改地址不再全屏遮罩）", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: async () => okBody })
+    );
+    await useBackendStore.getState().boot(100, 1);
+
+    useBackendStore.getState().setBaseUrl("http://other:8091");
+
+    expect(useBackendStore.getState().bootPhase).toBe("done");
+  });
+
+  it("booting 进行中重复调 boot 不重复发起轮询（StrictMode 双调防护）", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => okBody });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = useBackendStore.getState().boot(100, 1);
+    const second = useBackendStore.getState().boot(100, 1);
+    await Promise.all([first, second]);
+
+    expect(useBackendStore.getState().bootPhase).toBe("done");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("done 后再调 boot 是 no-op", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => okBody });
+    vi.stubGlobal("fetch", fetchMock);
+    await useBackendStore.getState().boot(100, 1);
+    fetchMock.mockClear();
+
+    await useBackendStore.getState().boot(100, 1);
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

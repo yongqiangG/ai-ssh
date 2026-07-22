@@ -8,6 +8,11 @@ import {
 /** 「测试连接」的 UI 状态机 */
 export type BackendTestStatus = "idle" | "testing" | "success" | "fail";
 export type BackendReadyStatus = "checking" | "ready" | "fail";
+/**
+ * 一次性启动门：booting（遮罩等待）/ failed（遮罩失败页）/ done（进入主界面）。
+ * done 是终态——运行中改 baseUrl 只走设置弹窗测试 + 静默刷新，不再回遮罩。
+ */
+export type BootPhase = "booting" | "failed" | "done";
 
 // 60s：打包单体时低配机器上 JVM sidecar 冷启动可能较慢，放宽等待窗口
 const DEFAULT_READY_TIMEOUT_MS = 60_000;
@@ -28,10 +33,19 @@ interface BackendState {
   /** sidecar 后端就绪状态，业务数据加载必须等待它 ready */
   readyStatus: BackendReadyStatus;
   readyMessage: string | null;
+  /** 启动门阶段，App 据此决定渲染遮罩还是主界面 */
+  bootPhase: BootPhase;
+  /** boot 防重入标记（StrictMode 双调 / 失败页连点重试） */
+  bootInflight: boolean;
   /** 设置地址：同步写 state + localStorage */
   setBaseUrl: (url: string) => void;
   /** 等待 sidecar 后端就绪，成功后再加载业务数据 */
   waitForReady: (timeoutMs?: number, intervalMs?: number) => Promise<void>;
+  /**
+   * 走一次启动门：等待就绪，成功置 done（终态），失败置 failed（可重试）。
+   * 不抛错——失败已转化为 bootPhase/readyMessage 状态，由遮罩失败页展示。
+   */
+  boot: (timeoutMs?: number, intervalMs?: number) => Promise<void>;
   /** 用传入 url 测试后端可达性（不要求先保存） */
   testConnection: (url: string) => Promise<void>;
   /** 清回 idle（输入变化时调用，避免显示陈旧结果） */
@@ -46,6 +60,8 @@ export const useBackendStore = create<BackendState>((set, get) => ({
   testMessage: null,
   readyStatus: "checking",
   readyMessage: null,
+  bootPhase: "booting",
+  bootInflight: false,
 
   setBaseUrl: (url) => {
     const trimmed = url.trim();
@@ -75,6 +91,21 @@ export const useBackendStore = create<BackendState>((set, get) => ({
     const message = lastError ?? "后端服务启动超时";
     set({ readyStatus: "fail", readyMessage: message });
     throw new Error(message);
+  },
+
+  boot: async (timeoutMs, intervalMs) => {
+    const { bootPhase, bootInflight } = get();
+    if (bootPhase === "done" || bootInflight) return;
+    set({ bootPhase: "booting", bootInflight: true });
+    try {
+      await get().waitForReady(timeoutMs, intervalMs);
+      set({ bootPhase: "done" });
+    } catch {
+      // 错误信息已由 waitForReady 写入 readyMessage，遮罩失败页负责展示
+      set({ bootPhase: "failed" });
+    } finally {
+      set({ bootInflight: false });
+    }
   },
 
   testConnection: async (url) => {

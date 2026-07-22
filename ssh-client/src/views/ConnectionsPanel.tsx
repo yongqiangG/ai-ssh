@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
 import BackendSettingsModal from "../components/BackendSettingsModal";
 import HostKeyConfirmModal from "../components/HostKeyConfirmModal";
 import ServerMonitorBar from "../components/ServerMonitorBar";
-import { useBackendStore } from "../stores/backendStore";
 import { useConnectionStore } from "../stores/connectionStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useTerminalStore } from "../stores/terminalStore";
@@ -28,9 +27,6 @@ export default function ConnectionsPanel() {
   const connect = useConnectionStore((s) => s.connect);
   const disconnect = useConnectionStore((s) => s.disconnect);
   const remove = useConnectionStore((s) => s.remove);
-  const readyStatus = useBackendStore((s) => s.readyStatus);
-  const readyMessage = useBackendStore((s) => s.readyMessage);
-  const waitForReady = useBackendStore((s) => s.waitForReady);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SshConnection | null>(null);
@@ -41,17 +37,6 @@ export default function ConnectionsPanel() {
   const activeId = useTerminalStore((s) => s.activeId);
   const setCenterView = useLayoutStore((s) => s.setCenterView);
   const setShowTerminal = useLayoutStore((s) => s.setShowTerminal);
-
-  useEffect(() => {
-    if (readyStatus !== "ready") return;
-    const s = useConnectionStore.getState();
-    if (s.connections.length === 0 && !s.loading) void s.fetchList();
-  }, [readyStatus]);
-
-  const reloadAfterReady = async () => {
-    await waitForReady();
-    await fetchList();
-  };
 
   const activateTerminal = (c: SshConnection) => {
     setCenterView("terminal");
@@ -126,25 +111,7 @@ export default function ConnectionsPanel() {
       </div>
 
       <div className="panel-body">
-        {readyStatus === "checking" ? (
-          <EmptyState
-            icon="server"
-            title="正在启动后端服务"
-            hint="服务就绪后会自动加载服务器列表"
-          />
-        ) : readyStatus === "fail" ? (
-          <EmptyState
-            icon="server"
-            title="后端服务未就绪"
-            hint={readyMessage ?? "请检查 sidecar 启动状态或后端服务地址"}
-            action={
-              <button className="btn" onClick={() => void reloadAfterReady()}>
-                <Icon name="refresh" size={14} />
-                重试
-              </button>
-            }
-          />
-        ) : loading && connections.length === 0 ? (
+        {loading && connections.length === 0 ? (
           <div className={styles.list}>
             <div className={styles.card}>
               <span className={styles.sub}>加载中…</span>

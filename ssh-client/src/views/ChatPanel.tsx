@@ -4,7 +4,6 @@ import EmptyState from "../components/EmptyState";
 import MessageBubble from "../components/MessageBubble";
 import ChatInputBar from "../components/ChatInputBar";
 import LlmSettingsModal from "../components/LlmSettingsModal";
-import { useBackendStore } from "../stores/backendStore";
 import { useChatStore } from "../stores/chatStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useTerminalStore } from "../stores/terminalStore";
@@ -22,14 +21,12 @@ export default function ChatPanel() {
   const agents = useChatStore((s) => s.agents);
   const agentsError = useChatStore((s) => s.agentsError);
   const loadAgents = useChatStore((s) => s.loadAgents);
-  const readyStatus = useBackendStore((s) => s.readyStatus);
-  const readyMessage = useBackendStore((s) => s.readyMessage);
-  const waitForReady = useBackendStore((s) => s.waitForReady);
 
-  // agents 为空且已 ready 时区分「未配置模型」与「加载失败」：查一次 llm-config
+  // agents 为空时区分「未配置模型」与「加载失败」：查一次 llm-config
+  // （启动门保证挂载即后端就绪，无需再看 readyStatus）
   const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
   useEffect(() => {
-    if (readyStatus !== "ready" || agents.length > 0) return;
+    if (agents.length > 0) return;
     let cancelled = false;
     getLlmConfig()
       .then((c) => {
@@ -41,16 +38,7 @@ export default function ChatPanel() {
     return () => {
       cancelled = true;
     };
-  }, [readyStatus, agents.length]);
-
-  const retryReady = useCallback(async () => {
-    try {
-      await waitForReady();
-      await loadAgents();
-    } catch {
-      // 失败状态已写入 backendStore/chatStore，由本面板展示
-    }
-  }, [waitForReady, loadAgents]);
+  }, [agents.length]);
 
   // 终端绑定判定：与 chatStore.sendMessage 的取值逻辑同源
   // （activeId → getTerminalSessionId），避免「警示条没显示但实际没绑定」的不一致。
@@ -160,24 +148,7 @@ export default function ChatPanel() {
       </div>
 
       <div className="panel-body" ref={scrollRef} onScroll={onScroll}>
-        {readyStatus === "checking" ? (
-          <EmptyState
-            icon="bot"
-            title="后端服务启动中…"
-            hint="正在等待本地服务就绪，通常只需几秒"
-          />
-        ) : readyStatus === "fail" ? (
-          <EmptyState
-            icon="bot"
-            title="后端服务不可用"
-            hint={readyMessage ?? "无法连接后端服务"}
-            action={
-              <button className="btn" onClick={() => void retryReady()}>
-                重试
-              </button>
-            }
-          />
-        ) : agents.length === 0 && apiKeyConfigured === false ? (
+        {agents.length === 0 && apiKeyConfigured === false ? (
           <EmptyState
             icon="bot"
             title="请先配置模型"
