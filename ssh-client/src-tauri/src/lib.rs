@@ -13,6 +13,8 @@ const BACKEND_PORT: &str = "8091";
 const BACKEND_JAR_NAME: &str = "ssh-server-app.jar";
 /// 首启训练的延迟：错开主后端冷启动的 CPU 峰值窗口
 const CDS_TRAINING_DELAY_SECS: u64 = 30;
+/// 关窗后等待后端优雅退出的上限，超时硬杀兜底
+const GRACEFUL_EXIT_TIMEOUT_MS: u64 = 3000;
 
 struct BackendProcess(Mutex<Option<Child>>);
 
@@ -21,9 +23,21 @@ struct BackendProcess(Mutex<Option<Child>>);
 struct BackendLaunchFailure(Mutex<Option<String>>);
 
 impl BackendProcess {
+    /// 优雅停机：drop stdin 写端让后端哨兵读到 EOF 自行退出（走 JVM
+    /// shutdown hook，H2 干净落盘），限时未退再硬杀兜底。
     fn stop(&self) {
         let mut child = self.0.lock().expect("backend process mutex poisoned");
         if let Some(mut child) = child.take() {
+            drop(child.stdin.take());
+            let deadline = std::time::Instant::now()
+                + Duration::from_millis(GRACEFUL_EXIT_TIMEOUT_MS);
+            while std::time::Instant::now() < deadline {
+                match child.try_wait() {
+                    Ok(Some(_)) => return,
+                    Ok(None) => thread::sleep(Duration::from_millis(100)),
+                    Err(_) => break,
+                }
+            }
             let _ = child.kill();
             let _ = child.wait();
         }
@@ -222,6 +236,8 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
         .current_dir(&backend_dir)
         .arg("-Dspring.profiles.active=single")
         .arg(format!("-Dserver.port={BACKEND_PORT}"))
+        // stdin 哨兵 opt-in：仅壳拉起时启用，管道 EOF（壳退出/关闭写端）即优雅停机
+        .arg("-Dlifecycle.stdin-watch=true")
         .arg("-Xms128m")
         .arg("-Xmx512m")
         .arg(format!("-DLOG_DIR={}", data_dir.join("log").display()));
@@ -235,7 +251,8 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
         .arg(format!("--server.port={BACKEND_PORT}"))
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))
-        .stdin(Stdio::null());
+        // 管道写端由 Child 持有，随 BackendProcess 存活；stop() drop 之即发 EOF
+        .stdin(Stdio::piped());
     hide_console(&mut command);
 
     let child = command
@@ -310,6 +327,8 @@ pub fn run() {
         ])
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {
+                // 先藏窗口再同步等待优雅退出（≤3s），用户观感是秒关
+                let _ = window.hide();
                 window.state::<BackendProcess>().stop();
             }
         })

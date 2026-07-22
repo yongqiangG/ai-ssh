@@ -1,5 +1,6 @@
 package com.johnny;
 
+import com.johnny.infrastructure.lifecycle.StdinWatchdog;
 import org.springframework.beans.factory.annotation.Configurable;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -16,6 +17,8 @@ import java.nio.file.Path;
 public class Application {
 
     public static void main(String[] args){
+        // 早于 Spring 启动挂载：context refresh 阶段宿主死亡也要能跟随退出
+        StdinWatchdog.startIfEnabled();
         ensureLocalAppDirectory();
         SpringApplication.run(Application.class, args);
     }
