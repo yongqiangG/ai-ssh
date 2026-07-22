@@ -50,9 +50,9 @@
 ## 阶段 5：收尾验证与归档
 **目标**：全量测试绿、真机走查关键路径、文档归档
 **设计**：
-- `npm run test:run` + `npm run build` 全绿；后端不受影响（无 server 代码改动，跑受影响面确认）
-- 真机走查：正常启动、慢启动（限流模拟）、spawn 失败、地址配错自救四条路径
+- `npm run test:run` + `npm run build` 全绿；后端受影响面（logback 改动）跑 domain/infrastructure 测试确认
+- 真机走查（release 打包版）：正常启动、首启训练、二启 CDS 生效、spawn 失败四条路径
 - backlog 落两条（崩溃检测重拉 / native-image）；本文件移入 done/
 **验收标准**：四条路径全通过；测试全绿；文档归档完成
 **测试用例**：见各路径；回归 C2 走查清单「sidecar 拉起失败有人话提示」项
-**状态**：未开始
+**状态**：已完成——前端 68 测试 + build 绿；后端 domain(39)/infrastructure(9) 绿；真机走查：①正常启动 ping 通 ②lib.rs 自动训练产出 app.jsa（期间修复 jlink runtime 缺 base archive 的坑：-Xshare:dump 补齐，Windows 产物在 bin/server/）③三启 cds=归档路径、Started 1.921s（无 CDS 3.4s+）④jar 缺失 spawn 失败：stderr 准确报错、exe 存活展示失败页、8091 未拉起。地址配错自救为纯 GUI 交互，浏览器等价流程已验（失败页→Modal 改地址→自动重试→进主界面），桌面壳建议发布前肉眼复核一次

@@ -123,6 +123,15 @@ build_runtime() {
     --compress=2 \
     --output "$RUNTIME_RESOURCE_DIR"
 
+  # jlink 产物默认不带 base CDS archive（classes.jsa），而用户机首启的
+  # dynamic CDS 训练（-XX:ArchiveClassesAtExit，见 lib.rs）依赖它——缺失时
+  # JVM 仅打 warning 并静默跳过 dump。-Xshare:dump 兼容 JDK17/21，
+  # 而 jlink --generate-cds-archive 需要 JDK18+（CI 是 17），故用前者。
+  # 产物位置随平台不同（Windows bin/server、Linux/mac lib/server），全树查。
+  "$RUNTIME_RESOURCE_DIR/bin/java" -Xshare:dump >/dev/null
+  find "$RUNTIME_RESOURCE_DIR" -name "*.jsa" | grep -q . \
+    || fail "base CDS archive (classes.jsa) generation failed."
+
   # JDK legal files are read-only (444); tauri-build copies resources into the
   # cargo target dir preserving mode, and fs::copy cannot overwrite a read-only
   # copy restored from CI cache. Keep the runtime writable so rebuilds succeed.

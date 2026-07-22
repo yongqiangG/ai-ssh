@@ -77,6 +77,8 @@ npm run tauri build    # 打包桌面应用
 
 VSCode 风格三栏布局：`ActivityBar` + `LeftSidebar` + 中部 `TerminalPanel`/`SftpPanel`（`layoutStore.centerView` 切换，不建 tab）+ 右侧 `ChatPanel`，栏宽与显隐由 `layoutStore` 管理，可拖拽 `Splitter`。其它 store：`themeStore`、`chatStore`、`terminalStore`、`sftpStore`、`backendStore`、`connectionStore`。
 
+**启动门**：`backendStore.bootPhase`（booting/failed/done）是一次性启动门——done 前由全屏 `BootSplash` 接管（吉祥物动效 + 预估进度 + 失败自救三件套），done 后永不回退（运行中改后端地址只走设置弹窗 + 静默刷新）。各业务面板不做后端就绪检查，「挂载即后端可用」由遮罩背书。sidecar spawn 失败由 Rust 快报（`backend-launch-failed` 事件 + 补查命令，仅 release 构建触发）。
+
 HTTP 层 `src/api/request.ts`：fetch 封装，统一解包 `ApiResponse<T>`（`code !== "0000"` 抛错），自动附 `X-User-Id`。`baseURL` 在开发态为空（走 Vite `/api`→`localhost:8091` 代理），打包/生产态由「后端地址设置」写入 localStorage（`ai-ssh:baseUrl`）。
 
 后端地址设置链路：`BackendSettingsModal` → `backendStore`（baseUrl 的 React 订阅镜像，底层数据源仍是 localStorage）→ `pingBackend()`（对 `/api/ping` 发 GET，用输入框当前值而非已保存值，改完即可验证）→ 服务端 `PingController`（无 DB 依赖的存活探针，返回 `Response.success("pong")`）。
@@ -89,3 +91,4 @@ SSH 连接管理走 `connectionStore.ts` + `api/sshConnection.ts`（真实后端
 - **多模块启动顺序**：被依赖模块改动后必须先在根目录 `mvn install`，再进 `ssh-server-app` 跑 `spring-boot:run`，否则 IDE/启动读到的还是旧 jar。
 - **统一响应码**：前后端成功码均为字符串 `"0000"`；新增接口/解析要保持一致。
 - **DB**：默认 single profile 用 H2 文件库（`~/.ai-ssh/`）；dev profile 连 MySQL `13306`（docker 映射），不是默认 3306。
+- **sidecar 打包与 CDS**：`scripts/build-personal.sh` 把后端 extract 成瘦 jar + `lib/` 布局进 Tauri resources，并给 jlink runtime 补 base CDS archive（`-Xshare:dump`）；dynamic CDS 归档不随包分发（校验绑定 jar mtime，安装器解包必失配），由用户机首启后台训练生成（`lib.rs`），第二次启动生效（实测 -61%）。logback 日志目录用 `-DLOG_DIR` 注入（打包版指向 appdata，安装目录只读）。
