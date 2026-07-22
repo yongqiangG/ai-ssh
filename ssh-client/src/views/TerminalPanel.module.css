@@ -186,25 +186,30 @@
 }
 
 /* ===== F5 报错诊断：头部开关 + 右下角气泡 ===== */
+/* 对齐 ChatInputBar 开关按钮的视觉语言（图标+文字·开/关，开启态 accent 描边高亮） */
 .errorToggle {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
+  gap: 5px;
   height: 24px;
-  border: none;
-  border-radius: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--vsc-border-strong, rgba(127, 127, 127, 0.35));
+  border-radius: 3px;
   background: transparent;
-  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.4));
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.55));
+  font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .errorToggle:hover {
-  background: rgba(127, 127, 127, 0.15);
+  background: var(--vsc-list-hover, rgba(127, 127, 127, 0.15));
 }
 
 .errorToggleOn {
   color: var(--vsc-accent, #4f8cff);
+  border-color: var(--vsc-accent, #4f8cff);
+  background: color-mix(in srgb, var(--vsc-accent, #4f8cff) 10%, transparent);
 }
 
 .errorBubble {
