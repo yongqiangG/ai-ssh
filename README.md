@@ -20,7 +20,7 @@
 ```
 ssh-client/   Tauri v2 + React 19 + TypeScript + Zustand（桌面客户端）
 ssh-server/   Spring Boot 3.4 多模块 Maven，DDD 分层（后端 / sidecar）
-docs/         ROADMAP、功能池、ADR
+docs/         situations 决议 · actions 执行计划 · backlog 未来池 · adr 架构决策
 ```
 
 ## 快速开始
@@ -42,7 +42,8 @@ npm run tauri dev     # 桌面壳
 
 ## 文档
 
-- [ROADMAP](docs/ROADMAP.md) — 开发计划唯一真相源（优先级/迭代状态）
-- [功能池](docs/AI-OPS-PRODUCT.md) — AI 运维功能定义与信任红线
+- [决议记录](docs/situations/) — 需求背景与决议全文（信任红线见 [CLAUDE.md](CLAUDE.md) 产品定位）
+- [执行计划](docs/actions/) — 进行中任务与阶段进度
+- [Backlog](docs/backlog/) — 未来工作项与功能池
 - [ADR](docs/adr/) — 架构决策：部署双形态 / Agent 工具调用 / SFTP 边界
 - [UI 规范](ssh-client/docs/UI-DESIGN.md) — 视觉与动效

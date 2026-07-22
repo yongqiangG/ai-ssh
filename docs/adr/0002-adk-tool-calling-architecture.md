@@ -43,7 +43,7 @@ single 模式下 `DefaultArmoryFactory.applySingleLlmConfig` 用 DB 里的 LlmCo
 
 ### 6. 危险命令黑名单的定位
 
-工具内置约 8 条正则（rm -rf 打根/mkfs/dd 写设备/关机重启/fork 炸弹等），命中即不执行。**它挡的是模型手滑，不是恶意**；「写操作需用户确认」是另一套独立机制（规划中，见 ROADMAP），挂载点已备好——ADK Plugin 的 `beforeToolCallback` 返回非空 Map 即可跳过工具执行。
+工具内置约 8 条正则（rm -rf 打根/mkfs/dd 写设备/关机重启/fork 炸弹等），命中即不执行。**它挡的是模型手滑，不是恶意**；「写操作需用户确认」是另一套独立机制（已随迭代 B1 交付：ConfirmGate 确认门，决议见 `docs/situations/260721-three-iterations.md` Q9），挂载点已备好——ADK Plugin 的 `beforeToolCallback` 返回非空 Map 即可跳过工具执行。
 
 ### 7. NDJSON 事件协议
 
