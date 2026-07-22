@@ -202,4 +202,35 @@ describe("bootPhase 一次性启动门", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("markBootFailed 判死进行中的轮询：boot 立即失败且可重试（Rust 快报场景）", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connecting")));
+
+    const started = Date.now();
+    const finished = useBackendStore.getState().boot(3000, 5, 0);
+    await vi.waitFor(() =>
+      expect(useBackendStore.getState().bootInflight).toBe(true)
+    );
+
+    useBackendStore.getState().markBootFailed("本地服务进程启动失败：jar 缺失");
+    await finished;
+
+    const s = useBackendStore.getState();
+    expect(Date.now() - started).toBeLessThan(1000); // 远早于 3s 超时返回
+    expect(s.bootPhase).toBe("failed");
+    expect(s.readyMessage).toContain("jar 缺失");
+    expect(s.bootInflight).toBe(false);
+  });
+
+  it("done 后 markBootFailed 不回退（终态守卫）", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: async () => okBody })
+    );
+    await useBackendStore.getState().boot(100, 1, 0);
+
+    useBackendStore.getState().markBootFailed("迟到的失败事件");
+
+    expect(useBackendStore.getState().bootPhase).toBe("done");
+  });
 });

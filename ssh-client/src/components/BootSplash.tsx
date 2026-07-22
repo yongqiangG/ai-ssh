@@ -29,6 +29,9 @@ const SLOW_HINTS: Array<{ afterMs: number; text: string }> = [
 const TICK_MS = 40;
 const VISIBLE_LINES = 3;
 
+/** Tauri 桌面壳检测：纯浏览器 dev 下为 false，跳过所有 Tauri API 调用 */
+const isTauri = () => "__TAURI_INTERNALS__" in window;
+
 interface LogLine {
   id: number;
   /** 当前已显示部分（打字机推进中） */
@@ -99,12 +102,47 @@ export default function BootSplash() {
   const startRef = useRef(Date.now());
   const [progress, setProgress] = useState(0);
   const [logLines, setLogLines] = useState<LogLine[]>([]);
+  const [logDir, setLogDir] = useState<string | null>(null);
   const schedRef = useRef({
     queue: shuffle(BOOT_LINES),
     hintIdx: 0,
     pauseTicks: 0,
     nextId: 1,
   });
+
+  // Rust 失败快报：spawn 失败事件让遮罩秒转失败态，不傻等 60s ping 超时。
+  // 先订阅事件再补查一次暂存值（setup 失败早于 webview 就绪时事件会错过）。
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      const [{ listen }, { invoke }] = await Promise.all([
+        import("@tauri-apps/api/event"),
+        import("@tauri-apps/api/core"),
+      ]);
+      const un = await listen<string>("backend-launch-failed", (e) => {
+        useBackendStore.getState().markBootFailed(e.payload);
+      });
+      if (cancelled) {
+        un();
+        return;
+      }
+      unlisten = un;
+      const failure = await invoke<string | null>("backend_launch_failure");
+      if (!cancelled && failure) {
+        useBackendStore.getState().markBootFailed(failure);
+      }
+      const dir = await invoke<string>("backend_log_dir");
+      if (!cancelled) setLogDir(dir);
+    })().catch(() => {
+      // Tauri API 不可用（异常降级）：保持纯 ping 轮询路径，超时兜底仍有效
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
 
   // 失败页点重试：failed → booting 时重置计时、进度与日志，重新开演
   const prevPhaseRef = useRef(bootPhase);
@@ -182,6 +220,9 @@ export default function BootSplash() {
             <div className={styles.failMessage}>
               {readyMessage ?? "等待本地服务就绪超时"}
             </div>
+            {logDir && (
+              <div className={styles.failHint}>日志目录：{logDir}</div>
+            )}
             <div className={styles.failActions}>
               <button className="btn" onClick={() => void boot()}>
                 <Icon name="refresh" size={14} />

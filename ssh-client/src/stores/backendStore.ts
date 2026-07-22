@@ -51,6 +51,11 @@ interface BackendState {
    * 供遮罩把进度条冲到 100% 后再放行主界面。
    */
   boot: (timeoutMs?: number, intervalMs?: number, sprintMs?: number) => Promise<void>;
+  /**
+   * 外部判死启动（Rust sidecar spawn 失败快报）：不等 60s 超时，立即把
+   * 启动门置 failed 并中止 waitForReady 轮询。done 后调用是 no-op（终态守卫）。
+   */
+  markBootFailed: (message: string) => void;
   /** 用传入 url 测试后端可达性（不要求先保存） */
   testConnection: (url: string) => Promise<void>;
   /** 清回 idle（输入变化时调用，避免显示陈旧结果） */
@@ -90,6 +95,11 @@ export const useBackendStore = create<BackendState>((set, get) => ({
       } catch (e) {
         lastError = errMsg(e);
         await sleep(intervalMs);
+        // markBootFailed（Rust 快报）会在轮询期间直接把 readyStatus 判死，
+        // 以此为中止信号提前退出，保留外部写入的 readyMessage
+        if (get().readyStatus === "fail") {
+          throw new Error(get().readyMessage ?? "后端服务启动失败");
+        }
       }
     }
 
@@ -114,6 +124,11 @@ export const useBackendStore = create<BackendState>((set, get) => ({
     } finally {
       set({ bootInflight: false });
     }
+  },
+
+  markBootFailed: (message) => {
+    if (get().bootPhase === "done") return;
+    set({ bootPhase: "failed", readyStatus: "fail", readyMessage: message });
   },
 
   testConnection: async (url) => {
