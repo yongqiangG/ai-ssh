@@ -108,16 +108,48 @@ describe("bootPhase 一次性启动门", () => {
       vi.fn().mockResolvedValue({ json: async () => okBody })
     );
 
-    await useBackendStore.getState().boot(100, 1);
+    await useBackendStore.getState().boot(100, 1, 0);
 
     expect(useBackendStore.getState().bootPhase).toBe("done");
     expect(useBackendStore.getState().readyStatus).toBe("ready");
   });
 
+  it("boot 成功后记录启动耗时供下次进度预估", async () => {
+    // ping 至少耗 2ms，否则 0ms 会被 saveBootDuration 的无效值防护丢弃
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 2));
+        return { json: async () => okBody };
+      })
+    );
+
+    await useBackendStore.getState().boot(100, 1, 0);
+
+    expect(localStorage.getItem("ai-ssh:lastBootMs")).toBeTruthy();
+  });
+
+  it("就绪后先进入冲刺窗口（ready+booting 组合态）再 done", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: async () => okBody })
+    );
+
+    const finished = useBackendStore.getState().boot(100, 1, 60);
+    await vi.waitFor(() => {
+      const s = useBackendStore.getState();
+      expect(s.readyStatus).toBe("ready");
+      expect(s.bootPhase).toBe("booting");
+    });
+
+    await finished;
+    expect(useBackendStore.getState().bootPhase).toBe("done");
+  });
+
   it("boot 失败（超时）：→ failed 且 readyMessage 非空", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
 
-    await useBackendStore.getState().boot(30, 1);
+    await useBackendStore.getState().boot(30, 1, 0);
 
     expect(useBackendStore.getState().bootPhase).toBe("failed");
     expect(useBackendStore.getState().readyMessage).toBeTruthy();
@@ -125,14 +157,14 @@ describe("bootPhase 一次性启动门", () => {
 
   it("failed 后重试成功 → done", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("down")));
-    await useBackendStore.getState().boot(30, 1);
+    await useBackendStore.getState().boot(30, 1, 0);
     expect(useBackendStore.getState().bootPhase).toBe("failed");
 
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ json: async () => okBody })
     );
-    await useBackendStore.getState().boot(100, 1);
+    await useBackendStore.getState().boot(100, 1, 0);
     expect(useBackendStore.getState().bootPhase).toBe("done");
   });
 
@@ -141,7 +173,7 @@ describe("bootPhase 一次性启动门", () => {
       "fetch",
       vi.fn().mockResolvedValue({ json: async () => okBody })
     );
-    await useBackendStore.getState().boot(100, 1);
+    await useBackendStore.getState().boot(100, 1, 0);
 
     useBackendStore.getState().setBaseUrl("http://other:8091");
 
@@ -152,8 +184,8 @@ describe("bootPhase 一次性启动门", () => {
     const fetchMock = vi.fn().mockResolvedValue({ json: async () => okBody });
     vi.stubGlobal("fetch", fetchMock);
 
-    const first = useBackendStore.getState().boot(100, 1);
-    const second = useBackendStore.getState().boot(100, 1);
+    const first = useBackendStore.getState().boot(100, 1, 0);
+    const second = useBackendStore.getState().boot(100, 1, 0);
     await Promise.all([first, second]);
 
     expect(useBackendStore.getState().bootPhase).toBe("done");
@@ -163,10 +195,10 @@ describe("bootPhase 一次性启动门", () => {
   it("done 后再调 boot 是 no-op", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ json: async () => okBody });
     vi.stubGlobal("fetch", fetchMock);
-    await useBackendStore.getState().boot(100, 1);
+    await useBackendStore.getState().boot(100, 1, 0);
     fetchMock.mockClear();
 
-    await useBackendStore.getState().boot(100, 1);
+    await useBackendStore.getState().boot(100, 1, 0);
 
     expect(fetchMock).not.toHaveBeenCalled();
   });

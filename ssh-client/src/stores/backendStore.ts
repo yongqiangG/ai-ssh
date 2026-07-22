@@ -4,6 +4,7 @@ import {
   pingBackend,
   setBaseUrl as persistBaseUrl,
 } from "../api/request";
+import { saveBootDuration } from "../components/bootProgress";
 
 /** 「测试连接」的 UI 状态机 */
 export type BackendTestStatus = "idle" | "testing" | "success" | "fail";
@@ -17,6 +18,8 @@ export type BootPhase = "booting" | "failed" | "done";
 // 60s：打包单体时低配机器上 JVM sidecar 冷启动可能较慢，放宽等待窗口
 const DEFAULT_READY_TIMEOUT_MS = 60_000;
 const DEFAULT_READY_INTERVAL_MS = 600;
+// 就绪后的冲刺窗口：进度条冲 100% + 吉祥物开心一下，再切主界面
+const DEFAULT_BOOT_SPRINT_MS = 450;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -44,8 +47,10 @@ interface BackendState {
   /**
    * 走一次启动门：等待就绪，成功置 done（终态），失败置 failed（可重试）。
    * 不抛错——失败已转化为 bootPhase/readyMessage 状态，由遮罩失败页展示。
+   * 成功路径带冲刺窗口：readyStatus 已 ready 而 bootPhase 仍 booting 的组合态，
+   * 供遮罩把进度条冲到 100% 后再放行主界面。
    */
-  boot: (timeoutMs?: number, intervalMs?: number) => Promise<void>;
+  boot: (timeoutMs?: number, intervalMs?: number, sprintMs?: number) => Promise<void>;
   /** 用传入 url 测试后端可达性（不要求先保存） */
   testConnection: (url: string) => Promise<void>;
   /** 清回 idle（输入变化时调用，避免显示陈旧结果） */
@@ -93,12 +98,15 @@ export const useBackendStore = create<BackendState>((set, get) => ({
     throw new Error(message);
   },
 
-  boot: async (timeoutMs, intervalMs) => {
+  boot: async (timeoutMs, intervalMs, sprintMs = DEFAULT_BOOT_SPRINT_MS) => {
     const { bootPhase, bootInflight } = get();
     if (bootPhase === "done" || bootInflight) return;
     set({ bootPhase: "booting", bootInflight: true });
+    const startedAt = Date.now();
     try {
       await get().waitForReady(timeoutMs, intervalMs);
+      saveBootDuration(Date.now() - startedAt);
+      if (sprintMs > 0) await sleep(sprintMs);
       set({ bootPhase: "done" });
     } catch {
       // 错误信息已由 waitForReady 写入 readyMessage，遮罩失败页负责展示
