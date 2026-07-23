@@ -22,7 +22,7 @@ interface ChatState {
   /** 下一条消息使用的智能体 */
   agentId: string;
   sending: boolean;
-  /** 消息级深度思考开关（逐条不粘滞：发送后自动回落为 false，不持久化） */
+  /** 深度思考开关（会话内粘滞：保持到用户手动关闭；不持久化，重启回默认关） */
   thinkingEnabled: boolean;
   /** 本次会话内「刚到达」的 AI 消息 id（不持久化） */
   freshId: string | null;
@@ -32,7 +32,7 @@ interface ChatState {
   quote: PendingQuote | null;
   /** 附带终端上下文开关（F3；默认关，刻意逐会话重置，不持久化） */
   attachContext: boolean;
-  /** F5 报错检测气泡全局开关（默认开；持久化——关掉是长期意愿不该重启复活） */
+  /** F5 报错检测气泡全局开关（默认关，用户按需开启；持久化——开关是长期意愿不该重启丢失） */
   errorDetectEnabled: boolean;
 
   /** 设置终端引用块（选中即问 / 报错诊断入口调用） */
@@ -97,6 +97,15 @@ const failPendingToolCalls = (
 /** 当前流式请求的中止函数（sendMessage 写入，stop() 消费） */
 let abortRef: (() => void) | null = null;
 
+/** 持久化到 localStorage 的字段子集（partialize 产出、migrate 透传，两处共用此形状） */
+interface PersistedChatState {
+  conversations: Conversation[];
+  currentId: string | null;
+  agentId: string;
+  cmdHistory: string[];
+  errorDetectEnabled: boolean;
+}
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => {
@@ -126,7 +135,7 @@ export const useChatStore = create<ChatState>()(
         cmdHistory: [],
         quote: null,
         attachContext: false,
-        errorDetectEnabled: true,
+        errorDetectEnabled: false,
 
         setQuote: (quote) => set({ quote }),
         toggleAttachContext: () => set((s) => ({ attachContext: !s.attachContext })),
@@ -290,9 +299,8 @@ export const useChatStore = create<ChatState>()(
               ? getTerminalSessionId(activeConnId)
               : null;
 
-            // 深度思考逐条不粘滞：取当前值后立即回落，防止用户忘关一直慢
+            // 深度思考会话内粘滞：只取值不回落，保持到用户手动关闭
             const thinkingEnabled = get().thinkingEnabled;
-            if (thinkingEnabled) set({ thinkingEnabled: false });
 
             // 发起流式对话；引用块拼进请求 message（展示层只存 userMsg.quote 折叠渲染）
             const requestMessage = quote
@@ -432,8 +440,18 @@ export const useChatStore = create<ChatState>()(
     },
     {
       name: "ai-ssh:chat",
+      // v1：errorDetectEnabled 默认从开改关。v0 时代默认值 true 会随持久化写盘，
+      // 旧值无法区分「用户意愿」还是「默认值快照」，迁移时一次性删除让新默认接管；
+      // v1 起用户手动开启的值正常持久化，不再被重置。
+      version: 1,
+      migrate: (persisted, version) => {
+        if (version < 1 && persisted && typeof persisted === "object") {
+          delete (persisted as Record<string, unknown>).errorDetectEnabled;
+        }
+        return persisted as PersistedChatState;
+      },
       // sessionId 不持久化：后端 session 在内存，重启即失，每次启动重新建会话
-      partialize: (s) => ({
+      partialize: (s): PersistedChatState => ({
         conversations: s.conversations.map((c) => ({ ...c, sessionId: undefined })),
         currentId: s.currentId,
         agentId: s.agentId,

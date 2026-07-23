@@ -249,12 +249,12 @@ export default function TerminalPanel() {
           onClick={toggleErrorDetect}
           title={
             errorDetectEnabled
-              ? "检测到报错时右下角浮现「问问 AI」入口；点击关闭"
-              : "报错 AI 提示已关闭；点击开启"
+              ? "已开启：检测到终端报错时，右下角浮现「问问 AI」入口；点击关闭"
+              : "已关闭；开启后自动检测终端输出中的报错，并提供「问问 AI」快捷入口"
           }
         >
           <Icon name="alert" size={13} />
-          报错提示{errorDetectEnabled ? "·开" : "·关"}
+          自动检测报错{errorDetectEnabled ? "·开" : "·关"}
         </button>
       </div>
 

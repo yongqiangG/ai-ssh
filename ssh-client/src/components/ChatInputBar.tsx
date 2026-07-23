@@ -124,7 +124,11 @@ export default function ChatInputBar() {
           className={`${styles.newBtn} ${thinkingEnabled ? styles.thinkingOn : ""}`}
           type="button"
           onClick={toggleThinking}
-          title="深度思考：仅对下一条消息生效（响应更慢、分析更深入，适合复杂问题；发送后自动关闭）"
+          title={
+            thinkingEnabled
+              ? "深度思考已开启：本会话持续生效（响应更慢、分析更深入）；点击关闭"
+              : "深度思考：响应更慢、分析更深入，适合复杂问题；开启后持续生效，直到手动关闭"
+          }
         >
           <Icon name="bot" size={14} />
           深度思考{thinkingEnabled ? "·开" : ""}
@@ -134,10 +138,14 @@ export default function ChatInputBar() {
           className={`${styles.newBtn} ${attachContext ? styles.thinkingOn : ""}`}
           type="button"
           onClick={toggleAttachContext}
-          title="附带终端上下文：发送时自动附上活跃终端最近 50 行输出（已脱敏），让 AI 看到终端里发生了什么"
+          title={
+            attachContext
+              ? "已开启：每次发送自动附上当前终端最近 50 行输出（已脱敏），AI 能看到终端里发生了什么；点击关闭"
+              : "开启后，每次发送自动附上当前终端最近 50 行输出（已脱敏），让 AI 看到终端里发生了什么"
+          }
         >
           <Icon name="terminal" size={14} />
-          终端上下文{attachContext ? "·开" : ""}
+          让 AI 看终端{attachContext ? "·开" : ""}
         </button>
 
         <button

@@ -23,7 +23,7 @@ vi.mock("../api/chat", () => ({
 }));
 
 import { useChatStore } from "./chatStore";
-import { queryAgents } from "../api/chat";
+import { queryAgents, streamChat } from "../api/chat";
 
 beforeEach(() => {
   localStorage.clear();
@@ -34,6 +34,8 @@ beforeEach(() => {
     sending: false,
     agents: [],
     agentsError: null,
+    thinkingEnabled: false,
+    errorDetectEnabled: false,
   });
 });
 
@@ -126,5 +128,47 @@ describe("chatStore", () => {
     expect(raw).toBeTruthy();
     const parsed = JSON.parse(raw as string);
     expect(parsed.state.conversations).toHaveLength(1);
+  });
+});
+
+describe("深度思考开关（会话内粘滞）", () => {
+  it("开启后发送消息不再自动回落，仍保持开启", async () => {
+    useChatStore.setState({ thinkingEnabled: true });
+    await useChatStore.getState().sendMessage("复杂问题");
+    expect(useChatStore.getState().thinkingEnabled).toBe(true);
+  });
+
+  it("开启状态随请求发出（streamChat 收到 thinkingEnabled=true）", async () => {
+    useChatStore.setState({ thinkingEnabled: true });
+    await useChatStore.getState().sendMessage("复杂问题");
+    expect(vi.mocked(streamChat)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ thinkingEnabled: true })
+    );
+  });
+});
+
+describe("报错自动检测开关（默认关 + v0 迁移）", () => {
+  it("v0 持久化数据里的 errorDetectEnabled 被迁移重置为默认关", async () => {
+    localStorage.setItem(
+      "ai-ssh:chat",
+      JSON.stringify({
+        state: { conversations: [], cmdHistory: [], errorDetectEnabled: true },
+        version: 0,
+      })
+    );
+    await useChatStore.persist.rehydrate();
+    expect(useChatStore.getState().errorDetectEnabled).toBe(false);
+  });
+
+  it("v1 数据里用户手动开启的值被尊重（迁移只发生一次）", async () => {
+    localStorage.setItem(
+      "ai-ssh:chat",
+      JSON.stringify({
+        state: { conversations: [], cmdHistory: [], errorDetectEnabled: true },
+        version: 1,
+      })
+    );
+    await useChatStore.persist.rehydrate();
+    expect(useChatStore.getState().errorDetectEnabled).toBe(true);
   });
 });
