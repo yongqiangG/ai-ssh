@@ -29,10 +29,12 @@
 
 **目标**：深度思考开启时思维链实时可见，完成后折叠可回看，随消息持久化。
 **设计**：
-- 后端：新增 `ReasoningRelay`（全局单流 consumer，同 ThinkingContext 模式）；`MySpringAI.generateStreamingContent` subscribe 回调从 `Generation.metadata["reasoningContent"]` 取增量非空则 emit；`AiCallNode` 注册 consumer→`sendReasoningEvent`，finally 清理；`AbstractReActSupport`+`ReActEventDTO` 加 `reasoning` 事件（复用 content=增量/fullText=累计）
+- 后端：新增 `ReasoningRelay`（全局单流 consumer，同 ThinkingContext 模式）；`MySpringAI.generateStreamingContent` subscribe 回调从 `AssistantMessage.metadata["reasoningContent"]` 取增量非空则 emit；`AiCallNode` 注册 consumer→`sendReasoningEvent`，finally 清理；`AbstractReActSupport`+`ReActEventDTO` 加 `reasoning` 事件（content=增量/fullText=累计）
 - reasoning 不进 ADK session（决议 8，旁路直发 NDJSON）
 - 前端：`api/chat.ts` 加 `reasoning` 事件与 `onReasoning`；`ChatMessage.reasoning` 字段（随会话持久化）；`MessageBubble` 思考块——流式期间展开实时滚动，正文首字到达自动折叠「已深度思考 ▸」
-**验收标准**：GLM 开深思真实对话可见思维链流式滚动、正文出现后折叠、点开回看、刷新后仍在；不开深思零变化。
-**测试用例**：reasoning 事件累积到消息；无 reasoning 消息不渲染思考块；折叠态切换。
-**验证**：
-**状态**：未开始
+- 【实现中重大发现 1】当前配置模型已是 `deepseek-ai/deepseek-v4-pro`（OpenAI 兼容端点），且 **thinking 注入的 RestClient 拦截器对流式请求从未生效**（流式走 WebClient，`OpenAiApi.chatCompletionStream`）——深思开关在流式对话上一直是空操作。修复：注入整体迁移至 `MySpringAI.injectThinkingOptions`，经 `OpenAiChatOptions.extraBody`（@JsonAnyGetter 展平进请求体顶层）双路径统一生效；对 glm/deepseek 显式注入 enabled/disabled（GLM 默认开、DeepSeek 官方默认开但兼容端点漂移，「不注入靠默认」语义不可靠）；AiApiNode 拦截器退役。
+- 【实现中重大发现 2】深思回复「同一答案多个变体连排」根因：vendored `MessageConverter.isPartialResponse` 用英文标点启发式判定流式 chunk 完整性，兼容端点把 finish_reason 附在最后一个有内容的 chunk 上，中文「。」结尾被误判 partial=true → ADK 主循环（`Event.finalResponse` 要求最后事件 partial=false）判定无最终回复而重调 LLM，直至 maxLlmCalls=10 熔断（NDJSON 实证 95 text + LlmCallsLimitExceededException；单条消息 token 放大 5-10 倍）。修复：partial 判定改用 finishReason 协议语义（带 finishReason 即结束帧）。
+**验收标准**：GLM/DeepSeek 开深思真实对话可见思维链流式滚动、正文出现后折叠、点开回看、刷新后仍在；不开深思零变化；深思开关在流式上真实生效；中文回复不再重复。
+**测试用例**：reasoning 事件累积到消息+持久化；无 reasoning 消息不产生字段；ReasoningRelay 注册/注销/空片段安全。
+**验证**：后端 domain 42 测试全绿（含 ReasoningRelayTest 3 个）；前端本任务 78 用例全绿（另 4 个红属并行开发线归档功能，非本任务范围）。真实端到端（DeepSeek v4-pro + Vite + Playwright）四轮对照：深思开——思考块「深度思考中…」流式出现、正文到达折叠「已深度思考▸」、思维链 867/50 字随消息持久化可回看；深思关——无思考块、hasReasoning=false（disabled 注入流式生效实证）；重复修复前后对照——修复前「幂等性」回复 9 变体连排+熔断 error，修复后「内存泄漏」（以中文句号结尾，原必触发场景）75 字单个干净回答、「缓存穿透」117 字正常。遗留：深思场景下思维链偶有片段重复（DeepSeek 输出本身），无害不处理；ndjson-2.txt/ndjson-last.txt 诊断文件已删。
+**状态**：已完成

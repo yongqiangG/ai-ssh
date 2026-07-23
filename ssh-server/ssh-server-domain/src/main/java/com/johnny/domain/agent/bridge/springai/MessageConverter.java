@@ -229,14 +229,33 @@ public class MessageConverter {
         Generation generation = chatResponse.getResult();
         AssistantMessage assistantMessage = generation.getOutput();
         Content content = this.convertAssistantMessageToContent(assistantMessage);
-        boolean isPartial = isStreaming && this.isPartialResponse(assistantMessage);
+        boolean isPartial = isStreaming && this.isPartialResponse(chatResponse, assistantMessage);
         boolean isTurnComplete = !isStreaming || this.isTurnCompleteResponse(chatResponse);
         return LlmResponse.builder().content(content).partial(Boolean.valueOf(isPartial)).turnComplete(Boolean.valueOf(isTurnComplete)).build();
     }
 
-    private boolean isPartialResponse(AssistantMessage message) {
-        String text;
-        return message.getText() != null && !message.getText().isEmpty() && !(text = message.getText().trim()).endsWith(".") && !text.endsWith("!") && !text.endsWith("?") && !text.endsWith("\n") && message.getToolCalls().isEmpty();
+    /**
+     * 【本地修复 / 260723】流式 chunk 的 partial 判定改用 finishReason 协议语义。
+     *
+     * <p>原实现按英文标点启发式（文本不以 {@code .!?\n} 结尾即 partial）——OpenAI 兼容端点
+     * 常把 finish_reason 附在最后一个有内容的 chunk 上，中文回复以「。」「**」等结尾时该
+     * 结束帧被误判 partial=true；ADK 主循环以「最后事件 partial=false」为终止条件
+     * （Event.finalResponse），于是判定本轮无最终回复而重调 LLM，直至 maxLlmCalls=10 熔断
+     * ——表现为回复正文里同一答案的多个变体连排、token 消耗数倍放大。
+     *
+     * <p>现语义：带 finishReason 的 chunk 一律非 partial（本轮结束帧）；无 finishReason 的
+     * 中间 chunk 有文本即 partial（流式预览）。
+     */
+    private boolean isPartialResponse(ChatResponse response, AssistantMessage message) {
+        Generation generation = response.getResult();
+        String finishReason = generation != null && generation.getMetadata() != null
+                ? generation.getMetadata().getFinishReason()
+                : null;
+        if (finishReason != null && !finishReason.isBlank()) {
+            return false;
+        }
+        String text = message.getText();
+        return text != null && !text.isEmpty() && message.getToolCalls().isEmpty();
     }
 
     private boolean isTurnCompleteResponse(ChatResponse response) {

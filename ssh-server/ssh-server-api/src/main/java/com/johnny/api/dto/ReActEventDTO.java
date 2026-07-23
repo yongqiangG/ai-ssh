@@ -11,6 +11,7 @@ import lombok.Data;
  * <p>事件类型（{@link #event}）：
  * <ul>
  *   <li><b>text</b>            —— 模型文本片段。{@link #content} 为本次片段，{@link #fullText} 为累积全文（前端用 fullText 整体替换）</li>
+ *   <li><b>reasoning</b>       —— 深度思考片段（260723）。{@link #content} 为本次片段，{@link #fullText} 为累积思维链</li>
  *   <li><b>tool_call</b>       —— 工具调用开始</li>
  *   <li><b>tool_result</b>     —— 工具执行结果</li>
  *   <li><b>confirm_request</b> —— 写操作等待用户确认（B1 确认门），携带 {@link #confirmId}，{@link #analysis} 为判定理由</li>

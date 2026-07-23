@@ -293,6 +293,51 @@
   opacity: 0.85;
 }
 
+/* ===== 深度思考块（思维链流式展开 / 完成折叠）===== */
+.thinkingBlock {
+  margin-bottom: 8px;
+  padding: 6px 9px;
+  border-left: 3px solid var(--vsc-accent, #4f8cff);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  font-size: 11px;
+}
+
+.thinkingHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.6));
+  user-select: none;
+}
+
+.thinkingLive .thinkingHead {
+  color: var(--vsc-accent, #4f8cff);
+  animation: thinking-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes thinking-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.thinkingToggle {
+  margin-left: 4px;
+}
+
+.thinkingBody {
+  margin: 6px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.55));
+}
+
 /* ===== F3 上下文小标签 ===== */
 .contextTag {
   display: inline-flex;

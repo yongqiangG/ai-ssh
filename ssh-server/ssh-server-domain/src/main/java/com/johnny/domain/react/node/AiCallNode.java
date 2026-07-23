@@ -12,6 +12,7 @@ import com.johnny.api.dto.ReActResultDTO;
 import com.johnny.domain.agent.model.AiAgentRegisterVO;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
 import com.johnny.domain.agent.service.ConfirmGate;
+import com.johnny.domain.agent.service.tools.ReasoningRelay;
 import com.johnny.domain.agent.service.tools.TerminalContext;
 import com.johnny.domain.agent.service.tools.ThinkingContext;
 import com.johnny.domain.react.ReActContext;
@@ -59,6 +60,13 @@ public class AiCallNode extends AbstractReActSupport {
         TerminalContext.register(adkSessionId, ctx.getTerminalSessionId());
         // 消息级思考开关（D1）：runAsync 前置位，finally 复位；拦截器（AiApiNode）读取
         ThinkingContext.set(ctx.isThinkingEnabled());
+        // 深度思考旁路（260723 决议 8/9）：桥接层流式回调线程逐片段推送 reasoning_content，
+        // 这里累积并直发 reasoning 事件（writeNdjson 的 emitter.send 跨线程安全，同 ConfirmGate 先例）
+        StringBuilder reasoningAcc = new StringBuilder();
+        ReasoningRelay.register(delta -> {
+            reasoningAcc.append(delta);
+            sendReasoningEvent(ctx, delta, reasoningAcc.toString());
+        });
         // 确认门（B1）：注册本请求的 confirm_request 发射通道——工具线程判定写操作后经此
         // 把确认请求写进 NDJSON 流并挂起（emitter.send 有同步保护，跨线程安全）
         confirmGate.registerEmitter(adkSessionId, cr ->
@@ -159,10 +167,11 @@ public class AiCallNode extends AbstractReActSupport {
             if (events instanceof Disposable d && !d.isDisposed()) {
                 d.dispose();
             }
-            // 清理注册，防内存泄漏；思考标志复位为默认关
+            // 清理注册，防内存泄漏；思考标志复位为默认关；思考旁路注销
             TerminalContext.register(adkSessionId, null);
             confirmGate.registerEmitter(adkSessionId, null);
             ThinkingContext.set(false);
+            ReasoningRelay.register(null);
         }
 
         ctx.setStep(ctx.getStep() + 1);

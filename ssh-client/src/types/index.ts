@@ -19,6 +19,8 @@ export interface ChatMessage {
   timestamp: number;
   /** 仅 assistant 消息：命令块据此渲染（来自 tool_call / tool_result 事件） */
   toolCalls?: ToolCall[];
+  /** 仅 assistant 消息：深度思考过程（思维链，reasoning 事件累积）；随会话持久化供回看 */
+  reasoning?: string;
   /** 仅 user 消息：终端引用块（F1 选中即问 / F5 报错诊断），气泡内折叠渲染 */
   quote?: string;
   /** 仅 user 消息：随消息附带的终端上下文行数（F3；正文不进气泡，仅显示小标签） */

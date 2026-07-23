@@ -316,6 +316,10 @@ export const useChatStore = create<ChatState>()(
               onText: (full) => {
                 updateMessage(convId!, assistantId, (m) => ({ ...m, content: full }));
               },
+              onReasoning: (full) => {
+                // 深度思考思维链：整体替换（后端 fullText 已累积）；随消息持久化供回看
+                updateMessage(convId!, assistantId, (m) => ({ ...m, reasoning: full }));
+              },
               onToolCall: (e) => {
                 // 工具调用开始 → push 到 assistant 消息的 toolCalls。
                 // fail-safe 去重：confirm_request 先到时已按本事件同 id 建了孤儿确认卡

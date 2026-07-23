@@ -53,6 +53,15 @@ public abstract class AbstractReActSupport
         writeNdjson(ctx, event);
     }
 
+    /** 发送思考片段事件（reasoning，260723 决议 8/9）：content 为本次片段，fullText 为累积思维链。 */
+    protected void sendReasoningEvent(ReActContext ctx, String content, String fullText) {
+        ReActEventDTO event = new ReActEventDTO();
+        event.setEvent("reasoning");
+        event.setContent(content);
+        event.setFullText(fullText);
+        writeNdjson(ctx, event);
+    }
+
     /** 发送轮次结束事件：携带步数进度。 */
     protected void sendRoundEndEvent(ReActContext ctx, int currentStep, int maxSteps,
                                      boolean shouldContinue, int totalToolCalls) {

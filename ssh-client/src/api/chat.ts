@@ -13,6 +13,7 @@ import type { Agent } from "../types";
 export interface ReActEvent {
   event:
     | "text"
+    | "reasoning"
     | "tool_call"
     | "tool_result"
     | "confirm_request"
@@ -69,6 +70,8 @@ export interface StreamChatOptions {
   thinkingEnabled?: boolean;
   /** 收到累积全文（text 事件）时回调，前端据此整体替换消息 content */
   onText: (fullText: string) => void;
+  /** 深度思考片段（reasoning 事件）：fullReasoning 为累积思维链，整体替换渲染 */
+  onReasoning?: (fullReasoning: string) => void;
   /** 工具调用开始（tool_call 事件）：content 为命令文本 */
   onToolCall?: (e: ReActEvent) => void;
   /** 工具执行完成（tool_result 事件）：content 为输出，analysis 为失败建议 */
@@ -176,6 +179,10 @@ function handleEvent(
       const full = evt.fullText ?? evt.content ?? "";
       setLast(full);
       opts.onText(full);
+      break;
+    }
+    case "reasoning": {
+      opts.onReasoning?.(evt.fullText ?? evt.content ?? "");
       break;
     }
     case "done": {

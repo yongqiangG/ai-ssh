@@ -271,3 +271,30 @@ describe("写命令确认 fail-safe（confirm_request 与 tool_call 乱序）", 
     expect(toolCalls[0].confirmId).toBe("c1");
   });
 });
+
+describe("深度思考过程可视化（reasoning 事件）", () => {
+  it("reasoning 累积写入 assistant 消息并随会话持久化", async () => {
+    vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {
+      const o = opts as Record<string, (e?: unknown) => void>;
+      o.onReasoning?.("用户在问 TCP");
+      o.onReasoning?.("用户在问 TCP，先想握手目的");
+      o.onText?.("三次握手用于同步序列号。");
+      o.onDone?.("三次握手用于同步序列号。");
+      return () => {};
+    });
+    await useChatStore.getState().sendMessage("TCP 握手");
+    const msg = useChatStore.getState().conversations[0].messages[1];
+    expect(msg.reasoning).toBe("用户在问 TCP，先想握手目的");
+    expect(msg.content).toBe("三次握手用于同步序列号。");
+    const persisted = JSON.parse(localStorage.getItem("ai-ssh:chat") as string);
+    expect(persisted.state.conversations[0].messages[1].reasoning).toBe(
+      "用户在问 TCP，先想握手目的"
+    );
+  });
+
+  it("无 reasoning 事件的消息不产生 reasoning 字段", async () => {
+    await useChatStore.getState().sendMessage("普通问题");
+    const msg = useChatStore.getState().conversations[0].messages[1];
+    expect(msg.reasoning).toBeUndefined();
+  });
+});
