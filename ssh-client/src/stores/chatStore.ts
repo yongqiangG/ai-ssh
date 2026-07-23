@@ -317,19 +317,28 @@ export const useChatStore = create<ChatState>()(
                 updateMessage(convId!, assistantId, (m) => ({ ...m, content: full }));
               },
               onToolCall: (e) => {
-                // 工具调用开始 → push 到 assistant 消息的 toolCalls
-                updateMessage(convId!, assistantId, (m) => ({
-                  ...m,
-                  toolCalls: [
-                    ...(m.toolCalls ?? []),
-                    {
-                      toolCallId: e.toolCallId ?? "",
-                      toolName: e.toolName ?? "",
-                      command: e.content,
-                      status: "running",
-                    } as ToolCall,
-                  ],
-                }));
+                // 工具调用开始 → push 到 assistant 消息的 toolCalls。
+                // fail-safe 去重：confirm_request 先到时已按本事件同 id 建了孤儿确认卡
+                // （见 onConfirmRequest），此时不再新建，保持确认态等用户点击
+                updateMessage(convId!, assistantId, (m) => {
+                  const list = m.toolCalls ?? [];
+                  const id = e.toolCallId ?? "";
+                  if (list.some((tc) => tc.toolCallId === id && tc.status === "pending_confirm")) {
+                    return m;
+                  }
+                  return {
+                    ...m,
+                    toolCalls: [
+                      ...list,
+                      {
+                        toolCallId: id,
+                        toolName: e.toolName ?? "",
+                        command: e.content,
+                        status: "running",
+                      } as ToolCall,
+                    ],
+                  };
+                });
               },
               onToolResult: (e) => {
                 // 工具执行完成 → 按 toolCallId 配对更新状态/输出
@@ -350,7 +359,10 @@ export const useChatStore = create<ChatState>()(
               },
               onConfirmRequest: (e) => {
                 // 写操作确认（B1）：按 toolCallId 把对应命令块置为待确认态；
-                // toolCallId 缺失时兜底挂到最后一个 running 块（工具串行执行，即当前块）
+                // toolCallId 缺失时兜底挂到最后一个 running 块（工具串行执行，即当前块）；
+                // 都找不到（confirm_request 由工具线程直写 NDJSON，可能先于 tool_call 到达）
+                // 则以事件自带信息新建孤儿确认卡——后端 ConfirmGate 正挂起等点击，
+                // 静默丢弃会让用户无处可点、120s 超时被拒（B2 卡死缺陷的根因）
                 updateMessage(convId!, assistantId, (m) => {
                   const list = m.toolCalls ?? [];
                   let targetIdx = list.findIndex(
@@ -364,7 +376,22 @@ export const useChatStore = create<ChatState>()(
                       }
                     }
                   }
-                  if (targetIdx < 0) return m;
+                  if (targetIdx < 0) {
+                    return {
+                      ...m,
+                      toolCalls: [
+                        ...list,
+                        {
+                          toolCallId: e.toolCallId ?? "",
+                          toolName: e.toolName ?? "executeCommand",
+                          command: e.content ?? "",
+                          status: "pending_confirm",
+                          confirmId: e.confirmId,
+                          analysis: e.analysis,
+                        } as ToolCall,
+                      ],
+                    };
+                  }
                   return {
                     ...m,
                     toolCalls: list.map((tc, i) =>

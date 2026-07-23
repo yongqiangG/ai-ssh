@@ -172,3 +172,102 @@ describe("报错自动检测开关（默认关 + v0 迁移）", () => {
     expect(useChatStore.getState().errorDetectEnabled).toBe(true);
   });
 });
+
+describe("写命令确认 fail-safe（confirm_request 与 tool_call 乱序）", () => {
+  const orphanStream = (events: (opts: Record<string, (e: unknown) => void>) => void) =>
+    vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {
+      const o = opts as Record<string, (e?: unknown) => void>;
+      events(o);
+      o.onDone?.("");
+      return () => {};
+    });
+
+  it("confirm_request 先于 tool_call 到达时创建孤儿确认卡（用户始终有地方点）", async () => {
+    orphanStream((o) => {
+      o.onConfirmRequest?.({
+        event: "confirm_request",
+        confirmId: "c1",
+        toolCallId: "t1",
+        toolName: "executeCommand",
+        content: "touch /tmp/x",
+        analysis: "命令命中写操作规则",
+      });
+    });
+    await useChatStore.getState().sendMessage("创建文件");
+    const toolCalls = useChatStore.getState().conversations[0].messages[1].toolCalls ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0].status).toBe("pending_confirm");
+    expect(toolCalls[0].confirmId).toBe("c1");
+    expect(toolCalls[0].command).toBe("touch /tmp/x");
+  });
+
+  it("孤儿卡存在时同 id 的 tool_call 后到不重复建块，确认态保持", async () => {
+    orphanStream((o) => {
+      o.onConfirmRequest?.({
+        event: "confirm_request",
+        confirmId: "c1",
+        toolCallId: "t1",
+        toolName: "executeCommand",
+        content: "touch /tmp/x",
+      });
+      o.onToolCall?.({
+        event: "tool_call",
+        toolCallId: "t1",
+        toolName: "executeCommand",
+        content: "touch /tmp/x",
+        status: "running",
+      });
+    });
+    await useChatStore.getState().sendMessage("创建文件");
+    const toolCalls = useChatStore.getState().conversations[0].messages[1].toolCalls ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0].status).toBe("pending_confirm");
+    expect(toolCalls[0].confirmId).toBe("c1");
+  });
+
+  it("toolCallId 为空串的乱序场景同样有孤儿卡可点且不重复", async () => {
+    orphanStream((o) => {
+      o.onConfirmRequest?.({
+        event: "confirm_request",
+        confirmId: "c2",
+        toolCallId: "",
+        content: "rm /tmp/y",
+      });
+      o.onToolCall?.({
+        event: "tool_call",
+        toolCallId: "",
+        toolName: "executeCommand",
+        content: "rm /tmp/y",
+        status: "running",
+      });
+    });
+    await useChatStore.getState().sendMessage("删除文件");
+    const toolCalls = useChatStore.getState().conversations[0].messages[1].toolCalls ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0].status).toBe("pending_confirm");
+    expect(toolCalls[0].confirmId).toBe("c2");
+  });
+
+  it("正常顺序（tool_call 先到）不回归：单块置为待确认", async () => {
+    orphanStream((o) => {
+      o.onToolCall?.({
+        event: "tool_call",
+        toolCallId: "t1",
+        toolName: "executeCommand",
+        content: "touch /tmp/x",
+        status: "running",
+      });
+      o.onConfirmRequest?.({
+        event: "confirm_request",
+        confirmId: "c1",
+        toolCallId: "t1",
+        content: "touch /tmp/x",
+      });
+    });
+    await useChatStore.getState().sendMessage("创建文件");
+    const toolCalls = useChatStore.getState().conversations[0].messages[1].toolCalls ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0].status).toBe("pending_confirm");
+    expect(toolCalls[0].confirmId).toBe("c1");
+  });
+});
