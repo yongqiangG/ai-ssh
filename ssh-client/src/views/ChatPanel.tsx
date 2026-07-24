@@ -113,7 +113,10 @@ export default function ChatPanel() {
     visibleMessages.length > 0
       ? visibleMessages[visibleMessages.length - 1].content
       : "";
-  const lastErrorText = visibleMessages.at(-1)?.errorText;
+  const lastErrorText =
+    visibleMessages.length > 0
+      ? visibleMessages[visibleMessages.length - 1].errorText
+      : undefined;
   // 流式时仅在用户没上滚时自动到底（方案1：AI 回复时可上滚查看历史）
   useEffect(() => {
     if (!userScrolledUpRef.current) scrollToEnd();

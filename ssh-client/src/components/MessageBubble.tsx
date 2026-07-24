@@ -83,12 +83,10 @@ function ErrorBar({ message }: { message: ChatMessage }) {
     (s) => s.conversations.find((c) => c.id === s.currentId)?.contextStatus === "history"
   );
   // 仅末条可重试（与 retryMessage 的判定一致）：中间轮次的旧失败只留记录
-  const isLast = useChatStore(
-    (s) =>
-      s.conversations
-        .find((c) => c.id === s.currentId)
-        ?.messages.at(-1)?.id === message.id
-  );
+  const isLast = useChatStore((s) => {
+    const msgs = s.conversations.find((c) => c.id === s.currentId)?.messages;
+    return msgs ? msgs[msgs.length - 1]?.id === message.id : false;
+  });
   const retryMessage = useChatStore((s) => s.retryMessage);
   const canRetry = isRetryableLlmError(message.errorCode) && !isHistory && isLast;
   return (
