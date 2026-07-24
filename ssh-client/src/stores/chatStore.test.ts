@@ -292,7 +292,8 @@ describe("写命令确认 fail-safe（confirm_request 与 tool_call 乱序）", 
     vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {
       const o = opts as Record<string, (e?: unknown) => void>;
       events(o);
-      o.onDone?.("");
+      // 不触发 onDone：真实中确认挂起时工具线程阻塞、流不会结束；
+      // 若在此结束流，onDone 的残块收敛防御会把待确认卡清为「已结束」
       return () => {};
     });
 

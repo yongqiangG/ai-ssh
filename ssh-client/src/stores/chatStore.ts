@@ -498,7 +498,13 @@ export const useChatStore = create<ChatState>()(
               },
               onDone: () => {
                 abortRef = null;
-                set({ sending: false });
+                // 流正常结束后不可能再有 tool_result 到来——仍在 running/待确认的块
+                // （后端异常路径漏发结果/单行 JSON 损坏被忽略）收敛为终态，
+                // 避免永久转圈 + 误触发「会话进行中」的配置保存拦截
+                set((s) => ({
+                  sending: false,
+                  conversations: failPendingToolCalls(s.conversations, convId, "已结束"),
+                }));
               },
               onError: (err, code) => {
                 abortRef = null;
