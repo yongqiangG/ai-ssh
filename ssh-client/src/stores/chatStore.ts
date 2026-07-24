@@ -527,7 +527,10 @@ export const useChatStore = create<ChatState>()(
           const conv = get().conversations.find((c) => c.id === get().currentId);
           if (!conv || conv.contextStatus === "history") return;
           const idx = conv.messages.findIndex((m) => m.id === messageId);
-          if (idx < 0 || !conv.messages[idx].errorText) return;
+          // 仅末条可重试：中间轮次重发会把消息对挪到末尾（阅读顺序与后端
+          // 上下文顺序都被打乱），旧失败留错误条做记录即可
+          if (idx < 0 || idx !== conv.messages.length - 1) return;
+          if (!conv.messages[idx].errorText) return;
           const userMsg = conv.messages[idx - 1];
           if (!userMsg || userMsg.role !== "user") return;
           // 删除失败消息对 + 复原引用块，走标准 sendMessage 全流程；

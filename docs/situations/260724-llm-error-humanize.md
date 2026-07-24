@@ -21,6 +21,7 @@
 4. **前端 fetch 层兜底**——code 缺失（连不上后端/HTTP 状态错）时 `humanizeClientError` 翻译常见浏览器错误，未识别原样透传。
 5. **手动重试（P2）**——错误条对可重试 code（CONNECTION_LOST/TIMEOUT/RATE_LIMITED/SERVER_ERROR/UNKNOWN/无 code）且非历史会话显示「重试」按钮；AUTH/BAD_CONFIG 只给指引（该去改设置），AI_SESSION_EXPIRED 不重试（会话已归档）。手动触发不违反「不自动重发」决议。
 6. **重试实现选最小侵入**——`retryMessage` = 删除失败消息对 + 复原引用块（quote 文本恢复，source 统一按 selection）+ 走标准 `sendMessage` 全流程；**主发送路径零改动**。接受的语义差异：重试时终端上下文按当前 F3 开关重取，不复刻失败时快照。
+7. **【2026-07-24 评审收紧】仅末条消息可重试**——中间轮次重发会把消息对挪到末尾，阅读顺序与后端 session 上下文顺序都被打乱；且消掉「重试误消费当前待发引用块」的大部分场景。旧失败留错误条做记录。错误条追加高度纳入自动滚动触发（errorText 进 deps），避免露一半在视野外。
 
 ## 影响范围
 

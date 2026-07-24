@@ -107,15 +107,17 @@ export default function ChatPanel() {
   const lastVisible = visibleMessages[visibleMessages.length - 1];
   const showTyping = sending && (!lastVisible || lastVisible.role === "user");
 
-  // 流式时同一条 assistant 消息 content 增长，借此触发滚动
+  // 流式时同一条 assistant 消息 content 增长，借此触发滚动；
+  // errorText 后到（错误条追加高度）也要触发，否则错误条可能露一半在视野外
   const lastContent =
     visibleMessages.length > 0
       ? visibleMessages[visibleMessages.length - 1].content
       : "";
+  const lastErrorText = visibleMessages.at(-1)?.errorText;
   // 流式时仅在用户没上滚时自动到底（方案1：AI 回复时可上滚查看历史）
   useEffect(() => {
     if (!userScrolledUpRef.current) scrollToEnd();
-  }, [visibleMessages.length, lastContent, scrollToEnd]);
+  }, [visibleMessages.length, lastContent, lastErrorText, scrollToEnd]);
 
   // 切换会话 → 强制回底（看新会话最新消息）
   useEffect(() => {

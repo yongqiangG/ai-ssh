@@ -512,6 +512,42 @@ describe("调用失败人话提示与手动重试", () => {
     expect(conv.messages[1].errorText).toBeUndefined();
   });
 
+  it("仅末条消息可重试：中间轮次的旧失败只留记录", async () => {
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "multi",
+          title: "多轮",
+          agentId: "general",
+          contextStatus: "active",
+          messages: [
+            { id: "u1", role: "user", content: "第一轮", timestamp: 1 },
+            {
+              id: "a1",
+              role: "assistant",
+              content: "",
+              timestamp: 2,
+              errorText: "失败",
+              errorCode: "LLM_TIMEOUT",
+            },
+            { id: "u2", role: "user", content: "第二轮", timestamp: 3 },
+            { id: "a2", role: "assistant", content: "第二轮回复", timestamp: 4 },
+          ],
+          createdAt: 1,
+        },
+      ],
+      currentId: "multi",
+    });
+
+    const before = vi.mocked(streamChat).mock.calls.length;
+    await useChatStore.getState().retryMessage("a1");
+
+    expect(vi.mocked(streamChat).mock.calls.length).toBe(before);
+    expect(
+      useChatStore.getState().conversations[0].messages.map((m) => m.id)
+    ).toEqual(["u1", "a1", "u2", "a2"]);
+  });
+
   it("历史会话与非失败消息不可重试", async () => {
     useChatStore.setState({
       conversations: [

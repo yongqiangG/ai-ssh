@@ -82,8 +82,15 @@ function ErrorBar({ message }: { message: ChatMessage }) {
   const isHistory = useChatStore(
     (s) => s.conversations.find((c) => c.id === s.currentId)?.contextStatus === "history"
   );
+  // 仅末条可重试（与 retryMessage 的判定一致）：中间轮次的旧失败只留记录
+  const isLast = useChatStore(
+    (s) =>
+      s.conversations
+        .find((c) => c.id === s.currentId)
+        ?.messages.at(-1)?.id === message.id
+  );
   const retryMessage = useChatStore((s) => s.retryMessage);
-  const canRetry = isRetryableLlmError(message.errorCode) && !isHistory;
+  const canRetry = isRetryableLlmError(message.errorCode) && !isHistory && isLast;
   return (
     <div className={styles.errorBar}>
       <Icon name="alert" size={13} className={styles.errorIcon} />
