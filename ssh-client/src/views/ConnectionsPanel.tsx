@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
@@ -37,6 +37,17 @@ export default function ConnectionsPanel() {
   const activeId = useTerminalStore((s) => s.activeId);
   const setCenterView = useLayoutStore((s) => s.setCenterView);
   const setShowTerminal = useLayoutStore((s) => s.setShowTerminal);
+
+  // 注意力脉冲（chat 未连接卡片跳转）：面板本就展开时 layout 写入全幂等、
+  // 界面零变化——播一次高亮让用户知道「看这里」，播完自清
+  const attentionPulse = useLayoutStore((s) => s.attentionPulse);
+  const clearAttentionPulse = useLayoutStore((s) => s.clearAttentionPulse);
+  const pulsing = attentionPulse === "servers";
+  useEffect(() => {
+    if (!pulsing) return;
+    const timer = window.setTimeout(clearAttentionPulse, 700);
+    return () => window.clearTimeout(timer);
+  }, [pulsing, clearAttentionPulse]);
 
   const activateTerminal = (c: SshConnection) => {
     setCenterView("terminal");
@@ -90,7 +101,7 @@ export default function ConnectionsPanel() {
   };
 
   return (
-    <section className="panel">
+    <section className={`panel ${pulsing ? styles.attentionPulse : ""}`}>
       <div className="panel-header">
         <span className="panel-title">SSH 连接</span>
         <div className="panel-actions">

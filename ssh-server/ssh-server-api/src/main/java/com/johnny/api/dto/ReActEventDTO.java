@@ -28,6 +28,9 @@ public class ReActEventDTO {
     /** 事件类型：text / tool_call / tool_result / confirm_request / round_end / done / error */
     private String event;
 
+    /** 机器可读错误码（event=error 时可选），前端用它处理可恢复协议错误。 */
+    private String code;
+
     /** 事件内容（文本片段 / 工具结果 / 最终结果 JSON / 错误信息） */
     private String content;
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
 import BackendSettingsModal from "./BackendSettingsModal";
+import Mascot, { type MascotMood } from "./Mascot";
 import { useBackendStore } from "../stores/backendStore";
 import { estimateProgress, readExpectedBootMs } from "./bootProgress";
 import styles from "./BootSplash.module.css";
@@ -49,31 +50,6 @@ function shuffle<T>(arr: readonly T[]): T[] {
   return a;
 }
 
-type Mood = "thinking" | "happy" | "dead";
-
-/** 几何小吉祥物：等待时漂浮眨眼，就绪眯眼笑，失败翻白眼（✕✕） */
-function Mascot({ mood }: { mood: Mood }) {
-  const moodClass =
-    mood === "happy"
-      ? styles.moodHappy
-      : mood === "dead"
-        ? styles.moodDead
-        : "";
-  return (
-    <div className={`${styles.mascot} ${moodClass}`}>
-      <div className={styles.halo} />
-      <div className={styles.mascotBody}>
-        <div className={styles.eyes}>
-          <span className={styles.eye} />
-          <span className={styles.eye} />
-        </div>
-        <div className={styles.mouth} />
-      </div>
-      <div className={styles.mascotShadow} />
-    </div>
-  );
-}
-
 /**
  * 启动遮罩（一次性启动门）。
  *
@@ -91,7 +67,7 @@ export default function BootSplash() {
   const failed = bootPhase === "failed";
   // 冲刺窗口：后端已就绪、boot() 正在等冲刺计时——进度冲 100%，吉祥物开心
   const sprinting = readyStatus === "ready" && bootPhase === "booting";
-  const mood: Mood = failed ? "dead" : sprinting ? "happy" : "thinking";
+  const mood: MascotMood = failed ? "dead" : sprinting ? "happy" : "thinking";
 
   const prefersReducedMotion = useMemo(
     () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,

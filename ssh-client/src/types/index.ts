@@ -33,6 +33,8 @@ export interface Conversation {
   agentId: string;
   messages: ChatMessage[];
   createdAt: number;
+  contextStatus?: "active" | "history";
+  historyReason?: "app_restarted" | "model_reloaded" | "session_expired";
   /** 后端会话 ID（ADK sessionId）；不持久化，每次启动重新创建 */
   sessionId?: string;
 }

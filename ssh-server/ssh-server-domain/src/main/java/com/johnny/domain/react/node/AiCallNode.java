@@ -100,6 +100,7 @@ public class AiCallNode extends AbstractReActSupport {
 
         boolean hasError = false;
         String errorMsg = null;
+        boolean sessionExpired = false;
         Iterator<Event> events = null;
 
         try {
@@ -161,6 +162,7 @@ public class AiCallNode extends AbstractReActSupport {
             log.error("ADK Runner 调用失败", e);
             hasError = true;
             errorMsg = e.getMessage();
+            sessionExpired = isSessionExpired(e);
         } finally {
             // 取消/异常时上游 Flowable 可能仍在生产（LLM 流 + 工具编排）——
             // RxJava3 的 BlockingFlowableIterator 实现了 Disposable，显式 dispose 掐断上游
@@ -192,8 +194,13 @@ public class AiCallNode extends AbstractReActSupport {
                 // emitter 已由容器关闭
             }
         } else if (hasError) {
-            sendErrorEvent(ctx, errorMsg);
-            ctx.getEmitter().completeWithError(new RuntimeException(errorMsg));
+            if (sessionExpired) {
+                sendErrorEvent(ctx, "AI_SESSION_EXPIRED", "AI 会话已失效，请在新会话中继续");
+                ctx.getEmitter().complete();
+            } else {
+                sendErrorEvent(ctx, errorMsg);
+                ctx.getEmitter().completeWithError(new RuntimeException(errorMsg));
+            }
         } else {
             // totalToolCalls：round_end 前端不渲染（chat.ts 忽略 round_end），传 0 不影响闭环
             sendRoundEndEvent(ctx, ctx.getStep(), ctx.getMaxSteps(), false, 0);
@@ -204,6 +211,21 @@ public class AiCallNode extends AbstractReActSupport {
         log.info("ReAct AiCallNode 完成 step={} contentLen={} error={} cancelled={}",
                 ctx.getStep(), acc.length(), hasError, ctx.isCancelled());
         return result;
+    }
+
+    private boolean isSessionExpired(Throwable e) {
+        Throwable current = e;
+        while (current != null) {
+            if (containsSessionNotFound(current.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean containsSessionNotFound(String message) {
+        return message != null && message.contains("Session not found");
     }
 
     /** 外层单步：无回环节点（B 方案循环在 runAsync 内）。 */

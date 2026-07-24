@@ -20,6 +20,7 @@ export interface ReActEvent {
     | "round_end"
     | "done"
     | "error";
+  code?: string;
   content?: string;
   fullText?: string;
   toolCallId?: string;
@@ -81,7 +82,7 @@ export interface StreamChatOptions {
   /** 流正常结束（reader done）时回调 */
   onDone: (finalText: string) => void;
   /** 出错回调 */
-  onError: (err: string) => void;
+  onError: (err: string, code?: string) => void;
 }
 
 /**
@@ -201,7 +202,7 @@ function handleEvent(
       break;
     }
     case "error": {
-      opts.onError(evt.content ?? "未知错误");
+      opts.onError(evt.content ?? "未知错误", evt.code);
       break;
     }
     case "tool_call": {

@@ -3,20 +3,26 @@ import modalStyles from "./sshConnectionModal.module.css";
 interface ConfirmDialogProps {
   message: string;
   kind?: "warning" | "info";
-  /** warning: true=确认覆盖 / false=取消；info: 恒 false（仅关闭） */
+  /** warning: true=确认 / false=取消；info: 恒 false（仅关闭） */
   onResolve: (ok: boolean) => void;
+  /** 确认按钮文案（仅 warning），默认「覆盖」（历史调用点语义） */
+  confirmText?: string;
+  /** 取消按钮文案（仅 warning），默认「否」 */
+  cancelText?: string;
 }
 
 /**
  * 应用内确认/提示弹窗（主题统一，替代 OS 原生 dialog 的 ask/message）。
  * 复用 sshConnectionModal.module.css 的遮罩/对话框/页脚样式，与全局弹窗视觉一致。
- * - warning：双按钮「否 / 覆盖」，用于覆盖确认；点遮罩=取消
+ * - warning：双按钮（默认「否 / 覆盖」，可经 confirmText/cancelText 定制）；点遮罩=取消
  * - info：单按钮「知道了」，用于文件夹不支持等提示
  */
 export default function ConfirmDialog({
   message,
   kind = "warning",
   onResolve,
+  confirmText = "覆盖",
+  cancelText = "否",
 }: ConfirmDialogProps) {
   const isWarn = kind === "warning";
   return (
@@ -47,7 +53,7 @@ export default function ConfirmDialog({
               className="btn btn-secondary"
               onClick={() => onResolve(false)}
             >
-              否
+              {cancelText}
             </button>
           )}
           <button
@@ -55,7 +61,7 @@ export default function ConfirmDialog({
             className={isWarn ? "btn" : "btn btn-secondary"}
             onClick={() => onResolve(isWarn)}
           >
-            {isWarn ? "覆盖" : "知道了"}
+            {isWarn ? confirmText : "知道了"}
           </button>
         </div>
       </div>

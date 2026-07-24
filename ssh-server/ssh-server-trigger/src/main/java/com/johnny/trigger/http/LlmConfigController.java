@@ -4,6 +4,7 @@ import com.johnny.api.dto.LlmConfigDTO;
 import com.johnny.api.dto.LlmConfigSaveRequestDTO;
 import com.johnny.api.response.Response;
 import com.johnny.domain.agent.model.LlmConfigEntity;
+import com.johnny.domain.agent.model.LlmConfigSaveResult;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
 import com.johnny.domain.agent.service.ILlmConfigService;
 import com.johnny.types.enums.ResponseCode;
@@ -44,15 +45,23 @@ public class LlmConfigController {
             throw new AppException(ResponseCode.ILLEGAL_PARAMETER.getCode(), "首次配置必须填写 API Key");
         }
 
-        LlmConfigEntity saved = llmConfigService.saveDefaultConfig(LlmConfigEntity.builder()
+        LlmConfigSaveResult result = llmConfigService.saveDefaultConfig(LlmConfigEntity.builder()
                 .providerName(req.getProviderName())
                 .baseUrl(req.getBaseUrl())
                 .apiKey(req.getApiKey())
                 .model(req.getModel())
                 .completionsPath(req.getCompletionsPath())
                 .build(), keepExistingApiKey);
-        agentRunnerRegistry.rebuild();
-        return Response.success(toDTO(saved));
+        boolean runnerRebuilt = false;
+        if (result.isRunnerReloadRequired()) {
+            agentRunnerRegistry.rebuild();
+            runnerRebuilt = true;
+        }
+        LlmConfigDTO dto = toDTO(result.getConfig());
+        dto.setConfigChanged(result.isConfigChanged());
+        dto.setRunnerReloadRequired(result.isRunnerReloadRequired());
+        dto.setRunnerRebuilt(runnerRebuilt);
+        return Response.success(dto);
     }
 
     private LlmConfigDTO toDTO(LlmConfigEntity entity) {
@@ -62,6 +71,9 @@ public class LlmConfigController {
                 .model(entity.getModel())
                 .completionsPath(entity.getCompletionsPath())
                 .apiKeyConfigured(entity.hasApiKey())
+                .configChanged(false)
+                .runnerReloadRequired(false)
+                .runnerRebuilt(false)
                 .build();
     }
 }

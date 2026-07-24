@@ -87,8 +87,14 @@ public abstract class AbstractReActSupport
 
     /** 发送错误事件。 */
     protected void sendErrorEvent(ReActContext ctx, String message) {
+        sendErrorEvent(ctx, null, message);
+    }
+
+    /** 发送错误事件（可携带机器码）。 */
+    protected void sendErrorEvent(ReActContext ctx, String code, String message) {
         ReActEventDTO event = new ReActEventDTO();
         event.setEvent("error");
+        event.setCode(code);
         event.setContent(message);
         writeNdjson(ctx, event);
     }

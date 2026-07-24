@@ -45,10 +45,10 @@ public class LlmEndpointManualTest {
         //   deepseek 中转: base-url=https://wzw.pp.ua           model=deepseek-ai/deepseek-v4-pro completions-path=/v1/chat/completions
         //   智谱 GLM:     base-url=https://open.bigmodel.cn     model=glm-5.2                     completions-path=/api/coding/paas/v4/chat/completions
         //   gpt 中转:     base-url=https://welfare.0xpsyche.me  model=gpt-5.6-sol                 completions-path=/v1/chat/completions
-        String baseUrl = prop("llm.base-url", "LLM_BASE_URL", "https://open.bigmodel.cn");
+        String baseUrl = prop("llm.base-url", "LLM_BASE_URL", "https://elysiver.h-e.top");
         String apiKey = prop("llm.api-key", "LLM_API_KEY", "");
-        String completionsPath = prop("llm.completions-path", "LLM_COMPLETIONS_PATH", "/api/coding/paas/v4/chat/completions");
-        model = prop("llm.model", "LLM_MODEL", "glm-5.2");
+        String completionsPath = prop("llm.completions-path", "LLM_COMPLETIONS_PATH", "/v1/chat/completions");
+        model = prop("llm.model", "LLM_MODEL", "deepseek-v4-pro");
 
         assumeTrue("未提供 api-key（-Dllm.api-key=xxx 或环境变量 LLM_API_KEY），跳过端点测试", !apiKey.isBlank());
 

@@ -244,3 +244,25 @@
     opacity: 0.4;
   }
 }
+
+/* 注意力脉冲：chat 未连接卡片跳转时播一次，回答「点了之后看哪里」 */
+.attentionPulse {
+  animation: attentionPulse 600ms ease-in-out 1;
+}
+
+@keyframes attentionPulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+  35% {
+    box-shadow: inset 0 0 0 2px var(--vsc-accent);
+    background: color-mix(in srgb, var(--vsc-accent) 8%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attentionPulse {
+    animation: none;
+  }
+}

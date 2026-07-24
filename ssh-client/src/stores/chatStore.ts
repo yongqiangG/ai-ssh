@@ -34,6 +34,8 @@ interface ChatState {
   attachContext: boolean;
   /** F5 报错检测气泡全局开关（默认关，用户按需开启；持久化——开关是长期意愿不该重启丢失） */
   errorDetectEnabled: boolean;
+  /** 会话状态提示（模型重载 / 冷启动 / 会话失效后提示用户） */
+  sessionNotice: string | null;
 
   /** 设置终端引用块（选中即问 / 报错诊断入口调用） */
   setQuote: (quote: PendingQuote | null) => void;
@@ -50,6 +52,11 @@ interface ChatState {
   newConversation: () => void;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
+  clearSessionNotice: () => void;
+  archiveAllAndStartNew: (
+    reason: "app_restarted" | "model_reloaded" | "session_expired",
+    notice: string
+  ) => void;
   setAgent: (id: string) => void;
   toggleThinking: () => void;
   sendMessage: (text: string) => Promise<void>;
@@ -63,35 +70,36 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const titleFrom = (text: string) => text.trim().slice(0, 24) || "新对话";
 
 /**
- * 把指定会话仍在 running / 待确认的命令块统一标为 error（stop 与流 onError 共用）。
+ * 把仍在 running / 待确认的命令块统一标为 error（stop、流 onError、归档共用）。
  * 断流后若不清理，pending_confirm 确认卡残留可点，点击会把块置回「执行中」
  * 且 tool_result 永远不会到来。
  */
+const failActiveToolCalls = (
+  messages: ChatMessage[],
+  output: string
+): ChatMessage[] =>
+  messages.map((m) =>
+    m.toolCalls?.some(
+      (tc) => tc.status === "running" || tc.status === "pending_confirm"
+    )
+      ? {
+          ...m,
+          toolCalls: m.toolCalls.map((tc) =>
+            tc.status === "running" || tc.status === "pending_confirm"
+              ? { ...tc, status: "error" as const, output, confirmId: undefined }
+              : tc
+          ),
+        }
+      : m
+  );
+
 const failPendingToolCalls = (
   conversations: Conversation[],
   convId: string | null,
   output: string
 ): Conversation[] =>
   conversations.map((c) =>
-    c.id === convId
-      ? {
-          ...c,
-          messages: c.messages.map((m) =>
-            m.toolCalls?.some(
-              (tc) => tc.status === "running" || tc.status === "pending_confirm"
-            )
-              ? {
-                  ...m,
-                  toolCalls: m.toolCalls.map((tc) =>
-                    tc.status === "running" || tc.status === "pending_confirm"
-                      ? { ...tc, status: "error" as const, output, confirmId: undefined }
-                      : tc
-                  ),
-                }
-              : m
-          ),
-        }
-      : c
+    c.id === convId ? { ...c, messages: failActiveToolCalls(c.messages, output) } : c
   );
 
 /** 当前流式请求的中止函数（sendMessage 写入，stop() 消费） */
@@ -105,6 +113,59 @@ interface PersistedChatState {
   cmdHistory: string[];
   errorDetectEnabled: boolean;
 }
+
+const createBlankConversation = (agentId: string): Conversation => ({
+  id: createId("conv"),
+  title: "新对话",
+  agentId,
+  messages: [],
+  createdAt: Date.now(),
+  contextStatus: "active",
+});
+
+/**
+ * 归档即终局：历史会话不该携带「进行中」——僵尸 running/pending_confirm 块
+ * 会永远转圈，还会让设置弹窗的「会话进行中」拦截永久误判（保存被锁死）。
+ * 已是 history 的对话也重跑一遍清理，顺带自愈旧持久化数据。
+ */
+const archiveConversation = (
+  conversation: Conversation,
+  reason: "app_restarted" | "model_reloaded" | "session_expired"
+): Conversation => {
+  if (conversation.messages.length === 0) {
+    return conversation;
+  }
+  return {
+    ...conversation,
+    contextStatus: "history",
+    historyReason:
+      conversation.contextStatus === "history"
+        ? conversation.historyReason ?? reason
+        : reason,
+    sessionId: undefined,
+    messages: failActiveToolCalls(conversation.messages, "已随会话归档中断"),
+  };
+};
+
+const normalizeConversationList = (
+  conversations: Conversation[],
+  reason: "app_restarted" | "model_reloaded" | "session_expired"
+): Conversation[] => conversations
+  .filter((c) => c.messages.length > 0)
+  .map((c) => archiveConversation(c, reason));
+
+const restoreChatState = (persisted: PersistedChatState | undefined): PersistedChatState => {
+  const conversations = normalizeConversationList(persisted?.conversations ?? [], "app_restarted");
+  const agentId = persisted?.agentId ?? "";
+  const blank = createBlankConversation(agentId);
+  return {
+    conversations: [blank, ...conversations],
+    currentId: blank.id,
+    agentId,
+    cmdHistory: persisted?.cmdHistory ?? [],
+    errorDetectEnabled: persisted?.errorDetectEnabled ?? false,
+  };
+};
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -136,11 +197,26 @@ export const useChatStore = create<ChatState>()(
         quote: null,
         attachContext: false,
         errorDetectEnabled: false,
+        sessionNotice: null,
 
         setQuote: (quote) => set({ quote }),
         toggleAttachContext: () => set((s) => ({ attachContext: !s.attachContext })),
         toggleErrorDetect: () =>
           set((s) => ({ errorDetectEnabled: !s.errorDetectEnabled })),
+        clearSessionNotice: () => set({ sessionNotice: null }),
+
+        archiveAllAndStartNew: (reason, notice) =>
+          set((s) => {
+            const archived = normalizeConversationList(s.conversations, reason);
+            const blank = createBlankConversation(s.agentId);
+            return {
+              conversations: [blank, ...archived],
+              currentId: blank.id,
+              sending: false,
+              sessionNotice: notice,
+              freshId: null,
+            };
+          }),
 
         loadAgents: async () => {
           // 总是重新拉取：后端可能刚完成装配/换了模型配置，不做本地缓存守卫
@@ -162,16 +238,11 @@ export const useChatStore = create<ChatState>()(
         },
 
         newConversation: () => {
-          const conv: Conversation = {
-            id: createId("conv"),
-            title: "新对话",
-            agentId: get().agentId,
-            messages: [],
-            createdAt: Date.now(),
-          };
+          const conv = createBlankConversation(get().agentId);
           set((s) => ({
             conversations: [conv, ...s.conversations],
             currentId: conv.id,
+            sessionNotice: null,
           }));
         },
 
@@ -206,6 +277,9 @@ export const useChatStore = create<ChatState>()(
         sendMessage: async (text) => {
           const content = text.trim();
           if (!content || get().sending) return;
+
+          const currentConv = get().conversations.find((c) => c.id === get().currentId);
+          if (currentConv?.contextStatus === "history") return;
 
           get().pushCmdHistory(content);
 
@@ -249,6 +323,7 @@ export const useChatStore = create<ChatState>()(
               agentId,
               messages: [userMsg, assistantMsg],
               createdAt: Date.now(),
+              contextStatus: "active",
             };
             convId = conv.id;
             set((s) => ({
@@ -265,6 +340,7 @@ export const useChatStore = create<ChatState>()(
                       ...c,
                       messages: [...c.messages, userMsg, assistantMsg],
                       title: c.messages.length === 0 ? titleFrom(content) : c.title,
+                      contextStatus: c.contextStatus ?? "active",
                     }
                   : c
               ),
@@ -415,7 +491,7 @@ export const useChatStore = create<ChatState>()(
                 abortRef = null;
                 set({ sending: false });
               },
-              onError: (err) => {
+              onError: (err, code) => {
                 abortRef = null;
                 failMsg(err);
                 // 断流后清理残留命令块（与 stop 同语义），避免确认卡悬挂可点
@@ -423,6 +499,12 @@ export const useChatStore = create<ChatState>()(
                   sending: false,
                   conversations: failPendingToolCalls(s.conversations, convId, "已中断"),
                 }));
+                if (code === "AI_SESSION_EXPIRED") {
+                  get().archiveAllAndStartNew(
+                    "session_expired",
+                    `AI 会话已失效：${err}`
+                  );
+                }
               },
             });
           } catch (e) {
@@ -474,21 +556,37 @@ export const useChatStore = create<ChatState>()(
       // v1：errorDetectEnabled 默认从开改关。v0 时代默认值 true 会随持久化写盘，
       // 旧值无法区分「用户意愿」还是「默认值快照」，迁移时一次性删除让新默认接管；
       // v1 起用户手动开启的值正常持久化，不再被重置。
-      version: 1,
+      version: 2,
       migrate: (persisted, version) => {
         if (version < 1 && persisted && typeof persisted === "object") {
           delete (persisted as Record<string, unknown>).errorDetectEnabled;
         }
+        // 归档与新建空白对话统一在 merge 的 restoreChatState 做，此处只做字段级迁移
         return persisted as PersistedChatState;
       },
-      // sessionId 不持久化：后端 session 在内存，重启即失，每次启动重新建会话
+      // sessionId 不持久化：后端 session 在内存，重启即失，每次启动重新建会话。
+      // contextStatus 保留真实值：merge 靠它区分「上次有活动对话被归档」（弹横幅
+      // 解释一次）与「全是老历史」（安静启动）——写盘时强制 history 会丢掉该信息
       partialize: (s): PersistedChatState => ({
-        conversations: s.conversations.map((c) => ({ ...c, sessionId: undefined })),
+        conversations: s.conversations
+          .filter((c) => c.messages.length > 0)
+          .map((c) => ({ ...c, sessionId: undefined })),
         currentId: s.currentId,
         agentId: s.agentId,
         cmdHistory: s.cmdHistory,
         errorDetectEnabled: s.errorDetectEnabled,
       }),
+      merge: (persisted, current) => {
+        const p = persisted as PersistedChatState | undefined;
+        const hadActive = (p?.conversations ?? []).some(
+          (c) => c.messages.length > 0 && c.contextStatus !== "history"
+        );
+        return {
+          ...current,
+          ...restoreChatState(p),
+          sessionNotice: hadActive ? "应用已重新启动，原对话已转为历史" : null,
+        };
+      },
     }
   )
 );

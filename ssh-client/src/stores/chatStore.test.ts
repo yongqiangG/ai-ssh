@@ -36,6 +36,7 @@ beforeEach(() => {
     agentsError: null,
     thinkingEnabled: false,
     errorDetectEnabled: false,
+    sessionNotice: null,
   });
 });
 
@@ -128,6 +129,114 @@ describe("chatStore", () => {
     expect(raw).toBeTruthy();
     const parsed = JSON.parse(raw as string);
     expect(parsed.state.conversations).toHaveLength(1);
+  });
+
+  it("归档全部活动对话时保留非空历史、移除空对话并创建新会话", () => {
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "active-with-message",
+          title: "活动对话",
+          agentId: "general",
+          contextStatus: "active",
+          messages: [{ id: "m1", role: "user", content: "旧问题", timestamp: 1 }],
+          createdAt: 1,
+          sessionId: "session-1",
+        },
+        {
+          id: "empty",
+          title: "新对话",
+          agentId: "general",
+          contextStatus: "active",
+          messages: [],
+          createdAt: 2,
+        },
+      ],
+      currentId: "active-with-message",
+    });
+
+    useChatStore
+      .getState()
+      .archiveAllAndStartNew("model_reloaded", "模型配置已更新");
+
+    const state = useChatStore.getState();
+    const current = state.conversations.find((c) => c.id === state.currentId)!;
+    const history = state.conversations.find((c) => c.id === "active-with-message")!;
+    expect(current.contextStatus).toBe("active");
+    expect(current.messages).toHaveLength(0);
+    expect(history.contextStatus).toBe("history");
+    expect(history.historyReason).toBe("model_reloaded");
+    expect(history.sessionId).toBeUndefined();
+    expect(state.conversations.some((c) => c.id === "empty")).toBe(false);
+    expect(state.sessionNotice).toBe("模型配置已更新");
+  });
+
+  it("只读历史会话拒绝发送消息", async () => {
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "history",
+          title: "历史",
+          agentId: "general",
+          contextStatus: "history",
+          messages: [{ id: "m1", role: "user", content: "旧问题", timestamp: 1 }],
+          createdAt: 1,
+        },
+      ],
+      currentId: "history",
+    });
+
+    const before = vi.mocked(streamChat).mock.calls.length;
+    await useChatStore.getState().sendMessage("不应发送");
+
+    expect(vi.mocked(streamChat).mock.calls.length).toBe(before);
+    expect(useChatStore.getState().conversations[0].messages).toHaveLength(1);
+  });
+
+  it("冷启动把持久化对话作为历史加载并选中新空白会话", async () => {
+    localStorage.setItem(
+      "ai-ssh:chat",
+      JSON.stringify({
+        state: {
+          conversations: [
+            {
+              id: "persisted",
+              title: "旧对话",
+              agentId: "general",
+              contextStatus: "active",
+              messages: [{ id: "m1", role: "user", content: "旧问题", timestamp: 1 }],
+              createdAt: 1,
+              sessionId: "must-not-survive",
+            },
+            {
+              id: "persisted-empty",
+              title: "新对话",
+              agentId: "general",
+              contextStatus: "active",
+              messages: [],
+              createdAt: 2,
+            },
+          ],
+          currentId: "persisted",
+          agentId: "general",
+          cmdHistory: [],
+          errorDetectEnabled: false,
+        },
+        version: 2,
+      })
+    );
+
+    await useChatStore.persist.rehydrate();
+
+    const state = useChatStore.getState();
+    const current = state.conversations.find((c) => c.id === state.currentId)!;
+    const history = state.conversations.find((c) => c.id === "persisted")!;
+    expect(current.contextStatus).toBe("active");
+    expect(current.messages).toHaveLength(0);
+    expect(history.contextStatus).toBe("history");
+    expect(history.historyReason).toBe("app_restarted");
+    expect(history.sessionId).toBeUndefined();
+    expect(state.conversations.some((c) => c.id === "persisted-empty")).toBe(false);
   });
 });
 
@@ -269,6 +378,110 @@ describe("写命令确认 fail-safe（confirm_request 与 tool_call 乱序）", 
     expect(toolCalls).toHaveLength(1);
     expect(toolCalls[0].status).toBe("pending_confirm");
     expect(toolCalls[0].confirmId).toBe("c1");
+  });
+});
+
+describe("归档清理与冷启动横幅", () => {
+  it("归档时把 running / pending_confirm 命令块置为 error，历史不携带进行中状态", () => {
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "with-zombie",
+          title: "带僵尸块",
+          agentId: "general",
+          contextStatus: "active",
+          messages: [
+            {
+              id: "m1",
+              role: "assistant",
+              content: "",
+              timestamp: 1,
+              toolCalls: [
+                { toolCallId: "t1", toolName: "executeCommand", status: "running" },
+                {
+                  toolCallId: "t2",
+                  toolName: "executeCommand",
+                  status: "pending_confirm",
+                  confirmId: "c1",
+                },
+                { toolCallId: "t3", toolName: "executeCommand", status: "success" },
+              ],
+            },
+          ],
+          createdAt: 1,
+        },
+      ],
+      currentId: "with-zombie",
+    });
+
+    useChatStore.getState().archiveAllAndStartNew("app_restarted", "已重启");
+
+    const history = useChatStore
+      .getState()
+      .conversations.find((c) => c.id === "with-zombie")!;
+    const toolCalls = history.messages[0].toolCalls!;
+    expect(toolCalls[0].status).toBe("error");
+    expect(toolCalls[0].output).toBe("已随会话归档中断");
+    expect(toolCalls[1].status).toBe("error");
+    expect(toolCalls[1].confirmId).toBeUndefined();
+    expect(toolCalls[2].status).toBe("success");
+  });
+
+  it("上次存在活动对话时冷启动弹横幅，全是老历史时安静启动", async () => {
+    const conv = (id: string, contextStatus: "active" | "history") => ({
+      id,
+      title: id,
+      agentId: "general",
+      contextStatus,
+      messages: [{ id: `${id}-m`, role: "user", content: "问", timestamp: 1 }],
+      createdAt: 1,
+    });
+    const persist = (conversations: unknown[]) =>
+      localStorage.setItem(
+        "ai-ssh:chat",
+        JSON.stringify({
+          state: {
+            conversations,
+            currentId: null,
+            agentId: "general",
+            cmdHistory: [],
+            errorDetectEnabled: false,
+          },
+          version: 2,
+        })
+      );
+
+    persist([conv("was-active", "active")]);
+    await useChatStore.persist.rehydrate();
+    expect(useChatStore.getState().sessionNotice).toContain("应用已重新启动");
+
+    persist([conv("old-history", "history")]);
+    await useChatStore.persist.rehydrate();
+    expect(useChatStore.getState().sessionNotice).toBeNull();
+  });
+});
+
+describe("后端会话失效恢复", () => {
+  it("AI_SESSION_EXPIRED 会归档全部活动对话且不自动重发", async () => {
+    vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {
+      const o = opts as Record<string, (...args: unknown[]) => void>;
+      o.onError?.("AI 服务已重启", "AI_SESSION_EXPIRED");
+      return () => {};
+    });
+
+    const callsBefore = vi.mocked(streamChat).mock.calls.length;
+    await useChatStore.getState().sendMessage("不要自动重发");
+
+    const state = useChatStore.getState();
+    const current = state.conversations.find((c) => c.id === state.currentId)!;
+    const history = state.conversations.find((c) => c.contextStatus === "history")!;
+    expect(current.contextStatus).toBe("active");
+    expect(current.messages).toHaveLength(0);
+    expect(history.messages[0].content).toBe("不要自动重发");
+    expect(history.historyReason).toBe("session_expired");
+    expect(state.sessionNotice).toContain("AI 服务已重启");
+    // mock 计数跨测试累计，只断言本次恰好发起 1 次（无自动重发）
+    expect(vi.mocked(streamChat).mock.calls.length).toBe(callsBefore + 1);
   });
 });
 

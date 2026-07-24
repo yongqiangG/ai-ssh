@@ -4,6 +4,7 @@ import EmptyState from "../components/EmptyState";
 import MessageBubble from "../components/MessageBubble";
 import ChatInputBar from "../components/ChatInputBar";
 import LlmSettingsModal from "../components/LlmSettingsModal";
+import Mascot from "../components/Mascot";
 import { useChatStore } from "../stores/chatStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useTerminalStore } from "../stores/terminalStore";
@@ -21,10 +22,15 @@ export default function ChatPanel() {
   const agents = useChatStore((s) => s.agents);
   const agentsError = useChatStore((s) => s.agentsError);
   const loadAgents = useChatStore((s) => s.loadAgents);
+  const sessionNotice = useChatStore((s) => s.sessionNotice);
+  const clearSessionNotice = useChatStore((s) => s.clearSessionNotice);
+  const newConversation = useChatStore((s) => s.newConversation);
 
   // agents 为空时区分「未配置模型」与「加载失败」：查一次 llm-config
   // （启动门保证挂载即后端就绪，无需再看 readyStatus）
-  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(
+    null,
+  );
   useEffect(() => {
     if (agents.length > 0) return;
     let cancelled = false;
@@ -46,16 +52,24 @@ export default function ChatPanel() {
   const terminalActiveId = useTerminalStore((s) => s.activeId);
   useTerminalStore((s) => s.tabs);
   const terminalBound = Boolean(
-    terminalActiveId && getTerminalSessionId(terminalActiveId)
+    terminalActiveId && getTerminalSessionId(terminalActiveId),
   );
   const setActiveSidebarView = useLayoutStore((s) => s.setActiveSidebarView);
   const setShowSidebar = useLayoutStore((s) => s.setShowSidebar);
+  const setShowTerminal = useLayoutStore((s) => s.setShowTerminal);
+  const setCenterView = useLayoutStore((s) => s.setCenterView);
+  const pulseAttention = useLayoutStore((s) => s.pulseAttention);
   const gotoConnections = useCallback(() => {
     setShowSidebar(true);
+    setShowTerminal(true);
+    setCenterView("terminal");
     setActiveSidebarView("servers");
-  }, [setShowSidebar, setActiveSidebarView]);
+    // 各面板本就展开时上面四个写入全幂等，脉冲是唯一可见反馈
+    pulseAttention("servers");
+  }, [setActiveSidebarView, setCenterView, setShowSidebar, setShowTerminal, pulseAttention]);
 
   const current = conversations.find((c) => c.id === currentId) ?? null;
+  const isHistoryConversation = current?.contextStatus === "history";
   const allMessages = current?.messages ?? [];
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -95,7 +109,9 @@ export default function ChatPanel() {
 
   // 流式时同一条 assistant 消息 content 增长，借此触发滚动
   const lastContent =
-    visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].content : "";
+    visibleMessages.length > 0
+      ? visibleMessages[visibleMessages.length - 1].content
+      : "";
   // 流式时仅在用户没上滚时自动到底（方案1：AI 回复时可上滚查看历史）
   useEffect(() => {
     if (!userScrolledUpRef.current) scrollToEnd();
@@ -120,7 +136,9 @@ export default function ChatPanel() {
   return (
     <section className="panel">
       <div className="panel-header">
-        <span className="panel-title">{current ? current.title : "AI 对话"}</span>
+        <span className="panel-title">
+          {current ? current.title : "AI 对话"}
+        </span>
         <div className="panel-actions">
           <button
             type="button"
@@ -139,7 +157,7 @@ export default function ChatPanel() {
             >
               {conversations.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.title || "新对话"}
+                  {c.title || "新对话"}{c.contextStatus === "history" ? "（历史）" : ""}
                 </option>
               ))}
             </select>
@@ -148,6 +166,27 @@ export default function ChatPanel() {
       </div>
 
       <div className="panel-body" ref={scrollRef} onScroll={onScroll}>
+        {sessionNotice && (
+          <div className={styles.sessionNotice}>
+            <Mascot mood="thinking" size={40} />
+            <div className={styles.sessionNoticeBody}>
+              <div className={styles.sessionNoticeTitle}>{sessionNotice}</div>
+              <div className={styles.sessionNoticeHint}>
+                历史会话暂不支持继续对话，上下文恢复正在加速适配中。
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                clearSessionNotice();
+                newConversation();
+              }}
+            >
+              新建对话
+            </button>
+          </div>
+        )}
         {agents.length === 0 && apiKeyConfigured === false ? (
           <EmptyState
             icon="bot"
@@ -180,7 +219,12 @@ export default function ChatPanel() {
           <div className={styles.messageList}>
             {visibleMessages.map((m) => (
               // 仅对正在流式返回的 AI 消息显示末尾光标；内容按服务端 chunk 即时渲染。
-              <MessageBubble key={m.id} message={m} animate={sending && m.id === freshId} onContentGrow={onContentGrow} />
+              <MessageBubble
+                key={m.id}
+                message={m}
+                animate={sending && m.id === freshId}
+                onContentGrow={onContentGrow}
+              />
             ))}
             {showTyping && (
               <div className={styles.typingRow}>
@@ -200,18 +244,33 @@ export default function ChatPanel() {
       </div>
 
       {!terminalBound && (
-        <div
+        <button
+          type="button"
           className={styles.terminalHint}
           onClick={gotoConnections}
-          role="button"
           title="点击打开连接面板"
         >
           <Icon name="alert" size={14} className={styles.terminalHintIcon} />
           未连接终端，AI 无法执行命令——纯问答不受影响，点击此处连接服务器
-        </div>
+        </button>
       )}
-      <ChatInputBar />
-      <LlmSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {isHistoryConversation ? (
+        <div className={styles.historyFooter}>
+          <div className={styles.historyFooterBody}>
+            <div className={styles.historyFooterTitle}>历史会话暂不支持继续对话</div>
+            <div className={styles.historyFooterHint}>上下文恢复正在加速适配中</div>
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={newConversation}>
+            新建对话
+          </button>
+        </div>
+      ) : (
+        <ChatInputBar />
+      )}
+      <LlmSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </section>
   );
 }

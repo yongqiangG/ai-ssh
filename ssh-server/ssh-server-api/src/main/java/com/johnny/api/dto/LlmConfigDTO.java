@@ -16,4 +16,7 @@ public class LlmConfigDTO {
     private String model;
     private String completionsPath;
     private Boolean apiKeyConfigured;
+    private Boolean configChanged;
+    private Boolean runnerReloadRequired;
+    private Boolean runnerRebuilt;
 }

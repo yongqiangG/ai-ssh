@@ -1,6 +1,7 @@
 package com.johnny.infrastructure.adapter.service;
 
 import com.johnny.domain.agent.model.LlmConfigEntity;
+import com.johnny.domain.agent.model.LlmConfigSaveResult;
 import com.johnny.domain.agent.service.ILlmConfigService;
 import com.johnny.domain.ssh.adapter.port.ISecretCipher;
 import com.johnny.infrastructure.dao.ILlmConfigDao;
@@ -42,7 +43,7 @@ public class LlmConfigService implements ILlmConfigService {
     }
 
     @Override
-    public LlmConfigEntity saveDefaultConfig(LlmConfigEntity config, boolean keepExistingApiKey) {
+    public LlmConfigSaveResult saveDefaultConfig(LlmConfigEntity config, boolean keepExistingApiKey) {
         LlmConfigEntity current = getDefaultConfig();
         String apiKey = keepExistingApiKey && StringUtils.isBlank(config.getApiKey())
                 ? current.getApiKey()
@@ -56,13 +57,38 @@ public class LlmConfigService implements ILlmConfigService {
                 .completionsPath(StringUtils.defaultIfBlank(config.getCompletionsPath(), defaultCompletionsPath))
                 .build();
 
-        LlmConfigPO po = toPO(normalized);
-        if (llmConfigDao.queryByConfigId(LlmConfigEntity.DEFAULT_CONFIG_ID) == null) {
-            llmConfigDao.insert(po);
-        } else {
-            llmConfigDao.update(po);
+        boolean configChanged = !sameConfig(current, normalized);
+        boolean runnerReloadRequired = configChanged
+                && (changed(current.getBaseUrl(), normalized.getBaseUrl())
+                || changed(current.getModel(), normalized.getModel())
+                || changed(current.getCompletionsPath(), normalized.getCompletionsPath())
+                || changed(current.getApiKey(), normalized.getApiKey()));
+
+        if (configChanged) {
+            LlmConfigPO po = toPO(normalized);
+            if (llmConfigDao.queryByConfigId(LlmConfigEntity.DEFAULT_CONFIG_ID) == null) {
+                llmConfigDao.insert(po);
+            } else {
+                llmConfigDao.update(po);
+            }
         }
-        return normalized;
+        return LlmConfigSaveResult.builder()
+                .config(normalized)
+                .configChanged(configChanged)
+                .runnerReloadRequired(runnerReloadRequired)
+                .build();
+    }
+
+    private boolean sameConfig(LlmConfigEntity left, LlmConfigEntity right) {
+        return !changed(left.getProviderName(), right.getProviderName())
+                && !changed(left.getBaseUrl(), right.getBaseUrl())
+                && !changed(left.getApiKey(), right.getApiKey())
+                && !changed(left.getModel(), right.getModel())
+                && !changed(left.getCompletionsPath(), right.getCompletionsPath());
+    }
+
+    private boolean changed(String left, String right) {
+        return !StringUtils.equals(left, right);
     }
 
     private LlmConfigEntity defaultConfig(String apiKey) {

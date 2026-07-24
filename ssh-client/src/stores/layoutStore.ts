@@ -30,6 +30,11 @@ interface LayoutState {
   activeSidebarView: SidebarView;
   /** 中间工作区当前视图（终端 / SFTP）。 */
   centerView: CenterView;
+  /**
+   * 一次性注意力信号（不持久化）：跳转目标面板本就展开时，四个 layout 写入
+   * 全幂等、界面零变化，「点了没反应」——由目标面板消费此信号播高亮脉冲后自清。
+   */
+  attentionPulse: "servers" | null;
 
   setLeftWidth: (w: number) => void;
   setRightWidth: (w: number) => void;
@@ -52,6 +57,10 @@ interface LayoutState {
   setActiveSidebarView: (v: SidebarView) => void;
   /** 切换中间工作区视图（终端 ⇄ SFTP） */
   setCenterView: (v: CenterView) => void;
+  /** 请求目标面板播一次注意力脉冲（chat 未连接卡片跳转时用） */
+  pulseAttention: (target: "servers") => void;
+  /** 目标面板播完脉冲后自清 */
+  clearAttentionPulse: () => void;
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -68,6 +77,7 @@ export const useLayoutStore = create<LayoutState>()(
       showAiPanel: true,
       activeSidebarView: "servers",
       centerView: "terminal",
+      attentionPulse: null,
 
       setLeftWidth: (w) =>
         set({ leftWidth: clamp(w, MIN_LEFT_WIDTH, MAX_LEFT_WIDTH) }),
@@ -89,6 +99,8 @@ export const useLayoutStore = create<LayoutState>()(
       setShowAiPanel: (v) => set({ showAiPanel: v }),
       setActiveSidebarView: (v) => set({ activeSidebarView: v }),
       setCenterView: (v) => set({ centerView: v }),
+      pulseAttention: (target) => set({ attentionPulse: target }),
+      clearAttentionPulse: () => set({ attentionPulse: null }),
     }),
     {
       name: "ai-ssh:layout",
