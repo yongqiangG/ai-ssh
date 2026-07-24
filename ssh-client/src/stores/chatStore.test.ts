@@ -241,6 +241,10 @@ describe("chatStore", () => {
 });
 
 describe("深度思考开关（会话内粘滞）", () => {
+  it("默认开启（SSH 运维场景偏复杂，答错代价高于等待）", () => {
+    expect(useChatStore.getInitialState().thinkingEnabled).toBe(true);
+  });
+
   it("开启后发送消息不再自动回落，仍保持开启", async () => {
     useChatStore.setState({ thinkingEnabled: true });
     await useChatStore.getState().sendMessage("复杂问题");

@@ -22,7 +22,9 @@ interface ChatState {
   /** 下一条消息使用的智能体 */
   agentId: string;
   sending: boolean;
-  /** 深度思考开关（会话内粘滞：保持到用户手动关闭；不持久化，重启回默认关） */
+  /** 深度思考开关（默认开：SSH 运维场景偏复杂、答错代价高于等待；会话内粘滞：
+   *  手动关掉后保持到会话结束；不持久化，重启回默认开。推翻 260723 默认关决议，
+   *  见 docs/situations/260723-ux-thinking-confirm.md 补录 */
   thinkingEnabled: boolean;
   /** 本次会话内「刚到达」的 AI 消息 id（不持久化） */
   freshId: string | null;
@@ -191,7 +193,7 @@ export const useChatStore = create<ChatState>()(
         currentId: null,
         agentId: "",
         sending: false,
-        thinkingEnabled: false,
+        thinkingEnabled: true,
         freshId: null,
         cmdHistory: [],
         quote: null,
