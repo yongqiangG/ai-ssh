@@ -98,10 +98,20 @@ export default function ChatPanel() {
   // sending 中尾部「空 assistant 占位消息」（content 还没被流式填充）不单独渲染气泡，
   // 改用 typing 动画代替——避免占位气泡与 typing 行各显示一个头像（双头像问题）。
   // 一旦流式填入 content，占位消息正常显示，typing 隐藏。全程单头像。
+  // ⚠️ 隐藏条件必须限定「真正的空占位」：模型可能不吐前置文本直接调工具
+  // （deepseek 常见），此时消息虽无 content 但携带确认卡/命令块/思维链——
+  // 隐藏它会让用户面对 typing 三个点却无处可点，后端 ConfirmGate 挂到
+  // 120s 超时（曾致「拒绝后后续对话全无响应」的假死）
   const visibleMessages = allMessages.slice();
   if (sending && visibleMessages.length > 0) {
     const last = visibleMessages[visibleMessages.length - 1];
-    if (last.role === "assistant" && !last.content) visibleMessages.pop();
+    const isBlankPlaceholder =
+      last.role === "assistant" &&
+      !last.content &&
+      !last.reasoning &&
+      !last.errorText &&
+      !(last.toolCalls && last.toolCalls.length > 0);
+    if (isBlankPlaceholder) visibleMessages.pop();
   }
   // typing 仅在「等待 AI 首字」时显示：sending 且最后可见消息是 user（尚无 assistant 回复）
   const lastVisible = visibleMessages[visibleMessages.length - 1];

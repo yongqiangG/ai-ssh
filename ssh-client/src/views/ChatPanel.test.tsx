@@ -61,6 +61,62 @@ describe("ChatPanel terminal hint", () => {
   });
 });
 
+describe("流式期间空占位隐藏的边界（confirm 假死回归）", () => {
+  const baseConv = (messages: unknown[]) => ({
+    conversations: [
+      {
+        id: "conv",
+        title: "对话",
+        agentId: "general",
+        contextStatus: "active" as const,
+        messages,
+        createdAt: 1,
+      },
+    ],
+    currentId: "conv",
+    sending: true,
+  });
+
+  it("sending 中无 content 但带待确认命令块的消息必须可见可点", () => {
+    useChatStore.setState(
+      baseConv([
+        { id: "u1", role: "user", content: "重启 nginx", timestamp: 1 },
+        {
+          id: "a1",
+          role: "assistant",
+          content: "",
+          timestamp: 2,
+          toolCalls: [
+            {
+              toolCallId: "t1",
+              toolName: "executeCommand",
+              command: "systemctl restart nginx",
+              status: "pending_confirm",
+              confirmId: "c1",
+            },
+          ],
+        },
+      ]) as never
+    );
+    render(<ChatPanel />);
+
+    expect(screen.getByRole("button", { name: "允许执行" })).toBeTruthy();
+  });
+
+  it("sending 中真正的空占位仍隐藏（双头像保护不回退）", () => {
+    useChatStore.setState(
+      baseConv([
+        { id: "u1", role: "user", content: "你好", timestamp: 1 },
+        { id: "a1", role: "assistant", content: "", timestamp: 2 },
+      ]) as never
+    );
+    render(<ChatPanel />);
+
+    // 空占位隐藏后，最后可见消息是 user → 只有 typing，无 assistant 气泡
+    expect(screen.queryByRole("button", { name: "允许执行" })).toBeNull();
+  });
+});
+
 describe("ChatPanel history footer", () => {
   it("历史会话隐藏输入框、展示只读提示并可一键新建对话", () => {
     useChatStore.setState({
