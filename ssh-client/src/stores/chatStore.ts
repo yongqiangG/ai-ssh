@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type { Agent, ChatMessage, Conversation, ToolCall } from "../types";
 import { createId } from "../utils/id";
 import { confirmDecision, createSession, queryAgents, streamChat } from "../api/chat";
+import { humanizeClientError } from "../utils/llmError";
 import { getRecentOutput, getTerminalSessionId } from "../terminal/terminalManager";
 import { sanitizeTerminalContext } from "../utils/sanitize";
 import { useTerminalStore } from "./terminalStore";
@@ -62,6 +63,8 @@ interface ChatState {
   setAgent: (id: string) => void;
   toggleThinking: () => void;
   sendMessage: (text: string) => Promise<void>;
+  /** 手动重试失败的 AI 回复：删除失败消息对后走标准 sendMessage 全流程（不自动重发） */
+  retryMessage: (messageId: string) => Promise<void>;
   /** 写操作确认决定（B1）：调 confirm 端点唤醒后端，本地把命令块转回执行态 */
   decideConfirm: (confirmId: string, allow: boolean) => Promise<void>;
   /** 中止当前流式请求（ChatInputBar 停止按钮调用；running 命令块标为已停止） */
@@ -351,10 +354,14 @@ export const useChatStore = create<ChatState>()(
             }));
           }
 
-          const failMsg = (msg: string) =>
+          const failMsg = (msg: string, code?: string) =>
             updateMessage(convId!, assistantId, (m) => ({
               ...m,
-              content: m.content || `调用失败：${msg}`,
+              // 后端带 code 时 msg 已是人话；否则是 fetch 层错误做兜底翻译。
+              // content 保留可能的半截回复，错误条独立渲染；?? 保证流断的
+              // 第二次 onError 不覆盖首个错误
+              errorText: m.errorText ?? (code ? msg : humanizeClientError(msg)),
+              errorCode: m.errorCode ?? code,
             }));
 
           try {
@@ -495,7 +502,7 @@ export const useChatStore = create<ChatState>()(
               },
               onError: (err, code) => {
                 abortRef = null;
-                failMsg(err);
+                failMsg(err, code);
                 // 断流后清理残留命令块（与 stop 同语义），避免确认卡悬挂可点
                 set((s) => ({
                   sending: false,
@@ -513,6 +520,34 @@ export const useChatStore = create<ChatState>()(
             failMsg(errMsg(e));
             set({ sending: false });
           }
+        },
+
+        retryMessage: async (messageId) => {
+          if (get().sending) return;
+          const conv = get().conversations.find((c) => c.id === get().currentId);
+          if (!conv || conv.contextStatus === "history") return;
+          const idx = conv.messages.findIndex((m) => m.id === messageId);
+          if (idx < 0 || !conv.messages[idx].errorText) return;
+          const userMsg = conv.messages[idx - 1];
+          if (!userMsg || userMsg.role !== "user") return;
+          // 删除失败消息对 + 复原引用块，走标准 sendMessage 全流程；
+          // 终端上下文按当前开关重取（不复刻失败时快照），主发送路径零改动
+          set((s) => ({
+            conversations: s.conversations.map((c) =>
+              c.id === conv.id
+                ? {
+                    ...c,
+                    messages: c.messages.filter(
+                      (m) => m.id !== messageId && m.id !== userMsg.id
+                    ),
+                  }
+                : c
+            ),
+            quote: userMsg.quote
+              ? { text: userMsg.quote, source: "selection" as const }
+              : s.quote,
+          }));
+          await get().sendMessage(userMsg.content);
         },
 
         decideConfirm: async (confirmId, allow) => {

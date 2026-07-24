@@ -100,6 +100,7 @@ public class AiCallNode extends AbstractReActSupport {
 
         boolean hasError = false;
         String errorMsg = null;
+        Throwable errorCause = null;
         boolean sessionExpired = false;
         Iterator<Event> events = null;
 
@@ -162,6 +163,7 @@ public class AiCallNode extends AbstractReActSupport {
             log.error("ADK Runner 调用失败", e);
             hasError = true;
             errorMsg = e.getMessage();
+            errorCause = e;
             sessionExpired = isSessionExpired(e);
         } finally {
             // 取消/异常时上游 Flowable 可能仍在生产（LLM 流 + 工具编排）——
@@ -198,8 +200,11 @@ public class AiCallNode extends AbstractReActSupport {
                 sendErrorEvent(ctx, "AI_SESSION_EXPIRED", "AI 会话已失效，请在新会话中继续");
                 ctx.getEmitter().complete();
             } else {
-                sendErrorEvent(ctx, errorMsg);
-                ctx.getEmitter().completeWithError(new RuntimeException(errorMsg));
+                // 原始异常串只进日志（catch 处已 log.error）；用户拿到人话 + 指引动作，
+                // 前端按 code 决定是否给「重试」按钮
+                LlmErrorHumanizer.Result human = LlmErrorHumanizer.humanize(errorCause);
+                sendErrorEvent(ctx, human.code(), human.message());
+                ctx.getEmitter().completeWithError(new RuntimeException(human.message()));
             }
         } else {
             // totalToolCalls：round_end 前端不渲染（chat.ts 忽略 round_end），传 0 不影响闭环

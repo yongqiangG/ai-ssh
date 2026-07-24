@@ -25,6 +25,10 @@ export interface ChatMessage {
   quote?: string;
   /** 仅 user 消息：随消息附带的终端上下文行数（F3；正文不进气泡，仅显示小标签） */
   contextLines?: number;
+  /** 仅 assistant 消息：调用失败的人话提示（存在即失败；content 保留可能的半截回复） */
+  errorText?: string;
+  /** 仅 assistant 消息：失败机器码（LLM_* / AI_SESSION_EXPIRED），决定是否显示重试按钮 */
+  errorCode?: string;
 }
 
 export interface Conversation {

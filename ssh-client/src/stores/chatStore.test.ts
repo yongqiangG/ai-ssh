@@ -465,6 +465,84 @@ describe("归档清理与冷启动横幅", () => {
   });
 });
 
+describe("调用失败人话提示与手动重试", () => {
+  it("onError 写入 errorText/errorCode，半截回复保留在 content", async () => {
+    vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {
+      const o = opts as Record<string, (...args: unknown[]) => void>;
+      o.onText?.("已经回复了一半");
+      o.onError?.("与模型服务的连接中断，请重试", "LLM_CONNECTION_LOST");
+      return () => {};
+    });
+
+    await useChatStore.getState().sendMessage("查看磁盘");
+
+    const msg = useChatStore.getState().conversations[0].messages[1];
+    expect(msg.content).toBe("已经回复了一半");
+    expect(msg.errorText).toBe("与模型服务的连接中断，请重试");
+    expect(msg.errorCode).toBe("LLM_CONNECTION_LOST");
+  });
+
+  it("重试删除失败消息对后重新发起，不产生重复消息", async () => {
+    vi.mocked(streamChat)
+      .mockImplementationOnce((opts: unknown) => {
+        const o = opts as Record<string, (...args: unknown[]) => void>;
+        o.onError?.("模型响应超时，请重试", "LLM_TIMEOUT");
+        return () => {};
+      })
+      .mockImplementationOnce((opts: unknown) => {
+        const o = opts as Record<string, (...args: unknown[]) => void>;
+        o.onText?.("重试成功的回复");
+        o.onDone?.("重试成功的回复");
+        return () => {};
+      });
+
+    await useChatStore.getState().sendMessage("查看内存");
+    const convId = useChatStore.getState().currentId!;
+    const failed = useChatStore
+      .getState()
+      .conversations.find((c) => c.id === convId)!.messages[1];
+    expect(failed.errorText).toBeTruthy();
+
+    await useChatStore.getState().retryMessage(failed.id);
+
+    const conv = useChatStore.getState().conversations.find((c) => c.id === convId)!;
+    expect(conv.messages).toHaveLength(2);
+    expect(conv.messages[0].content).toBe("查看内存");
+    expect(conv.messages[1].content).toBe("重试成功的回复");
+    expect(conv.messages[1].errorText).toBeUndefined();
+  });
+
+  it("历史会话与非失败消息不可重试", async () => {
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "history",
+          title: "历史",
+          agentId: "general",
+          contextStatus: "history",
+          messages: [
+            { id: "u1", role: "user", content: "旧问题", timestamp: 1 },
+            {
+              id: "a1",
+              role: "assistant",
+              content: "",
+              timestamp: 2,
+              errorText: "失败",
+              errorCode: "LLM_TIMEOUT",
+            },
+          ],
+          createdAt: 1,
+        },
+      ],
+      currentId: "history",
+    });
+
+    const before = vi.mocked(streamChat).mock.calls.length;
+    await useChatStore.getState().retryMessage("a1");
+    expect(vi.mocked(streamChat).mock.calls.length).toBe(before);
+  });
+});
+
 describe("后端会话失效恢复", () => {
   it("AI_SESSION_EXPIRED 会归档全部活动对话且不自动重发", async () => {
     vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {

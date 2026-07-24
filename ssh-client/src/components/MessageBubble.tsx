@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../types";
+import { useChatStore } from "../stores/chatStore";
+import { isRetryableLlmError } from "../utils/llmError";
 import CommandBlock from "./CommandBlock";
 import Icon from "./Icon";
 import MarkdownContent from "./MarkdownContent";
@@ -57,6 +59,7 @@ export default function MessageBubble({
               <CommandBlock key={tc.toolCallId} call={tc} />
             ))}
           {isUser ? message.content : <MarkdownContent content={message.content} />}
+          {!isUser && message.errorText && <ErrorBar message={message} />}
           {typing && <span className={styles.caret} />}
           {isUser && message.contextLines != null && (
             <span className={styles.contextTag}>
@@ -65,6 +68,36 @@ export default function MessageBubble({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 调用失败错误条：人话提示（后端 LlmErrorHumanizer / 前端 fetch 层兜底）+
+ * 条件性重试按钮——可重试 code 且会话非历史时显示；重试删除失败消息对后
+ * 走标准 sendMessage（手动触发，不违反「不自动重发」决议）。
+ */
+function ErrorBar({ message }: { message: ChatMessage }) {
+  const sending = useChatStore((s) => s.sending);
+  const isHistory = useChatStore(
+    (s) => s.conversations.find((c) => c.id === s.currentId)?.contextStatus === "history"
+  );
+  const retryMessage = useChatStore((s) => s.retryMessage);
+  const canRetry = isRetryableLlmError(message.errorCode) && !isHistory;
+  return (
+    <div className={styles.errorBar}>
+      <Icon name="alert" size={13} className={styles.errorIcon} />
+      <span className={styles.errorText}>{message.errorText}</span>
+      {canRetry && (
+        <button
+          type="button"
+          className={styles.retryBtn}
+          disabled={sending}
+          onClick={() => void retryMessage(message.id)}
+        >
+          <Icon name="refresh" size={11} /> 重试
+        </button>
+      )}
     </div>
   );
 }
