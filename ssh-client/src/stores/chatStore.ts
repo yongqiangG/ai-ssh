@@ -554,10 +554,7 @@ export const useChatStore = create<ChatState>()(
         },
 
         decideConfirm: async (confirmId, allow) => {
-          try {
-            await confirmDecision(confirmId, allow);
-          } finally {
-            // 本地把匹配的命令块转回执行态；拒绝时后端随即发 tool_result=error 覆盖为终态
+          const updateByConfirmId = (fn: (tc: ToolCall) => ToolCall) =>
             set((s) => ({
               conversations: s.conversations.map((c) => ({
                 ...c,
@@ -566,15 +563,36 @@ export const useChatStore = create<ChatState>()(
                     ? {
                         ...m,
                         toolCalls: m.toolCalls.map((tc) =>
-                          tc.confirmId === confirmId
-                            ? { ...tc, status: "running" as const, confirmId: undefined }
-                            : tc
+                          tc.confirmId === confirmId ? fn(tc) : tc
                         ),
                       }
                     : m
                 ),
               })),
             }));
+
+          // 乐观转执行态但保留 confirmId：请求期间确认卡消失（防重复点击），
+          // 失败时凭 confirmId 找回该块恢复待确认。tool_result 先到会清掉
+          // confirmId，此后所有 updateByConfirmId 匹配不中 → 天然幂等不覆盖终态
+          updateByConfirmId((tc) => ({ ...tc, status: "running" as const }));
+          try {
+            const found = await confirmDecision(confirmId, allow);
+            if (found) {
+              // 后端已唤醒：拒绝时随即有 tool_result=error 覆盖终态；允许则等执行结果
+              updateByConfirmId((tc) => ({ ...tc, confirmId: undefined }));
+            } else {
+              // 确认已超时清理/confirmId 无效：后端早按拒绝收尾，对齐终态而不是转圈
+              updateByConfirmId((tc) => ({
+                ...tc,
+                status: "error" as const,
+                confirmId: undefined,
+                output: "确认已过期（等待超过 120 秒），命令未执行",
+              }));
+            }
+          } catch (e) {
+            // 后端没收到决定（网络失败）：恢复待确认，卡片重新可点，绝不假装成功
+            updateByConfirmId((tc) => ({ ...tc, status: "pending_confirm" as const }));
+            console.error("[chatStore] 确认决定发送失败", errMsg(e));
           }
         },
 

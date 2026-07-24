@@ -7,6 +7,7 @@ vi.mock("../api/chat", () => ({
     { id: "ops", name: "运维专家" },
   ]),
   createSession: vi.fn(async () => ({ sessionId: "test-session" })),
+  confirmDecision: vi.fn(async () => true),
   streamChat: vi.fn((opts: {
     agentId: string;
     onText: (t: string) => void;
@@ -23,7 +24,7 @@ vi.mock("../api/chat", () => ({
 }));
 
 import { useChatStore } from "./chatStore";
-import { queryAgents, streamChat } from "../api/chat";
+import { confirmDecision, queryAgents, streamChat } from "../api/chat";
 
 beforeEach(() => {
   localStorage.clear();
@@ -462,6 +463,72 @@ describe("归档清理与冷启动横幅", () => {
     persist([conv("old-history", "history")]);
     await useChatStore.persist.rehydrate();
     expect(useChatStore.getState().sessionNotice).toBeNull();
+  });
+});
+
+describe("确认决定的三种结果", () => {
+  const seedPendingConfirm = () =>
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "conv",
+          title: "对话",
+          agentId: "general",
+          contextStatus: "active",
+          messages: [
+            {
+              id: "a1",
+              role: "assistant",
+              content: "",
+              timestamp: 1,
+              toolCalls: [
+                {
+                  toolCallId: "t1",
+                  toolName: "executeCommand",
+                  command: "rm /tmp/x",
+                  status: "pending_confirm",
+                  confirmId: "c1",
+                },
+              ],
+            },
+          ],
+          createdAt: 1,
+        },
+      ],
+      currentId: "conv",
+    });
+  const block = () =>
+    useChatStore.getState().conversations[0].messages[0].toolCalls![0];
+
+  it("后端确认成功：块转执行态并清 confirmId", async () => {
+    seedPendingConfirm();
+    vi.mocked(confirmDecision).mockResolvedValueOnce(true);
+
+    await useChatStore.getState().decideConfirm("c1", true);
+
+    expect(block().status).toBe("running");
+    expect(block().confirmId).toBeUndefined();
+  });
+
+  it("确认已过期（found=false）：块对齐为 error 终态而不是转圈", async () => {
+    seedPendingConfirm();
+    vi.mocked(confirmDecision).mockResolvedValueOnce(false);
+
+    await useChatStore.getState().decideConfirm("c1", true);
+
+    expect(block().status).toBe("error");
+    expect(block().output).toContain("确认已过期");
+    expect(block().confirmId).toBeUndefined();
+  });
+
+  it("请求发送失败：恢复待确认可再点，绝不假装成功", async () => {
+    seedPendingConfirm();
+    vi.mocked(confirmDecision).mockRejectedValueOnce(new Error("网络断了"));
+
+    await useChatStore.getState().decideConfirm("c1", true);
+
+    expect(block().status).toBe("pending_confirm");
+    expect(block().confirmId).toBe("c1");
   });
 });
 
