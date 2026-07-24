@@ -19,6 +19,12 @@ final class LlmErrorHumanizer {
     static Result humanize(Throwable exception) {
         String haystack = collectText(exception);
 
+        // TIMEOUT 先于 CONNECTION_LOST：WebClient 会把 ReadTimeoutException 包装成
+        // WebClientRequestException，后者是 CONNECTION_LOST 的关键词——顺序反了会误归类
+        if (containsAny(haystack, "timeout", "timed out")) {
+            return new Result("LLM_TIMEOUT",
+                    "模型响应超时，网络或服务繁忙，请重试");
+        }
         if (containsAny(haystack, "eof reached", "connection reset", "connection refused",
                 "webclientrequestexception", "prematureclose", "broken pipe")) {
             return new Result("LLM_CONNECTION_LOST",
@@ -31,10 +37,6 @@ final class LlmErrorHumanizer {
         if (containsAny(haystack, "429", "rate limit", "too many requests", "quota")) {
             return new Result("LLM_RATE_LIMITED",
                     "模型服务限流，稍等片刻再试");
-        }
-        if (containsAny(haystack, "timeout", "timed out")) {
-            return new Result("LLM_TIMEOUT",
-                    "模型响应超时，网络或服务繁忙，请重试");
         }
         if (containsAny(haystack, "404", "model not found", "400", "bad request", "unsupported")) {
             return new Result("LLM_BAD_CONFIG",

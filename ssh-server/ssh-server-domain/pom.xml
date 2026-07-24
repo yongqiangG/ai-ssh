@@ -24,6 +24,13 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
+        <!-- LLM WebClient 的 connector：显式引入 reactor-netty 以配置连接超时 +
+             读空闲超时（ReadTimeoutHandler）。否则 WebClient 落到 docker-java 传递
+             进来的 httpclient5（来源脆弱且无超时），LLM 半死时线程永挂耗尽线程池 -->
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

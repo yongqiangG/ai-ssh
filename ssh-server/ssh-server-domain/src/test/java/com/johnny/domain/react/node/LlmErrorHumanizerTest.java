@@ -42,6 +42,15 @@ public class LlmErrorHumanizerTest {
     }
 
     @Test
+    public void read_idle_timeout_wrapped_by_webclient_is_timeout_not_connection_lost() {
+        // WebClient 把 netty ReadTimeoutException 包装成 WebClientRequestException——
+        // 后者是 CONNECTION_LOST 关键词，必须先按 timeout 归类
+        RuntimeException e = new RuntimeException(
+                "WebClientRequestException: nested exception is io.netty.handler.timeout.ReadTimeoutException");
+        assertEquals("LLM_TIMEOUT", LlmErrorHumanizer.humanize(e).code());
+    }
+
+    @Test
     public void bad_config() {
         RuntimeException e = new RuntimeException("404 Not Found: model not found");
         assertEquals("LLM_BAD_CONFIG", LlmErrorHumanizer.humanize(e).code());
