@@ -169,3 +169,38 @@
 .denyBtn:hover {
   filter: brightness(1.15);
 }
+
+/* 拒绝「熄火」动效：确认条收缩折叠 + 卡片红色脉冲一次，播完（220ms）才 decideConfirm */
+.denyCollapse {
+  animation: denyCollapse 0.22s ease-in forwards;
+  transform-origin: top;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@keyframes denyCollapse {
+  to {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+}
+
+.denyPulse {
+  animation: denyPulse 0.5s ease-out;
+}
+
+@keyframes denyPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .denyCollapse,
+  .denyPulse {
+    animation: none;
+  }
+}
