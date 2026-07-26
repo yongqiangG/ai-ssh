@@ -197,6 +197,7 @@
 
 /* 能量注入口：文本区在上、动作行在下，发送钮是注入口的一部分 */
 .inputRow {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -206,6 +207,27 @@
   padding: 10px 10px 8px 12px;
   transition: border-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
+}
+
+/* 充能液位：底边能量细线随字数生长；发送时改原点向右泄流收束 */
+.chargeLevel {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--energy-flow);
+  box-shadow: 0 0 6px var(--glow-circuit);
+  transform-origin: left;
+  transform: scaleX(0);
+  pointer-events: none;
+  transition: transform 180ms var(--ease-out), opacity 180ms var(--ease-out);
+}
+
+.chargeDrain {
+  transform-origin: right;
+  transition: transform 240ms var(--ease-out), opacity 240ms var(--ease-out);
 }
 
 .inputRow:hover:not(:focus-within) {

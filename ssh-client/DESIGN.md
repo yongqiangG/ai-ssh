@@ -190,6 +190,9 @@ VSCode 式三栏工作台：48px ActivityBar + 可拖左栏（连接管理）+ �
 ### Navigation（ActivityBar 能量轨道）
 - 48px 竖轨，活跃项 volt 染色 + drop-shadow 辉光，指示器为 2px volt→circuit 渐变棒，由 motion layoutId 弹簧滑动（stiffness 520, damping 34）。
 
+### 打字充能（chat 输入框专属）
+能量叙事的开端：录入时光标处溅出 volt/circuit 微火花（删除 = 灰烬下坠），底边充能液位随字数生长，发送瞬间液位向发送钮泄流 + 发送钮吞能闪光。中文 IME 组合期间静默、上屏才溅一簇；粒子并发上限 10、全 WAAPI transform/opacity；`prefers-reduced-motion` 整体关闭。**终端永不加打字特效**（视口零特效红线）——终端只拥有「落点浪涌」这个能量到达时刻。
+
 ### 签名组件：电流传导（flyToTerminal）
 命令确认/手动执行时，命令化作 circuit→volt 渐变脉冲 chip（⚡ 前缀 + 双残影拖尾），三幕 WAAPI 弧线飞向终端，落点 volt 主浪涌 + plasma 余波双 ripple + 面板震动。`prefers-reduced-motion` 或无 WAAPI 时降级为落点单次发光。SFTP 传输条与启动充能条复用同一「能量在流动」隐喻（`--energy-flow-loop` 位移）。
 

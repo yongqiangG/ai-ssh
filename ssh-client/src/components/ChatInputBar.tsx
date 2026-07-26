@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import Icon from "./Icon";
 import { useChatStore } from "../stores/chatStore";
 import { LOOSE_ERROR_HINT } from "../utils/errorDetect";
+import { spawnTypeSparks } from "../utils/typeSparks";
 import styles from "./ChatInputBar.module.css";
+
+/** 充能液位满档所需字数：短句即见增长，长文早早到顶不无限爬 */
+const CHARGE_FULL_CHARS = 120;
 
 export default function ChatInputBar() {
   const agents = useChatStore((s) => s.agents);
@@ -22,6 +26,11 @@ export default function ChatInputBar() {
 
   const [value, setValue] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const sendBtnRef = useRef<HTMLButtonElement>(null);
+  // 中文输入法组合期间静默火花，候选词上屏（compositionend）才溅一簇
+  const composingRef = useRef(false);
+  // 发送泄流：液位改为向右（发送钮方向）收束
+  const [draining, setDraining] = useState(false);
   // 自绘智能体下拉（原生 select 的弹出菜单无法样式化）
   const [agentOpen, setAgentOpen] = useState(false);
   const agentBoxRef = useRef<HTMLDivElement>(null);
@@ -65,10 +74,37 @@ export default function ChatInputBar() {
   const send = () => {
     const text = value.trim();
     if (!text || sending) return;
+    // C 收尾：液位向发送钮方向泄流 + 发送钮吞能闪一下
+    setDraining(true);
+    window.setTimeout(() => setDraining(false), 300);
+    sendBtnRef.current?.animate?.(
+      [
+        { boxShadow: "0 0 8px rgba(0, 229, 255, 0.14)" },
+        { boxShadow: "0 0 22px rgba(0, 229, 255, 0.55)", offset: 0.35 },
+        { boxShadow: "0 0 8px rgba(0, 229, 255, 0.14)" },
+      ],
+      { duration: 420, easing: "ease-out" }
+    );
     setValue("");
     setHistoryIndex(null);
     draftRef.current = "";
     void sendMessage(text);
+  };
+
+  /** 录入/删除分流溅火花（IME 组合期间静默） */
+  const onInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const next = e.target.value;
+    const delta = next.length - value.length;
+    setValue(next);
+    // 用户手动编辑 → 退出历史导航（下次上箭头重新从最新开始）
+    if (historyIndex !== null) setHistoryIndex(null);
+    if (!composingRef.current && delta !== 0) {
+      spawnTypeSparks(
+        e.currentTarget,
+        delta > 0 ? "input" : "delete",
+        Math.min(3, Math.abs(delta) > 1 ? 3 : 2)
+      );
+    }
   };
 
   // 光标是否在第一行（前面无换行）/ 最后行（后面无换行）——多行内容时只在首/末行触发历史导航
@@ -230,10 +266,13 @@ export default function ChatInputBar() {
           className={styles.textarea}
           rows={1}
           value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            // 用户手动编辑 → 退出历史导航（下次上箭头重新从最新开始）
-            if (historyIndex !== null) setHistoryIndex(null);
+          onChange={onInputChange}
+          onCompositionStart={() => {
+            composingRef.current = true;
+          }}
+          onCompositionEnd={(e) => {
+            composingRef.current = false;
+            spawnTypeSparks(e.currentTarget, "input", 3);
           }}
           onKeyDown={onKeyDown}
           onInput={resize}
@@ -261,6 +300,7 @@ export default function ChatInputBar() {
             </button>
           ) : (
             <button
+              ref={sendBtnRef}
               className={styles.sendBtn}
               type="button"
               onClick={send}
@@ -271,6 +311,15 @@ export default function ChatInputBar() {
             </button>
           )}
         </div>
+        {/* C 充能液位：随字数增长的能量细线，发送时向右泄流进发送钮 */}
+        <span
+          className={`${styles.chargeLevel} ${draining ? styles.chargeDrain : ""}`}
+          style={{
+            transform: `scaleX(${Math.min(1, value.length / CHARGE_FULL_CHARS)})`,
+            opacity: value.length > 0 || draining ? 1 : 0,
+          }}
+          aria-hidden
+        />
       </div>
     </div>
   );
