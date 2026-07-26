@@ -246,6 +246,7 @@ export default function TerminalPanel() {
         <button
           type="button"
           className={`${styles.errorToggle} ${errorDetectEnabled ? styles.errorToggleOn : ""}`}
+          aria-pressed={errorDetectEnabled}
           onClick={toggleErrorDetect}
           title={
             errorDetectEnabled
@@ -253,8 +254,8 @@ export default function TerminalPanel() {
               : "已关闭；开启后自动检测终端输出中的报错，并提供「问问 AI」快捷入口"
           }
         >
-          <Icon name="alert" size={13} />
-          自动检测报错{errorDetectEnabled ? "·开" : "·关"}
+          <span className={styles.errorToggleDot} aria-hidden />
+          自动检测报错
         </button>
       </div>
 

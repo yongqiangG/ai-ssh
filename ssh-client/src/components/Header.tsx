@@ -1,6 +1,4 @@
-import { useState } from "react";
 import Icon from "./Icon";
-import SshConnectionModal from "./sshConnectionModal";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useTerminalStore } from "../stores/terminalStore";
 import type { TerminalTab } from "../stores/terminalStore";
@@ -9,8 +7,6 @@ import type { SshConnection } from "../api/sshConnection";
 import styles from "./Header.module.css";
 
 export default function Header() {
-  const [dialogOpen, setDialogOpen] = useState(false);
-
   const showSidebar = useLayoutStore((s) => s.showSidebar);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const showTerminal = useLayoutStore((s) => s.showTerminal);
@@ -32,60 +28,52 @@ export default function Header() {
   return (
     <header className={styles.header}>
       <div className={styles.left}>
-        <button
-          type="button"
-          className={styles.iconBtn}
-          title={showSidebar ? "折叠侧栏" : "展开侧栏"}
-          aria-pressed={showSidebar}
-          onClick={toggleSidebar}
-        >
-          <Icon name="menu" size={16} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.iconBtn} ${styles.addBtn}`}
-          title="新建 SSH 连接"
-          onClick={() => setDialogOpen(true)}
-        >
-          <Icon name="add" size={16} />
-        </button>
+        <span className={styles.brand}>
+          <span className={styles.brandBolt}>⚡</span>
+          AI-SSH
+        </span>
       </div>
 
       <div className={styles.center}>
         <ConnectionInfo tab={activeTab} conn={activeConn} />
       </div>
 
+      {/* 面板显隐开关组：图标即区域（左栏 / 终端区 / 右栏），点亮 = 显示中 */}
       <div className={styles.right}>
-        <button
-          type="button"
-          className={`${styles.iconBtn} ${
-            showTerminal ? styles.active : styles.inactive
-          }`}
-          title={showTerminal ? "隐藏终端" : "显示终端"}
-          aria-pressed={showTerminal}
-          onClick={toggleTerminal}
+        <div
+          className={styles.panelGroup}
+          role="group"
+          aria-label="面板显示开关"
         >
-          <Icon name="terminal" size={16} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.iconBtn} ${
-            showAiPanel ? styles.active : styles.inactive
-          }`}
-          title={showAiPanel ? "隐藏 AI 助手" : "显示 AI 助手"}
-          aria-pressed={showAiPanel}
-          onClick={toggleAiPanel}
-        >
-          <Icon name="bot" size={16} />
-        </button>
+          <button
+            type="button"
+            className={`${styles.panelBtn} ${showSidebar ? styles.on : ""}`}
+            title={showSidebar ? "隐藏左侧连接面板" : "显示左侧连接面板"}
+            aria-pressed={showSidebar}
+            onClick={toggleSidebar}
+          >
+            <Icon name="panelLeft" size={16} />
+          </button>
+          <button
+            type="button"
+            className={`${styles.panelBtn} ${showTerminal ? styles.on : ""}`}
+            title={showTerminal ? "隐藏终端" : "显示终端"}
+            aria-pressed={showTerminal}
+            onClick={toggleTerminal}
+          >
+            <Icon name="panelTerminal" size={16} />
+          </button>
+          <button
+            type="button"
+            className={`${styles.panelBtn} ${showAiPanel ? styles.on : ""}`}
+            title={showAiPanel ? "隐藏 AI 助手面板" : "显示 AI 助手面板"}
+            aria-pressed={showAiPanel}
+            onClick={toggleAiPanel}
+          >
+            <Icon name="panelRight" size={16} />
+          </button>
+        </div>
       </div>
-
-      <SshConnectionModal
-        open={dialogOpen}
-        mode="create"
-        initial={null}
-        onClose={() => setDialogOpen(false)}
-      />
     </header>
   );
 }
@@ -102,7 +90,7 @@ function ConnectionInfo({
     return (
       <span className={styles.idle}>
         <Icon name="server" size={12} className={styles.idleIcon} />
-        未连接 · 点击 <span className={styles.kbd}>+</span> 添加服务器
+        未连接 · 在左侧连接面板新建
       </span>
     );
   }

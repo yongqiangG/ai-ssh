@@ -22,6 +22,25 @@ export default function ChatInputBar() {
 
   const [value, setValue] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // 自绘智能体下拉（原生 select 的弹出菜单无法样式化）
+  const [agentOpen, setAgentOpen] = useState(false);
+  const agentBoxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!agentOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!agentBoxRef.current?.contains(e.target as Node)) setAgentOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setAgentOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [agentOpen]);
+  const currentAgent = agents.find((a) => a.id === agentId) ?? agents[0] ?? null;
   // 方案2：历史命令导航。historyIndex=null 表示不在导航（显示当前输入/草稿）。
   // cmdHistory 最新在末尾，故 null→length-1 是「最新一条」，index 减=更旧。
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
@@ -103,26 +122,53 @@ export default function ChatInputBar() {
   return (
     <div className={styles.bar} id="chat-inputbar">
       <div className={styles.toolbar}>
-        <label className={styles.agentSelect}>
-          <Icon name="bot" size={14} className={styles.agentIcon} />
-          <select
-            className={styles.select}
-            value={agentId}
-            onChange={(e) => setAgent(e.target.value)}
+        <div className={styles.agentBox} ref={agentBoxRef}>
+          <button
+            type="button"
+            className={`${styles.agentBtn} ${agentOpen ? styles.agentBtnOpen : ""}`}
+            onClick={() => setAgentOpen((v) => !v)}
+            aria-haspopup="listbox"
+            aria-expanded={agentOpen}
             title="选择智能体"
           >
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          <Icon name="chevronDown" size={14} className={styles.chevron} />
-        </label>
+            <Icon name="bot" size={14} className={styles.agentIcon} />
+            <span className={styles.agentName}>
+              {currentAgent?.name ?? "智能体"}
+            </span>
+            <Icon
+              name="chevronDown"
+              size={13}
+              className={`${styles.chevron} ${agentOpen ? styles.chevronUp : ""}`}
+            />
+          </button>
+          {agentOpen && (
+            <div className={styles.agentMenu} role="listbox" aria-label="智能体列表">
+              {agents.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="option"
+                  aria-selected={a.id === agentId}
+                  className={`${styles.agentOption} ${
+                    a.id === agentId ? styles.agentOptionOn : ""
+                  }`}
+                  onClick={() => {
+                    setAgent(a.id);
+                    setAgentOpen(false);
+                  }}
+                >
+                  <span className={styles.optionDot} aria-hidden />
+                  {a.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button
-          className={`${styles.newBtn} ${thinkingEnabled ? styles.thinkingOn : ""}`}
+          className={`${styles.switchChip} ${thinkingEnabled ? styles.chipOn : ""}`}
           type="button"
+          aria-pressed={thinkingEnabled}
           onClick={toggleThinking}
           title={
             thinkingEnabled
@@ -130,13 +176,14 @@ export default function ChatInputBar() {
               : "深度思考：响应更慢、分析更深入，适合复杂问题；开启后持续生效，直到手动关闭"
           }
         >
-          <Icon name="bot" size={14} />
-          深度思考{thinkingEnabled ? "·开" : ""}
+          <span className={styles.chipDot} aria-hidden />
+          深度思考
         </button>
 
         <button
-          className={`${styles.newBtn} ${attachContext ? styles.thinkingOn : ""}`}
+          className={`${styles.switchChip} ${attachContext ? styles.chipOn : ""}`}
           type="button"
+          aria-pressed={attachContext}
           onClick={toggleAttachContext}
           title={
             attachContext
@@ -144,17 +191,17 @@ export default function ChatInputBar() {
               : "开启后，每次发送自动附上当前终端最近 50 行输出（已脱敏），让 AI 看到终端里发生了什么"
           }
         >
-          <Icon name="terminal" size={14} />
-          让 AI 看终端{attachContext ? "·开" : ""}
+          <span className={styles.chipDot} aria-hidden />
+          让 AI 看终端
         </button>
 
         <button
-          className={styles.newBtn}
+          className={`btn btn-sm ${styles.newChatBtn}`}
           type="button"
           onClick={newConversation}
-          title="新建对话"
+          title="开启一个全新的对话"
         >
-          <Icon name="newChat" size={14} />
+          <Icon name="newChat" size={13} />
           新建对话
         </button>
       </div>
@@ -199,26 +246,31 @@ export default function ChatInputBar() {
           }
           disabled={sending}
         />
-        {sending ? (
-          <button
-            className={styles.sendBtn}
-            type="button"
-            onClick={() => useChatStore.getState().stop()}
-            title="停止生成"
-          >
-            <Icon name="stop" size={16} />
-          </button>
-        ) : (
-          <button
-            className={styles.sendBtn}
-            type="button"
-            onClick={send}
-            disabled={!value.trim()}
-            title="发送"
-          >
-            <Icon name="send" size={16} />
-          </button>
-        )}
+        <div className={styles.inputActions}>
+          <span className={styles.inputHint} aria-hidden>
+            Enter 发送 · Shift+Enter 换行
+          </span>
+          {sending ? (
+            <button
+              className={`${styles.sendBtn} ${styles.stopBtn}`}
+              type="button"
+              onClick={() => useChatStore.getState().stop()}
+              title="停止生成"
+            >
+              <Icon name="stop" size={15} />
+            </button>
+          ) : (
+            <button
+              className={styles.sendBtn}
+              type="button"
+              onClick={send}
+              disabled={!value.trim()}
+              title="发送"
+            >
+              <Icon name="send" size={15} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

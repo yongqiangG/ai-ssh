@@ -18,8 +18,9 @@ export type IconName =
   | "play"
   | "files"
   | "sftp"
-  | "sun"
-  | "moon"
+  | "panelLeft"
+  | "panelRight"
+  | "panelTerminal"
   | "settings"
   | "menu"
   | "check"
@@ -119,13 +120,28 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M17 4v16" />
     </>
   ),
-  sun: (
+  /* 布局区域开关三兄弟：图标即区域——矩形里高亮哪块，开关的就是哪块 */
+  panelLeft: (
     <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9.5 4v16" />
+      <path d="M5.5 8h1.5M5.5 11h1.5M5.5 14h1.5" />
     </>
   ),
-  moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />,
+  panelRight: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M14.5 4v16" />
+      <path d="M17 9.5h.01M18.5 12l-1.5 1.5" />
+    </>
+  ),
+  panelTerminal: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7.5 10l2.5 2-2.5 2" />
+      <path d="M12.5 14.5h4" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />

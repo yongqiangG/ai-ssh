@@ -1,13 +1,23 @@
+/* 会话切换器：与输入区选择器同族（hover 紫、focus 通电） */
 .convSelect {
   height: 24px;
   font-size: 11px;
   padding: 0 4px;
   border: 1px solid var(--vsc-border-strong);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--vsc-input-bg);
   color: var(--vsc-fg);
   outline: none;
   cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.convSelect:hover {
+  border-color: rgba(124, 92, 255, 0.5);
+}
+.convSelect:focus {
+  border-color: var(--vsc-purple);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16);
 }
 .convSelect option {
   background: var(--vsc-input-bg);
@@ -39,7 +49,7 @@
   }
 }
 
-/* AI thinking：渐变头像 + 呼吸光晕 */
+/* AI thinking：能量渐变头像 + 呼吸光晕 */
 .typingAvatar {
   width: 26px;
   height: 26px;
@@ -49,11 +59,11 @@
   justify-content: center;
   background: linear-gradient(
     135deg,
-    var(--vsc-avatar-ai-bg),
-    rgba(34, 211, 238, 0.14)
+    rgba(124, 92, 255, 0.18),
+    rgba(0, 229, 255, 0.14)
   );
-  border: 1px solid rgba(94, 106, 210, 0.35);
-  color: var(--ai-grad-a);
+  border: 1px solid rgba(124, 92, 255, 0.4);
+  color: var(--vsc-accent);
   animation: breathe 2s ease-in-out infinite;
 }
 
@@ -63,7 +73,7 @@
     box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 12px var(--accent-glow);
+    box-shadow: 0 0 12px var(--glow-circuit);
   }
 }
 
@@ -78,17 +88,20 @@
   border-top-left-radius: 3px;
 }
 
+/* 三颗能量粒子依序点亮：plasma → circuit → volt */
 .typing span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--vsc-fg-muted);
+  background: var(--energy-plasma);
   animation: blink 1.2s infinite ease-in-out;
 }
 .typing span:nth-child(2) {
+  background: var(--energy-circuit);
   animation-delay: 0.2s;
 }
 .typing span:nth-child(3) {
+  background: var(--energy-volt);
   animation-delay: 0.4s;
 }
 
@@ -112,9 +125,8 @@
   padding: 6px 10px;
   font-size: 12px;
   color: var(--vsc-fg-muted);
-  background: color-mix(in srgb, var(--vsc-warning, #e5c07b) 12%, transparent);
-  border: 1px solid
-    color-mix(in srgb, var(--vsc-warning, #e5c07b) 35%, transparent);
+  background: rgba(255, 176, 32, 0.1);
+  border: 1px solid rgba(255, 176, 32, 0.35);
   border-radius: var(--radius-md);
   width: calc(100% - 24px);
   appearance: none;
@@ -123,25 +135,23 @@
   text-align: left;
 }
 .terminalHint:hover {
-  background: color-mix(in srgb, var(--vsc-warning, #e5c07b) 20%, transparent);
+  background: rgba(255, 176, 32, 0.18);
 }
 .terminalHintIcon {
-  color: var(--vsc-warning, #e5c07b);
+  color: var(--vsc-yellow);
   flex-shrink: 0;
 }
 
-.sessionNotice {
-  margin: 12px 12px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--vsc-border);
-  border-radius: var(--radius-md);
-  background: var(--vsc-secondary-bg);
-}
-
+/* 会话归档通知：断电归档卡——circuit 微光描边，安静但可辨 */
 .sessionNotice {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin: 12px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(124, 92, 255, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(124, 92, 255, 0.05);
 }
 
 .sessionNoticeBody {
@@ -161,13 +171,26 @@
   color: var(--vsc-fg-muted);
 }
 
+/* 历史会话页脚：断电态——顶部 hairline + 归档标签感，唯一出路（新建）用主按钮 */
 .historyFooter {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px 12px;
-  border-top: 1px solid var(--vsc-border);
-  background: var(--vsc-secondary-bg);
+  border-top: 1px solid var(--vsc-border-strong);
+  background: rgba(158, 170, 255, 0.04);
+}
+
+.historyBadge {
+  flex: 0 0 auto;
+  font-family: var(--display-font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--vsc-border-strong);
+  color: var(--vsc-fg-faint);
 }
 
 .historyFooterBody {

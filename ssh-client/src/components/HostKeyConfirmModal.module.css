@@ -1,7 +1,8 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--vsc-modal-overlay);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,28 +12,43 @@
 .dialog {
   width: 480px;
   max-width: calc(100vw - 48px);
-  background: var(--bg-elevated, #1e2027);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-  border-radius: 12px;
+  background: var(--vsc-sidebar-bg);
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: var(--radius-lg);
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  animation: dialogIn var(--dur-slow) var(--ease-out-quint);
 }
 
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 指纹变更 = 高压警示：overload 红描边 + 危险辉光 */
 .dialog.danger {
-  border-color: rgba(239, 68, 68, 0.65);
-  box-shadow: 0 16px 48px rgba(239, 68, 68, 0.18);
+  border-color: rgba(255, 77, 109, 0.65);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 24px var(--glow-overload);
 }
 
 .title {
+  font-family: var(--display-font);
   font-size: 15px;
   font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .danger .title {
-  color: #f87171;
+  color: var(--vsc-red);
 }
 
 .body {
@@ -41,11 +57,11 @@
   gap: 12px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+  color: var(--vsc-fg);
 }
 
 .warnText b {
-  color: #f87171;
+  color: var(--vsc-red);
 }
 
 .fpBox {
@@ -55,7 +71,7 @@
   padding: 12px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.3);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono-font);
   font-size: 12px;
   word-break: break-all;
 }
@@ -67,20 +83,20 @@
 
 .fpLabel {
   flex: 0 0 44px;
-  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  color: var(--vsc-fg-faint);
 }
 
 .oldFp {
-  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  color: var(--vsc-fg-faint);
   text-decoration: line-through;
 }
 
 .newFp {
-  color: #f87171;
+  color: var(--vsc-red);
 }
 
 .error {
-  color: #f87171;
+  color: var(--vsc-red);
   font-size: 12px;
 }
 
@@ -91,9 +107,18 @@
 }
 
 .dangerBtn {
-  background: #dc2626;
+  background: var(--vsc-red);
+  color: #2a040c;
+  font-weight: 600;
 }
 
 .dangerBtn:hover {
-  background: #b91c1c;
+  background: #ff3358;
+  box-shadow: 0 0 12px var(--glow-overload);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog {
+    animation: none;
+  }
 }

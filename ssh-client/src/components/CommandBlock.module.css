@@ -1,9 +1,12 @@
+/* 命令块 = 电路元件：命令行 + 可折叠输出 + 状态徽标。
+   写确认 = 合闸（surge 琥珀）；高危命令 = 高压警示（overload 红，音量高于一切装饰） */
+
 .block {
   margin: 6px 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.3);
-  font-family: ui-monospace, SFMono-Regular, "Menlo", "Consolas", monospace;
+  font-family: var(--mono-font);
   font-size: 12px;
   overflow: hidden;
 }
@@ -15,40 +18,46 @@
   padding: 4px 8px;
   cursor: pointer;
   user-select: none;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(158, 170, 255, 0.04);
 }
 
 .header:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(158, 170, 255, 0.08);
 }
 
+/* 状态徽标：丝印小标签，色随状态 */
 .badge {
   flex-shrink: 0;
   padding: 1px 6px;
   border-radius: 3px;
+  font-family: var(--display-font);
   font-size: 11px;
-  color: #fff;
-  background: #c9a227; /* 执行中：黄 */
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--vsc-yellow); /* 执行中：surge */
+  background: rgba(255, 176, 32, 0.14);
 }
 
 .badge[data-ok="true"] {
-  background: #3fb950; /* 成功：绿 */
+  color: var(--vsc-green);
+  background: rgba(61, 255, 168, 0.12);
 }
 
 .badge[data-ok="false"][data-running="false"] {
-  background: #f85149; /* 失败：红 */
+  color: var(--vsc-red);
+  background: rgba(255, 77, 109, 0.14);
 }
 
 .cmd {
   flex: 1;
-  color: #9cdcfe;
+  color: #8ce0ff;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
 .toggle {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--vsc-fg-faint);
 }
 
 .iconBtn {
@@ -66,7 +75,7 @@
     color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
 }
-/* 复制：明亮 accent 描边 */
+/* 复制：volt 描边 */
 .copyBtn {
   color: var(--vsc-accent);
   border-color: var(--vsc-accent);
@@ -75,19 +84,19 @@
   background: var(--vsc-accent);
   color: var(--vsc-accent-fg);
 }
-/* 执行：accent 实心（主操作，最明亮） */
+/* 执行：volt 实心（主操作，最明亮），hover 通电发光 */
 .runBtn {
   color: var(--vsc-accent-fg);
   background: var(--vsc-accent);
   border-color: var(--vsc-accent);
 }
 .runBtn:hover:not(:disabled) {
-  box-shadow: 0 0 10px var(--accent-glow);
+  box-shadow: 0 0 10px var(--glow-volt);
 }
 .iconBtn:disabled {
   background: transparent;
-  color: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--vsc-fg-faint);
+  border-color: var(--vsc-border);
   cursor: not-allowed;
 }
 
@@ -98,28 +107,28 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  color: #d4d4d4;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: #ccd2e8;
+  border-top: 1px solid var(--vsc-border);
 }
 
 .analysis {
   display: block;
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.1);
-  color: #dcb67a;
+  border-top: 1px dashed var(--vsc-border-strong);
+  color: var(--vsc-yellow);
   white-space: pre-wrap;
 }
 
-/* ===== 写操作确认态（B1 确认门）===== */
+/* ===== 写操作确认态（B1 确认门）：合闸 ===== */
 .confirmBlock {
-  border-color: rgba(245, 158, 11, 0.55);
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.12);
+  border-color: rgba(255, 176, 32, 0.55);
+  box-shadow: 0 0 14px rgba(255, 176, 32, 0.12);
 }
 
 .badge[data-confirm="true"] {
-  background: rgba(245, 158, 11, 0.18);
-  color: #fbbf24;
+  background: rgba(255, 176, 32, 0.16);
+  color: var(--vsc-yellow);
 }
 
 .confirmBar {
@@ -128,13 +137,13 @@
   justify-content: space-between;
   gap: 10px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(245, 158, 11, 0.35);
-  background: rgba(245, 158, 11, 0.07);
+  border-top: 1px solid rgba(255, 176, 32, 0.35);
+  background: rgba(255, 176, 32, 0.07);
   font-size: 12px;
 }
 
 .confirmReason {
-  color: #fbbf24;
+  color: var(--vsc-yellow);
   line-height: 1.5;
 }
 
@@ -147,27 +156,74 @@
 .allowBtn,
 .denyBtn {
   padding: 4px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   font-size: 12px;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* 合闸按钮：surge 实色 + 深色文字（对比达标） */
 .allowBtn {
-  background: #d97706;
-  color: #fff;
+  background: var(--vsc-yellow);
+  color: #1a1206;
+  font-weight: 600;
 }
 
 .denyBtn {
   background: transparent;
-  border-color: var(--vsc-border, rgba(255, 255, 255, 0.2));
-  color: var(--vsc-fg, rgba(255, 255, 255, 0.8));
+  border-color: var(--vsc-border-strong);
+  color: var(--vsc-fg);
 }
 
 .allowBtn:hover,
 .denyBtn:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.12);
+}
+
+.allowBtn:hover {
+  box-shadow: 0 0 12px rgba(255, 176, 32, 0.4);
+}
+
+/* ===== 高危命令确认态：高压警示（视觉音量最高，压过一切装饰） ===== */
+.dangerBlock {
+  border-color: rgba(255, 77, 109, 0.65);
+  box-shadow: 0 0 18px var(--glow-overload);
+  animation: dangerHum 1.6s ease-in-out infinite;
+}
+
+@keyframes dangerHum {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(255, 77, 109, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--glow-overload);
+  }
+}
+
+.dangerBlock .confirmBar {
+  border-top-color: rgba(255, 77, 109, 0.4);
+  background: rgba(255, 77, 109, 0.08);
+}
+
+.dangerBlock .confirmReason {
+  color: var(--vsc-red);
+  font-weight: 600;
+}
+
+.dangerBlock .badge[data-confirm="true"] {
+  background: rgba(255, 77, 109, 0.16);
+  color: var(--vsc-red);
+}
+
+.dangerBlock .allowBtn {
+  background: var(--vsc-red);
+  color: #2a040c;
+}
+
+.dangerBlock .allowBtn:hover {
+  box-shadow: 0 0 14px var(--glow-overload);
 }
 
 /* 拒绝「熄火」动效：确认条收缩折叠 + 卡片红色脉冲一次，播完（220ms）才 decideConfirm */
@@ -191,7 +247,7 @@
 
 @keyframes denyPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.55);
+    box-shadow: 0 0 0 0 rgba(255, 77, 109, 0.55);
   }
   100% {
     box-shadow: 0 0 0 8px transparent;
@@ -200,7 +256,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .denyCollapse,
-  .denyPulse {
+  .denyPulse,
+  .dangerBlock {
     animation: none;
   }
 }

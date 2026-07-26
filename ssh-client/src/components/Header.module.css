@@ -27,46 +27,63 @@
   min-width: 0;
 }
 
-.iconBtn {
+/* ===== 品牌字标：电路板丝印 ===== */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  font-family: var(--display-font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--vsc-fg-muted);
+  user-select: none;
+}
+
+.brandBolt {
+  font-size: 11px;
+  filter: drop-shadow(0 0 4px var(--glow-volt));
+}
+
+/* ===== 面板显隐开关组：segmented 通电组，点亮 = 显示中 ===== */
+.panelGroup {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--vsc-border);
+  border-radius: var(--radius-sm);
+  background: rgba(158, 170, 255, 0.03);
+  overflow: hidden;
+}
+
+.panelBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 24px;
   border: none;
-  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--vsc-fg-muted);
+  color: var(--vsc-fg-faint);
   transition: background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
+    filter var(--dur-fast) var(--ease-out);
 }
 
-.iconBtn:hover {
+.panelBtn + .panelBtn {
+  border-left: 1px solid var(--vsc-border);
+}
+
+.panelBtn:hover {
   background: var(--vsc-list-hover);
-  color: var(--vsc-fg-strong);
+  color: var(--vsc-fg);
 }
 
-.iconBtn:active {
-  transform: scale(0.94);
-}
-
-.iconBtn.active {
-  background: var(--vsc-list-selected);
-  color: var(--vsc-fg-strong);
-}
-
-.iconBtn.inactive {
-  opacity: 0.55;
-}
-
-.addBtn {
-  color: var(--vsc-green);
-}
-
-.addBtn:hover {
-  color: var(--vsc-green);
+/* 通电：该区域正在显示 */
+.panelBtn.on {
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--vsc-accent);
+  filter: drop-shadow(0 0 4px var(--glow-volt));
 }
 
 /* ===== 未连接占位 ===== */
@@ -80,21 +97,6 @@
 
 .idleIcon {
   opacity: 0.6;
-}
-
-.kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border: 1px solid var(--vsc-border-strong);
-  border-radius: 3px;
-  background: var(--vsc-input-bg);
-  color: var(--vsc-fg);
-  font-size: 10px;
-  font-weight: 600;
 }
 
 /* ===== 已连接信息 ===== */
@@ -131,7 +133,7 @@
 
 .dot.ok {
   background: var(--vsc-green);
-  box-shadow: 0 0 4px var(--vsc-green);
+  box-shadow: 0 0 4px var(--glow-live);
 }
 
 .dot.connecting {
@@ -154,10 +156,14 @@
 }
 
 .badge {
+  font-family: var(--display-font);
   font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--vsc-input-bg);
+  border: 1px solid var(--vsc-border);
   color: var(--vsc-fg-muted);
   white-space: nowrap;
 }

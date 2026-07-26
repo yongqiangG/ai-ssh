@@ -1,10 +1,19 @@
+/* 开机通电仪式：深空底 + 微网格电路纹理 + 中心供电光晕 */
 .splash {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--vsc-editor-bg);
+  background: radial-gradient(
+      ellipse 60% 50% at 50% 42%,
+      rgba(124, 92, 255, 0.08),
+      transparent 70%
+    ),
+    linear-gradient(rgba(140, 160, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 160, 255, 0.03) 1px, transparent 1px),
+    var(--vsc-editor-bg);
+  background-size: auto, 28px 28px, 28px 28px, auto;
   color: var(--vsc-fg);
   user-select: none;
 }
@@ -26,7 +35,7 @@
   width: 300px;
   height: 66px;
   overflow: hidden;
-  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  font-family: var(--mono-font);
   font-size: 12px;
   line-height: 18px;
 }
@@ -84,6 +93,7 @@
   gap: 10px;
 }
 
+/* 主电路充能：能量流在轨道里奔涌 */
 .progressTrack {
   width: 240px;
   height: 4px;
@@ -96,14 +106,29 @@
   width: 100%;
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--vsc-accent), #7a86e8);
+  background: var(--energy-flow-loop);
+  background-size: 300% 100%;
+  animation: energyFlow 2.4s linear infinite;
+  box-shadow: 0 0 10px var(--glow-circuit);
   transform-origin: left;
   transition: transform 260ms ease-out;
 }
 
-/* 冲刺：更快的收尾 + 变绿 */
+/* keyframes 与消费方同模块（CSS Modules 名称哈希化约束） */
+@keyframes energyFlow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: -300% 50%;
+  }
+}
+
+/* 冲刺：更快的收尾 + 通电成功荧绿 */
 .progressSprint {
   background: var(--vsc-green);
+  animation: none;
+  box-shadow: 0 0 12px var(--glow-live);
   transition: transform 300ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
@@ -153,11 +178,13 @@
 /* ---- 无障碍：偏好减弱动效时停掉装饰动画，保留进度信息 ---- */
 
 @media (prefers-reduced-motion: reduce) {
-  .caret {
+  .caret,
+  .progressFill {
     animation: none;
   }
 
   .progressFill {
     transition: none;
+    background: var(--energy-flow);
   }
 }

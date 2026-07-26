@@ -1,7 +1,9 @@
-/* ===== C1 激活服务器监控条（连接列表下方常驻） ===== */
+/* ===== C1 激活服务器监控条：电流仪表盘 =====
+   每格 = 标签 + 数值 + 3px 电量刻度条；数值是主信号，
+   颜色只随阈值状态切换（good=volt / warning=surge / serious=overload） */
 .bar {
   flex: 0 0 auto;
-  border-top: 1px solid var(--vsc-border, rgba(127, 127, 127, 0.2));
+  border-top: 1px solid var(--vsc-border);
   padding: 8px 12px 10px;
   background: var(--vsc-sidebar-bg);
 }
@@ -11,12 +13,15 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 7px;
-  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.5));
+  color: var(--vsc-fg-muted);
   font-size: 11px;
 }
 
 .title {
-  letter-spacing: 0.3px;
+  font-family: var(--display-font);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
 .host {
@@ -30,7 +35,7 @@
 
 .empty {
   padding: 4px 0 2px;
-  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.4));
+  color: var(--vsc-fg-muted);
   font-size: 11px;
 }
 
@@ -43,30 +48,63 @@
 
 .item {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 8px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--vsc-border);
+  background: rgba(158, 170, 255, 0.04);
+}
+
+.itemRow {
+  display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 4px 8px;
-  border-radius: 5px;
-  background: rgba(127, 127, 127, 0.08);
+  gap: 6px;
 }
 
 .label {
-  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.55));
+  color: var(--vsc-fg-muted);
   font-size: 11px;
 }
 
 .value {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--mono-font);
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--vsc-fg, #c8cad4);
+  color: var(--vsc-fg);
+}
+
+/* 电量刻度：transform 缩放（合成器友好），value 慢速平滑跟随采样 */
+.meterTrack {
+  height: 3px;
+  border-radius: 1.5px;
+  background: var(--vsc-secondary-bg);
+  overflow: hidden;
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: 1.5px;
+  background: linear-gradient(90deg, var(--energy-circuit), var(--energy-volt));
+  transform-origin: left;
+  transition: transform 600ms var(--ease-out);
+}
+
+.meterFill.yellow {
+  background: var(--vsc-yellow);
+}
+
+.meterFill.red {
+  background: var(--vsc-red);
+  box-shadow: 0 0 6px var(--glow-overload);
 }
 
 .yellow {
-  color: var(--vsc-yellow, #fbbf24);
+  color: var(--vsc-yellow);
 }
 
 .red {
-  color: var(--vsc-red, #f87171);
+  color: var(--vsc-red);
 }

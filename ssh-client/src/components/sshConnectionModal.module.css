@@ -10,18 +10,21 @@
   animation: fadeIn var(--dur-fast) var(--ease-out);
 }
 
+/* 模态 = 悬浮电路板：能量渐变描边 + 深空投影 */
 .dialog {
   width: 480px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 64px);
   overflow: auto;
-  background: var(--vsc-sidebar-bg);
-  border: 1px solid var(--vsc-border-strong);
+  border: 1px solid transparent;
+  background: linear-gradient(var(--vsc-sidebar-bg), var(--vsc-sidebar-bg))
+      padding-box,
+    var(--energy-flow) border-box;
   border-radius: var(--radius-lg);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 24px rgba(124, 92, 255, 0.12);
   display: flex;
   flex-direction: column;
-  animation: dialogIn var(--dur-slow) var(--ease-spring);
+  animation: dialogIn var(--dur-slow) var(--ease-out-quint);
 }
 
 .header {
@@ -34,8 +37,10 @@
 }
 
 .headerTitle {
+  font-family: var(--display-font);
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.03em;
   color: var(--vsc-fg-strong);
 }
 
@@ -169,7 +174,7 @@
 @keyframes dialogIn {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(8px);
+    transform: scale(0.94) translateY(14px);
   }
   to {
     opacity: 1;
@@ -183,7 +188,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--vsc-border-strong);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(158, 170, 255, 0.03);
 }

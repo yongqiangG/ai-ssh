@@ -47,6 +47,8 @@ export default function CommandBlock({ call }: { call: ToolCall }) {
   const status = call.status ?? "running";
   const ok = status === "success";
   const pendingConfirm = status === "pending_confirm";
+  // 高危命令的确认门升格为「高压警示」视觉（语义不变，仍走同一确认流程）
+  const dangerousConfirm = pendingConfirm && isDangerous(call.command ?? "");
   const hasOutput = Boolean(call.output || call.analysis);
   // 活跃终端的 sessionId（无活跃连接或未开终端则为 null → 执行按钮禁用）
   const terminalSessionId = activeConnId ? getTerminalSessionId(activeConnId) : null;
@@ -110,8 +112,8 @@ export default function CommandBlock({ call }: { call: ToolCall }) {
   return (
     <div
       className={`${styles.block} ${pendingConfirm ? styles.confirmBlock : ""} ${
-        denying ? styles.denyPulse : ""
-      }`}
+        dangerousConfirm ? styles.dangerBlock : ""
+      } ${denying ? styles.denyPulse : ""}`}
     >
       <div className={styles.header} onClick={() => setOpen((v) => !v)}>
         <span

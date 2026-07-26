@@ -35,7 +35,7 @@ export default function TransferTrack({
       </span>
 
       <div className={`${styles.track} ${styles[status]}`}>
-        <div className={styles.fill} style={{ width: pct + "%" }} />
+        <div className={styles.fill} style={{ transform: `scaleX(${progress})` }} />
         <div
           className={`${styles.runner} ${styles[status]}`}
           style={{ left: pct + "%" }}

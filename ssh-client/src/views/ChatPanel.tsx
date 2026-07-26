@@ -157,7 +157,7 @@ export default function ChatPanel() {
         <div className="panel-actions">
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn gear-spin"
             title="模型设置"
             onClick={() => setSettingsOpen(true)}
           >
@@ -271,11 +271,12 @@ export default function ChatPanel() {
       )}
       {isHistoryConversation ? (
         <div className={styles.historyFooter}>
+          <span className={styles.historyBadge}>已归档</span>
           <div className={styles.historyFooterBody}>
             <div className={styles.historyFooterTitle}>历史会话暂不支持继续对话</div>
             <div className={styles.historyFooterHint}>上下文恢复正在加速适配中</div>
           </div>
-          <button type="button" className="btn btn-secondary" onClick={newConversation}>
+          <button type="button" className="btn" onClick={newConversation}>
             新建对话
           </button>
         </div>

@@ -1,152 +1,123 @@
-/* ===== 主题色板：通过 [data-theme] 切换 =====
-   字段与 themeStore.ts 中 ThemePalette 一一对应。
-   新增颜色时两侧同步维护。
-   设计规范见 docs/UI-DESIGN.md（Modern Dark / Linear 风格）。 */
+/* ============================================================
+   AI-SSH 视觉世界：「电路霓虹 · 能量流」（决议 260726）
+   ------------------------------------------------------------
+   THESIS  运维工作台即电路：状态=通电，执行/传输/思考=能量流动，
+           危险=高压。拒绝的默认：又一个 VSCode 皮肤。
+   OWN-WORLD  void 深空三层底 + 能量三色 plasma→circuit→volt；
+           Chakra Petch 标签面 / JetBrains Mono 等宽 / 系统 CJK 正文；
+           面板=暗色电路板（发光描边+微网格），小锐圆角。
+   STORY   一眼看出哪里通电、哪里在流动、哪里高压。
+   签名交互  「电流传导」：命令化作电流脉冲奔向终端，落点浪涌。
+   FORM    Operate 工具界面（用户钦定方向）；表达永不遮蔽任务。
+   ------------------------------------------------------------
+   字段与 themeStore.ts 中 ThemePalette 一一对应，新增颜色两侧同步。
+   ============================================================ */
 
+:root,
 [data-theme="dark"] {
-  /* 背景层：深蓝黑分层，亮度递增表达层级 */
-  --vsc-editor-bg: #0a0b10;
-  --vsc-sidebar-bg: #0e0f16;
-  --vsc-titlebar-bg: #12131c;
-  --vsc-panel-header-bg: #111219;
-  --vsc-activitybar-bg: #0c0d13;
-  --vsc-input-bg: #161826;
-  --vsc-list-hover: rgba(255, 255, 255, 0.05);
-  --vsc-list-active: rgba(255, 255, 255, 0.09);
-  --vsc-list-selected: rgba(94, 106, 210, 0.2);
-  --vsc-splitter: #191b26;
-  --vsc-splitter-hover: #5e6ad2;
+  /* 背景层：void 深空，亮度递增表达层级 */
+  --vsc-editor-bg: #07080f;
+  --vsc-sidebar-bg: #0b0d17;
+  --vsc-titlebar-bg: #0d0f1b;
+  --vsc-panel-header-bg: #0c0e19;
+  --vsc-activitybar-bg: #090a12;
+  --vsc-input-bg: #10131f;
+  --vsc-list-hover: rgba(158, 170, 255, 0.06);
+  --vsc-list-active: rgba(158, 170, 255, 0.1);
+  --vsc-list-selected: rgba(124, 92, 255, 0.22);
+  --vsc-splitter: #141728;
+  --vsc-splitter-hover: #00e5ff;
 
-  /* 描边：半透明 hairline */
-  --vsc-border: rgba(255, 255, 255, 0.07);
-  --vsc-border-strong: rgba(255, 255, 255, 0.16);
+  /* 描边：冷蓝调半透明 hairline */
+  --vsc-border: rgba(140, 160, 255, 0.1);
+  --vsc-border-strong: rgba(140, 160, 255, 0.22);
 
   /* 文字 */
-  --vsc-fg: #c8cad4;
-  --vsc-fg-strong: #f2f3f7;
-  --vsc-fg-muted: #9298a6;
-  --vsc-fg-faint: #7b8294;
+  --vsc-fg: #c6cbe0;
+  --vsc-fg-strong: #f0f3ff;
+  --vsc-fg-muted: #8a93b2;
+  --vsc-fg-faint: #6a7394;
 
-  /* 强调色：indigo */
-  --vsc-accent: #5e6ad2;
-  --vsc-accent-hover: #707cdf;
-  --vsc-accent-fg: #ffffff;
+  /* 强调色：volt 电青 */
+  --vsc-accent: #00e5ff;
+  --vsc-accent-hover: #4deeff;
+  --vsc-accent-fg: #041018;
 
-  /* 状态色 */
-  --vsc-green: #4ade80;
-  --vsc-yellow: #fbbf24;
-  --vsc-red: #f87171;
-  --vsc-blue: #60a5fa;
-  --vsc-purple: #c084fc;
+  /* 状态色：live / surge / overload / 链接蓝 / circuit 紫 */
+  --vsc-green: #3dffa8;
+  --vsc-yellow: #ffb020;
+  --vsc-red: #ff4d6d;
+  --vsc-blue: #5ca8ff;
+  --vsc-purple: #7c5cff;
 
   /* 终端配色（xterm 创建时运行时读取） */
-  --terminal-bg: #0a0b10;
-  --terminal-fg: #d2d6e0;
-  --terminal-prompt: #4ade80;
-  --terminal-cursor: #aab0c0;
+  --terminal-bg: #07080f;
+  --terminal-fg: #ccd2e8;
+  --terminal-prompt: #3dffa8;
+  --terminal-cursor: #00e5ff;
 
   /* 语义化扩展色 */
-  --vsc-secondary-bg: rgba(255, 255, 255, 0.07);
-  --vsc-secondary-bg-hover: rgba(255, 255, 255, 0.12);
-  --vsc-bubble-ai-bg: #141624;
-  --vsc-avatar-ai-bg: rgba(94, 106, 210, 0.22);
-  --vsc-avatar-user-bg: rgba(96, 165, 250, 0.16);
-  --vsc-avatar-neutral-bg: rgba(255, 255, 255, 0.08);
-  --vsc-danger-bg: rgba(248, 113, 113, 0.14);
-  --vsc-danger-border: rgba(248, 113, 113, 0.45);
-  --vsc-error-bg: rgba(248, 113, 113, 0.12);
-  --vsc-scrollbar-thumb: rgba(255, 255, 255, 0.14);
-  --vsc-scrollbar-thumb-hover: rgba(255, 255, 255, 0.24);
-  --vsc-modal-overlay: rgba(4, 5, 12, 0.6);
+  --vsc-secondary-bg: rgba(140, 160, 255, 0.08);
+  --vsc-secondary-bg-hover: rgba(140, 160, 255, 0.14);
+  --vsc-bubble-ai-bg: #0d1020;
+  --vsc-avatar-ai-bg: rgba(0, 229, 255, 0.12);
+  --vsc-avatar-user-bg: rgba(255, 45, 149, 0.12);
+  --vsc-avatar-neutral-bg: rgba(140, 160, 255, 0.1);
+  --vsc-danger-bg: rgba(255, 77, 109, 0.12);
+  --vsc-danger-border: rgba(255, 77, 109, 0.45);
+  --vsc-error-bg: rgba(255, 77, 109, 0.1);
+  --vsc-scrollbar-thumb: rgba(140, 160, 255, 0.16);
+  --vsc-scrollbar-thumb-hover: rgba(140, 160, 255, 0.28);
+  --vsc-modal-overlay: rgba(3, 4, 10, 0.72);
 
-  /* 效果 token（仅 CSS 使用，不进 ThemePalette） */
-  --accent-glow: rgba(94, 106, 210, 0.35);
-  --ai-grad-a: #5e6ad2;
-  --ai-grad-b: #22d3ee;
-}
+  /* ===== 能量令牌（仅 CSS 使用，不进 ThemePalette）===== */
+  --energy-plasma: #ff2d95;
+  --energy-circuit: #7c5cff;
+  --energy-volt: #00e5ff;
+  --energy-flow: linear-gradient(
+    100deg,
+    var(--energy-plasma),
+    var(--energy-circuit) 45%,
+    var(--energy-volt)
+  );
+  /* 循环流动版：首尾同色，background-position 位移无缝衔接 */
+  --energy-flow-loop: linear-gradient(
+    100deg,
+    var(--energy-volt),
+    var(--energy-plasma) 30%,
+    var(--energy-circuit) 60%,
+    var(--energy-volt)
+  );
+  --glow-volt: rgba(0, 229, 255, 0.32);
+  --glow-plasma: rgba(255, 45, 149, 0.32);
+  --glow-circuit: rgba(124, 92, 255, 0.35);
+  --glow-overload: rgba(255, 77, 109, 0.4);
+  --glow-live: rgba(61, 255, 168, 0.35);
 
-[data-theme="light"] {
-  /* 背景层 */
-  --vsc-editor-bg: #ffffff;
-  --vsc-sidebar-bg: #f3f3f3;
-  --vsc-titlebar-bg: #dddddd;
-  --vsc-panel-header-bg: #e8e8e8;
-  --vsc-activitybar-bg: #2c2c2c;
-  --vsc-input-bg: #ffffff;
-  --vsc-list-hover: #e8e8e8;
-  --vsc-list-active: #d0d0d0;
-  --vsc-list-selected: rgba(94, 106, 210, 0.18);
-  --vsc-splitter: #e0e0e0;
-  --vsc-splitter-hover: #5e6ad2;
-
-  /* 描边 */
-  --vsc-border: #e0e0e0;
-  --vsc-border-strong: #c4c4c4;
-
-  /* 文字 */
-  --vsc-fg: #323232;
-  --vsc-fg-strong: #000000;
-  --vsc-fg-muted: #6c6c6c;
-  --vsc-fg-faint: #646b78;
-
-  /* 强调色：indigo（与深色主题同族） */
-  --vsc-accent: #4c56b8;
-  --vsc-accent-hover: #5e6ad2;
-  --vsc-accent-fg: #ffffff;
-
-  /* 状态色 */
-  --vsc-green: #098658;
-  --vsc-yellow: #b58900;
-  --vsc-red: #d73a49;
-  --vsc-blue: #005cc5;
-  --vsc-purple: #6f42c1;
-
-  /* 终端配色 */
-  --terminal-bg: #ffffff;
-  --terminal-fg: #1e1e1e;
-  --terminal-prompt: #098658;
-  --terminal-cursor: #333333;
-
-  /* 语义化扩展色 */
-  --vsc-secondary-bg: #e5e5e5;
-  --vsc-secondary-bg-hover: #d4d4d4;
-  --vsc-bubble-ai-bg: #eceef5;
-  --vsc-avatar-ai-bg: rgba(94, 106, 210, 0.15);
-  --vsc-avatar-user-bg: #d4e3f5;
-  --vsc-avatar-neutral-bg: #e5e5e5;
-  --vsc-danger-bg: #fde7e7;
-  --vsc-danger-border: #f1aeb6;
-  --vsc-error-bg: rgba(215, 58, 73, 0.1);
-  --vsc-scrollbar-thumb: #c0c0c0;
-  --vsc-scrollbar-thumb-hover: #a6a6a6;
-  --vsc-modal-overlay: rgba(15, 17, 30, 0.4);
-
-  /* 效果 token（浅色下弱化） */
-  --accent-glow: rgba(94, 106, 210, 0.2);
-  --ai-grad-a: #4c56b8;
-  --ai-grad-b: #0891b2;
+  /* 兼容旧引用 */
+  --accent-glow: var(--glow-volt);
+  --ai-grad-a: var(--energy-circuit);
+  --ai-grad-b: var(--energy-volt);
 }
 
 :root {
   --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
-  --mono-font: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New",
-    monospace;
+  --display-font: "Chakra Petch", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --mono-font: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
 
-  /* 圆角刻度 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  /* 圆角刻度：小锐 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
-  /* 动效刻度：所有过渡/动画统一走这组 token */
+  /* 动效刻度 */
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
   --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* 兜底主题：未应用 data-theme 之前使用深色，避免白闪。
-     实际渲染会由 initTheme() 立即覆盖。 */
   color-scheme: dark;
 }
 
@@ -197,11 +168,24 @@ select {
   font-size: inherit;
 }
 
-/* 键盘导航可见焦点环（鼠标点击不触发） */
+/* 键盘导航可见焦点环（鼠标点击不触发）：通电描边 */
 :focus-visible {
   outline: 2px solid var(--vsc-accent);
   outline-offset: 1px;
 }
+
+/* ===== 能量动画原语 ===== */
+
+/* 注册角度属性：让 conic-gradient 起点角可被动画插值（电流爬行描边用） */
+@property --crawl-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* 注意：@keyframes 必须定义在消费它的 CSS Module 内——CSS Modules 会
+   哈希化 animation 名，引用本文件的全局 keyframes 会悬空静死。
+   能量流/呼吸/爬行的 keyframes 模板见 ConnectionsPanel.module.css。 */
 
 /* ===== 滚动条 ===== */
 ::-webkit-scrollbar {
@@ -245,10 +229,12 @@ select {
   user-select: none;
 }
 
+/* 面板标题：Chakra Petch 标签面，像电路板上的丝印文字 */
 .panel-title {
+  font-family: var(--display-font);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--vsc-fg-muted);
   white-space: nowrap;
@@ -269,6 +255,7 @@ select {
 }
 
 /* ===== 按钮 ===== */
+/* 主按钮 = 通电元件：能量渐变底 + 深色文字（对比达标），hover 增亮提流 */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -278,34 +265,51 @@ select {
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--vsc-accent);
+  background: linear-gradient(
+    100deg,
+    var(--energy-circuit),
+    var(--energy-volt)
+  );
+  background-size: 150% 100%;
+  background-position: 100% 50%;
   color: var(--vsc-accent-fg);
+  font-weight: 600;
   white-space: nowrap;
-  transition: background var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out),
+  transition: background-position var(--dur-base) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 .btn:hover {
-  background: var(--vsc-accent-hover);
-  box-shadow: 0 2px 12px var(--accent-glow);
+  background-position: 0% 50%;
+  box-shadow: 0 2px 14px var(--glow-volt), 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 .btn:active {
   transform: scale(0.97);
 }
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
 }
 
+/* 紧凑主按钮：面板头等窄位的主 CTA（22px），与 .btn 同能量语言 */
+.btn-sm {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  gap: 4px;
+}
+
 .btn-secondary {
   background: var(--vsc-secondary-bg);
   color: var(--vsc-fg);
+  font-weight: 500;
 }
 .btn-secondary:hover {
   background: var(--vsc-secondary-bg-hover);
+  background-position: initial;
   box-shadow: none;
 }
 
@@ -345,7 +349,16 @@ select {
   color: var(--vsc-fg-strong);
 }
 
+/* 齿轮按钮通用行为：hover 旋转 90°（设置类入口专用，全应用一致） */
+.gear-spin svg {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.gear-spin:hover svg {
+  transform: rotate(90deg);
+}
+
 /* ===== 输入 ===== */
+/* focus = 通电：描边亮起 + 外圈电场 */
 .input,
 .textarea,
 .select {
@@ -363,7 +376,7 @@ select {
 .textarea:focus,
 .select:focus {
   border-color: var(--vsc-accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.16), 0 0 12px var(--glow-volt);
 }
 .textarea {
   resize: none;

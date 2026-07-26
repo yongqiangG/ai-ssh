@@ -52,6 +52,7 @@
 }
 
 .tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -61,9 +62,7 @@
   color: var(--vsc-fg-muted);
   cursor: pointer;
   user-select: none;
-  border-bottom: 2px solid transparent;
   transition: color var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
     background var(--dur-fast) var(--ease-out);
 }
 
@@ -73,8 +72,19 @@
 
 .tabActive {
   color: var(--vsc-fg-strong);
-  border-bottom-color: var(--vsc-accent, #0078d4);
   background: var(--terminal-bg);
+}
+
+/* 活跃 tab 通电下划线：能量渐变 + 发光 */
+.tabActive::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--energy-circuit), var(--energy-volt));
+  box-shadow: 0 0 8px var(--glow-volt);
 }
 
 .tabName {
@@ -93,11 +103,12 @@
 
 /* tab 状态点颜色与 TerminalTabStatus 一一对应 */
 .tabDot.opening {
-  background: var(--vsc-yellow, #cca700);
+  background: var(--vsc-yellow);
 }
 
 .tabDot.active {
   background: var(--vsc-green);
+  box-shadow: 0 0 6px var(--glow-live);
 }
 
 .tabDot.closed {
@@ -158,20 +169,20 @@
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border: 1px solid var(--vsc-accent, #4f8cff);
+  border: 1px solid var(--vsc-accent);
   border-radius: 999px;
-  background: var(--vsc-editor-bg, #14161d);
-  color: var(--vsc-accent, #4f8cff);
+  background: var(--vsc-editor-bg);
+  color: var(--vsc-accent);
   font-size: 12px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 12px var(--accent-glow, rgba(79, 140, 255, 0.25));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 12px var(--glow-volt);
   animation: bubbleIn 0.15s ease-out;
   white-space: nowrap;
 }
 
 .selectionBubble:hover {
-  background: var(--vsc-accent, #4f8cff);
-  color: var(--vsc-accent-fg, #fff);
+  background: var(--vsc-accent);
+  color: var(--vsc-accent-fg);
 }
 
 @keyframes bubbleIn {
@@ -186,30 +197,51 @@
 }
 
 /* ===== F5 报错诊断：头部开关 + 右下角气泡 ===== */
-/* 对齐 ChatInputBar 开关按钮的视觉语言（图标+文字·开/关，开启态 accent 描边高亮） */
+/* 开关芯片：与 ChatInputBar 同一套通电开关语言（状态灯亮 = 开启） */
 .errorToggle {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   height: 24px;
-  padding: 0 9px;
-  border: 1px solid var(--vsc-border-strong, rgba(127, 127, 127, 0.35));
-  border-radius: 3px;
+  padding: 0 10px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 999px;
   background: transparent;
-  color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.55));
+  color: var(--vsc-fg-muted);
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .errorToggle:hover {
-  background: var(--vsc-list-hover, rgba(127, 127, 127, 0.15));
+  background: var(--vsc-list-hover);
+  color: var(--vsc-fg);
+}
+
+.errorToggleDot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vsc-fg-faint);
+  transition: background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .errorToggleOn {
-  color: var(--vsc-accent, #4f8cff);
-  border-color: var(--vsc-accent, #4f8cff);
-  background: color-mix(in srgb, var(--vsc-accent, #4f8cff) 10%, transparent);
+  color: var(--vsc-accent);
+  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.06);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.12);
+}
+
+.errorToggleOn .errorToggleDot {
+  background: var(--vsc-accent);
+  box-shadow: 0 0 6px var(--glow-volt);
 }
 
 .errorBubble {

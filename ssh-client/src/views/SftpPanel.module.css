@@ -18,7 +18,7 @@
 .remotePane {
   flex: 1 1 0;
   min-width: 0;
-  background: var(--vsc-bg);
+  background: var(--vsc-sidebar-bg);
   display: flex;
   flex-direction: column;
 }
@@ -46,7 +46,7 @@
   height: 7px;
   border-radius: 50%;
   background: var(--vsc-green);
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 6px var(--glow-live);
 }
 
 .connHint {
@@ -64,50 +64,6 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  background: var(--vsc-bg);
+  background: var(--vsc-sidebar-bg);
 }
 
-.tx {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-}
-
-.txDir {
-  flex: 0 0 auto;
-  font-weight: 700;
-  color: var(--vsc-accent);
-}
-
-.txName {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--vsc-fg);
-}
-
-.txBar {
-  flex: 0 0 100px;
-  height: 4px;
-  background: var(--vsc-secondary-bg);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.txFill {
-  display: block;
-  height: 100%;
-  background: var(--vsc-accent);
-  transition: width var(--dur-fast) linear;
-}
-
-.txOk {
-  color: var(--vsc-green);
-}
-
-.txErr {
-  color: var(--vsc-red);
-}

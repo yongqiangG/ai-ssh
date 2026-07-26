@@ -125,11 +125,17 @@ export default function ServerMonitorBar() {
         <div className={styles.empty}>连接服务器后显示实时指标</div>
       ) : (
         <div className={styles.grid}>
-          <MetricItem label="CPU" value={fmtPercent(display.cpuPercent)} tone="none" />
+          <MetricItem
+            label="CPU"
+            value={fmtPercent(display.cpuPercent)}
+            tone="none"
+            percent={display.cpuPercent}
+          />
           <MetricItem
             label="内存"
             value={fmtPercent(display.memPercent)}
             tone={toneOf(display.memPercent, { red: 90 })}
+            percent={display.memPercent}
           />
           <MetricItem
             label="负载"
@@ -146,6 +152,7 @@ export default function ServerMonitorBar() {
             label="磁盘"
             value={fmtPercent(display.diskPercent)}
             tone={toneOf(display.diskPercent, { red: 95, yellow: 85 })}
+            percent={display.diskPercent}
           />
         </div>
       )}
@@ -167,17 +174,34 @@ function toneOf(v: number | null, t: { red: number; yellow?: number }): Tone {
   return "none";
 }
 
-function MetricItem({ label, value, tone }: { label: string; value: string; tone: Tone }) {
+function MetricItem({
+  label,
+  value,
+  tone,
+  percent,
+}: {
+  label: string;
+  value: string;
+  tone: Tone;
+  /** 0-100 电量刻度；无天然百分比标度的指标（负载）不传、不画仪表 */
+  percent?: number | null;
+}) {
+  const toneClass =
+    tone === "red" ? styles.red : tone === "yellow" ? styles.yellow : "";
   return (
     <div className={styles.item}>
-      <span className={styles.label}>{label}</span>
-      <span
-        className={`${styles.value} ${
-          tone === "red" ? styles.red : tone === "yellow" ? styles.yellow : ""
-        }`}
-      >
-        {value}
-      </span>
+      <div className={styles.itemRow}>
+        <span className={styles.label}>{label}</span>
+        <span className={`${styles.value} ${toneClass}`}>{value}</span>
+      </div>
+      {percent != null && (
+        <div className={styles.meterTrack} aria-hidden>
+          <div
+            className={`${styles.meterFill} ${toneClass}`}
+            style={{ transform: `scaleX(${Math.min(100, Math.max(0, percent)) / 100})` }}
+          />
+        </div>
+      )}
     </div>
   );
 }

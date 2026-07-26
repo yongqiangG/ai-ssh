@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import SshConnectionModal from "../components/sshConnectionModal";
-import BackendSettingsModal from "../components/BackendSettingsModal";
 import HostKeyConfirmModal from "../components/HostKeyConfirmModal";
 import ServerMonitorBar from "../components/ServerMonitorBar";
 import { useConnectionStore } from "../stores/connectionStore";
@@ -30,7 +30,6 @@ export default function ConnectionsPanel() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SshConnection | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const openTab = useTerminalStore((s) => s.openTab);
@@ -108,15 +107,9 @@ export default function ConnectionsPanel() {
           <button className="icon-btn" title="刷新" onClick={() => void fetchList()}>
             <Icon name="refresh" size={14} />
           </button>
-          <button
-            className="icon-btn"
-            title="后端服务地址"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Icon name="settings" size={14} />
-          </button>
-          <button className="icon-btn" title="新建连接" onClick={openCreate}>
-            <Icon name="add" size={16} />
+          <button className="btn btn-sm" title="新建 SSH 连接" onClick={openCreate}>
+            <Icon name="add" size={13} />
+            新建
           </button>
         </div>
       </div>
@@ -142,6 +135,7 @@ export default function ConnectionsPanel() {
           />
         ) : (
           <div className={styles.list}>
+            <AnimatePresence mode="popLayout" initial={false}>
             {connections.map((c) => (
               <ConnectionCard
                 key={c.connectionId}
@@ -159,6 +153,7 @@ export default function ConnectionsPanel() {
                 }}
               />
             ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -171,10 +166,6 @@ export default function ConnectionsPanel() {
         mode={editing ? "edit" : "create"}
         initial={editing}
         onClose={() => setModalOpen(false)}
-      />
-      <BackendSettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
       />
       <HostKeyConfirmModal />
     </section>
@@ -211,7 +202,16 @@ function ConnectionCard({
   const isConnecting = status === "connecting";
 
   return (
-    <div className={`${styles.card} ${isCurrent ? styles.cardActive : ""}`} title={`${connection.username}@${connection.host}:${connection.port}`}>
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+      className={`${styles.card} ${isCurrent ? styles.cardActive : ""}`}
+      title={`${connection.username}@${connection.host}:${connection.port}`}
+    >
+      {isConnecting && <span className={styles.connectingRing} aria-hidden />}
       <div className={`${styles.cardMain} ${styles.clickable}`} onClick={onOpen}>
         <span className={`${styles.dot} ${styles[status]}`} />
         <div className={styles.nameWrap}>
@@ -265,6 +265,6 @@ function ConnectionCard({
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

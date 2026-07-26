@@ -1,3 +1,5 @@
+/* 通电导线：静息 = 暗色细线；hover/拖拽 = 能量点亮并微微发光 */
+
 .splitter {
   flex: 0 0 1px;
   width: 1px;
@@ -6,7 +8,8 @@
   position: relative;
   cursor: col-resize;
   z-index: 2;
-  transition: background var(--dur-fast) var(--ease-out);
+  transition: background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 /* 加宽可点击命中区域（左右各 3px） */
@@ -21,5 +24,11 @@
 
 .splitter:hover,
 .splitter:active {
-  background: var(--vsc-splitter-hover);
+  background: linear-gradient(
+    180deg,
+    var(--energy-volt),
+    var(--energy-circuit) 50%,
+    var(--energy-volt)
+  );
+  box-shadow: 0 0 8px var(--glow-volt);
 }

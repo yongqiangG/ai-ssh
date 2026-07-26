@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import Icon, { type IconName } from "./Icon";
 import BackendSettingsModal from "./BackendSettingsModal";
 import { useLayoutStore, type SidebarView } from "../stores/layoutStore";
-import { useThemeStore } from "../stores/themeStore";
 import styles from "./ActivityBar.module.css";
 
 interface NavItem {
@@ -24,9 +24,6 @@ export default function ActivityBar() {
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const centerView = useLayoutStore((s) => s.centerView);
   const setCenterView = useLayoutStore((s) => s.setCenterView);
-
-  const mode = useThemeStore((s) => s.mode);
-  const toggleTheme = useThemeStore((s) => s.toggle);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -72,7 +69,13 @@ export default function ActivityBar() {
                 onClick={() => onItemClick(item.id)}
               >
                 <Icon name={item.icon} size={22} />
-                {isActive && <span className={styles.indicator} />}
+                {isActive && (
+                  <motion.span
+                    layoutId="activity-indicator"
+                    className={styles.indicator}
+                    transition={{ type: "spring", stiffness: 520, damping: 34 }}
+                  />
+                )}
               </button>
             );
           })}
@@ -80,16 +83,8 @@ export default function ActivityBar() {
         <div className={styles.bottom}>
           <button
             type="button"
-            className={styles.btn}
-            title={mode === "dark" ? "切换到浅色主题" : "切换到深色主题"}
-            onClick={toggleTheme}
-          >
-            <Icon name={mode === "dark" ? "sun" : "moon"} size={22} />
-          </button>
-          <button
-            type="button"
-            className={styles.btn}
-            title="设置"
+            className={`${styles.btn} gear-spin`}
+            title="后端服务设置"
             onClick={() => setSettingsOpen(true)}
           >
             <Icon name="settings" size={22} />

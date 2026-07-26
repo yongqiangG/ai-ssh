@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-27T00:40:00+08:00",
+  "title": "Design System: AI-SSH",
+  "extensions": {
+    "colorMeta": {
+      "volt": { "role": "primary", "displayName": "Volt 电青", "canonical": "#00e5ff", "tonalRamp": ["#00232a", "#004350", "#006376", "#00879e", "#00acc7", "#00e5ff", "#66efff", "#c2f9ff"] },
+      "plasma": { "role": "primary", "displayName": "Plasma 品红", "canonical": "#ff2d95", "tonalRamp": ["#33071e", "#590d34", "#851349", "#b81a64", "#e0217c", "#ff2d95", "#ff77b8", "#ffc2de"] },
+      "circuit": { "role": "primary", "displayName": "Circuit 电紫", "canonical": "#7c5cff", "tonalRamp": ["#170f33", "#2a1c5c", "#3f2a8a", "#553ab8", "#6a4ade", "#7c5cff", "#a48eff", "#d3c8ff"] },
+      "live": { "role": "good", "displayName": "Live 荧绿", "canonical": "#3dffa8" },
+      "surge": { "role": "warning", "displayName": "Surge 琥珀", "canonical": "#ffb020" },
+      "overload": { "role": "critical", "displayName": "Overload 警红", "canonical": "#ff4d6d" },
+      "void-editor": { "role": "neutral", "displayName": "Void 深空底", "canonical": "#07080f", "tonalRamp": ["#07080f", "#0b0d17", "#10131f", "#161a2b", "#1e2338", "#2a3050", "#3a4270", "#525c96"] },
+      "ink": { "role": "neutral", "displayName": "Ink 冷蓝灰正文", "canonical": "#c6cbe0" }
+    },
+    "typographyMeta": {
+      "label": { "displayName": "丝印标签（Chakra Petch）", "purpose": "面板标题、状态徽标、仪表标题；12px 以下专用。" },
+      "body": { "displayName": "正文（系统 CJK 栈）", "purpose": "消息、表单、说明文字。" },
+      "mono": { "displayName": "等宽（JetBrains Mono）", "purpose": "终端、命令、代码、主机地址、指标数值。" }
+    },
+    "shadows": [
+      { "name": "abyss", "value": "0 16px 48px rgba(0, 0, 0, 0.55)", "purpose": "模态与浮层的深空投影（带偏移的结构阴影）。" },
+      { "name": "glow-volt", "value": "0 0 12px rgba(0, 229, 255, 0.32)", "purpose": "活跃/焦点态辉光。" },
+      { "name": "glow-circuit", "value": "0 0 12px rgba(124, 92, 255, 0.35)", "purpose": "思考/选中态辉光。" },
+      { "name": "glow-overload", "value": "0 0 18px rgba(255, 77, 109, 0.4)", "purpose": "高危警示辉光——视觉音量最高。" },
+      { "name": "glow-live", "value": "0 0 8px rgba(61, 255, 168, 0.35)", "purpose": "在线/成功指示灯辉光。" }
+    ],
+    "motion": [
+      { "name": "dur-fast", "value": "120ms", "purpose": "hover/按压等微交互。" },
+      { "name": "dur-base", "value": "200ms", "purpose": "常规状态过渡。" },
+      { "name": "dur-slow", "value": "320ms", "purpose": "模态入场等大位移。" },
+      { "name": "ease-out", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "默认减速曲线。" },
+      { "name": "ease-out-quint", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "强调性减速（模态、开关旋钮）。" },
+      { "name": "spring-indicator", "value": "spring(stiffness 520, damping 34)", "purpose": "motion 库 layoutId 指示器滑动。" },
+      { "name": "spring-card", "value": "spring(stiffness 420, damping 32)", "purpose": "卡片入场/重排弹簧。" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "通电元件：能量渐变底 + 深色文字，hover 渐变位移增亮。",
+      "html": "<button class=\"ds-btn-primary\">新建连接</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px; border: none; border-radius: 4px; background: linear-gradient(100deg, #7c5cff, #00e5ff); background-size: 150% 100%; background-position: 100% 50%; color: #041018; font-weight: 600; font-size: 13px; cursor: pointer; transition: background-position 200ms cubic-bezier(0.25,1,0.5,1), box-shadow 120ms; } .ds-btn-primary:hover { background-position: 0% 50%; box-shadow: 0 2px 14px rgba(0,229,255,0.32), 0 1px 4px rgba(0,0,0,0.5); } .ds-btn-primary:active { transform: scale(0.97); }"
+    },
+    {
+      "name": "Compact Button",
+      "kind": "button",
+      "refersTo": "button-compact",
+      "description": "22px 紧凑主 CTA：面板头等窄位的唯一常驻动作入口。",
+      "html": "<button class=\"ds-btn-compact\">＋ 新建</button>",
+      "css": ".ds-btn-compact { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border: none; border-radius: 4px; background: linear-gradient(100deg, #7c5cff, #00e5ff); background-size: 150% 100%; background-position: 100% 50%; color: #041018; font-weight: 600; font-size: 12px; cursor: pointer; transition: background-position 200ms cubic-bezier(0.25,1,0.5,1), box-shadow 120ms; } .ds-btn-compact:hover { background-position: 0% 50%; box-shadow: 0 2px 14px rgba(0,229,255,0.32); } .ds-btn-compact:active { transform: scale(0.97); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "静默元件：半透明冷蓝底，无辉光。",
+      "html": "<button class=\"ds-btn-secondary\">取消</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border: none; border-radius: 4px; background: rgba(140,160,255,0.08); color: #c6cbe0; font-size: 13px; cursor: pointer; transition: background 120ms; } .ds-btn-secondary:hover { background: rgba(140,160,255,0.14); }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "focus = 通电：volt 描边 + 电场外圈。",
+      "html": "<input class=\"ds-input\" placeholder=\"root@192.168.1.10\" />",
+      "css": ".ds-input { width: 240px; padding: 6px 8px; border: 1px solid rgba(140,160,255,0.22); border-radius: 4px; background: #10131f; color: #f0f3ff; font-size: 13px; outline: none; transition: border-color 120ms, box-shadow 120ms; } .ds-input::placeholder { color: #8a93b2; } .ds-input:focus { border-color: #00e5ff; box-shadow: 0 0 0 3px rgba(0,229,255,0.16), 0 0 12px rgba(0,229,255,0.32); }"
+    },
+    {
+      "name": "Circuit Node Card",
+      "kind": "card",
+      "refersTo": "card-node",
+      "description": "电路节点卡：激活时能量流描边 + 呼吸辉光。",
+      "html": "<div class=\"ds-card-active\"><span class=\"ds-dot\"></span><div><div class=\"ds-card-name\">prod-01</div><div class=\"ds-card-sub\">root@10.0.0.8:22</div></div><span class=\"ds-badge-live\">已连接</span></div>",
+      "css": ".ds-card-active { display: flex; align-items: center; gap: 8px; width: 260px; padding: 10px 12px; border: 1px solid transparent; border-radius: 8px; background: linear-gradient(#0d1020, #0d1020) padding-box, linear-gradient(100deg, #00e5ff, #ff2d95 30%, #7c5cff 60%, #00e5ff) border-box; background-size: 100% 100%, 300% 100%; animation: ds-flow 3.2s linear infinite; } @keyframes ds-flow { from { background-position: 0% 50%, 0% 50%; } to { background-position: 0% 50%, -300% 50%; } } .ds-dot { width: 8px; height: 8px; border-radius: 50%; background: #3dffa8; box-shadow: 0 0 8px rgba(61,255,168,0.35); } .ds-card-name { font-size: 13px; color: #c6cbe0; } .ds-card-sub { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10.5px; color: #8a93b2; } .ds-badge-live { margin-left: auto; font-family: 'Chakra Petch', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(61,255,168,0.5); color: #3dffa8; box-shadow: 0 0 8px rgba(61,255,168,0.15); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "card-node",
+      "description": "丝印状态徽标：Chakra Petch + 状态色描边。",
+      "html": "<span class=\"ds-badge-surge\">连接中</span>",
+      "css": ".ds-badge-surge { font-family: 'Chakra Petch', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(255,176,32,0.5); color: #ffb020; background: transparent; }"
+    },
+    {
+      "name": "Switch Chip",
+      "kind": "chip",
+      "refersTo": "button-secondary",
+      "description": "带状态灯的通电开关芯片：灯亮 = 开启，用于一切持续生效的开关。",
+      "html": "<button class=\"ds-chip ds-chip-on\" aria-pressed=\"true\"><span class=\"ds-chip-dot\"></span>深度思考</button>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 1px solid rgba(140,160,255,0.22); border-radius: 999px; background: transparent; color: #8a93b2; font-size: 12px; cursor: pointer; transition: color 120ms, border-color 120ms, box-shadow 120ms; } .ds-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: #6a7394; transition: background 120ms, box-shadow 120ms; } .ds-chip-on { color: #00e5ff; border-color: rgba(0,229,255,0.5); background: rgba(0,229,255,0.06); box-shadow: 0 0 8px rgba(0,229,255,0.12); } .ds-chip-on .ds-chip-dot { background: #00e5ff; box-shadow: 0 0 6px rgba(0,229,255,0.32); }"
+    },
+    {
+      "name": "High-Voltage Confirm Bar",
+      "kind": "custom",
+      "refersTo": "card-node",
+      "description": "高危命令确认门：overload 嗡鸣 + 深色文字合闸钮（信任红线的视觉形态）。",
+      "html": "<div class=\"ds-hv\"><span class=\"ds-hv-reason\">⚠️ 写操作需要你的确认</span><button class=\"ds-hv-allow\">允许执行</button></div>",
+      "css": ".ds-hv { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 320px; padding: 8px 12px; border: 1px solid rgba(255,77,109,0.65); border-radius: 4px; background: rgba(255,77,109,0.08); animation: ds-hum 1.6s ease-in-out infinite; } @keyframes ds-hum { 0%,100% { box-shadow: 0 0 10px rgba(255,77,109,0.25); } 50% { box-shadow: 0 0 20px rgba(255,77,109,0.4); } } .ds-hv-reason { font-size: 12px; font-weight: 600; color: #ff4d6d; } .ds-hv-allow { padding: 4px 12px; border: none; border-radius: 4px; background: #ff4d6d; color: #2a040c; font-size: 12px; font-weight: 600; cursor: pointer; } .ds-hv-allow:hover { box-shadow: 0 0 14px rgba(255,77,109,0.4); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "通电的电路板（The Live Circuit）",
+    "overview": "整个工作台是一块通电的暗色电路板：服务器是电路节点，AI 是副驾电源，命令与数据是在电路中流动的能量。通电（活跃）、流动（执行/传输/思考）、高压（危险）三种能量形态就是界面的语言。Operate 模式：表达永不遮蔽任务，终端视口内零特效。",
+    "keyCharacteristics": [
+      "深空底 + 发光 hairline 描边，面板即电路板",
+      "能量渐变只表达「进行中/活跃」，静止元素不上渐变",
+      "弹簧位移 + 发光呼吸双动效族",
+      "中文正文系统栈，标签用 Chakra Petch 丝印体，等宽 JetBrains Mono"
+    ],
+    "rules": [
+      { "name": "The Energy-Means-Motion Rule", "body": "plasma→circuit→volt 渐变只出现在「正在发生」的元素上；静止元素永远不披渐变。", "section": "colors" },
+      { "name": "The High-Voltage Rule", "body": "overload 红的视觉音量必须压过一切装饰；装饰动画永远不得使用 overload 红。", "section": "colors" },
+      { "name": "The Silk-Screen Rule", "body": "Chakra Petch 只出现在 12px 以下的标签面。", "section": "typography" },
+      { "name": "The Glow-Is-State Rule", "body": "辉光是状态不是装饰：volt=活跃、circuit=思考、live=在线、surge=警示、overload=危险。", "section": "elevation" },
+      { "name": "The One-Switch Rule", "body": "每个动作全应用只保留一个常驻入口：新建连接 = 连接面板头部 CTA；后端设置 = ActivityBar 底部；LLM 设置 = 对话面板。空态引导与启动门自救按钮是上下文通道，不算重复。", "section": "components" }
+    ],
+    "dos": [
+      "Do 把 keyframes 定义在消费它的 CSS Module 文件内",
+      "Do 动画只碰 transform/opacity/background-position，进度用 scaleX",
+      "Do 为无限循环动画补 prefers-reduced-motion 关停",
+      "Do 新增颜色同步 index.css 与 themeStore.ThemePalette 双侧",
+      "Do 有色底文字用同族深色 ink 保 4.5:1"
+    ],
+    "donts": [
+      "Don't 给静止元素上能量渐变或辉光",
+      "Don't 恢复浅色主题路径（本世界仅深色）",
+      "Don't 在 xterm 视口内叠加特效",
+      "Don't 同屏超过 3 处常驻流动动画",
+      "Don't 用 PowerShell 管道改写含中文的源文件"
+    ]
+  }
+}

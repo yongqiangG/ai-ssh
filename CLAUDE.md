@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **产品定位**：具备 AI 运维能力的 SSH 客户端——与「客户端旁挂聊天窗」的本质区别是 AI 能看到终端里发生了什么，并能把结论安全地送回终端执行。三条信任红线：命令执行前永远可见可编辑（只预填不回车）；写操作必须人工确认；高危命令强制防呆（AI 生成与手输同防）。
 
-**已交付简史**：2026-07-24 · AI 会话生命周期整改（历史只读+冷启动归档+配置变更判定+AI_SESSION_EXPIRED 协议+未连接卡片脉冲反馈，决议见 `docs/situations/260723-ai-session-lifecycle.md`）；2026-07-23 · 三开关体验优化（报错检测默认关/深思粘滞/按钮语义）+ confirm 卡死孤儿卡兜底 + 思考过程可视化（附带修复 thinking 注入流式失效与 ADK 重复调用熔断，决议见 `docs/situations/260723-ux-thinking-confirm.md`）；2026-07-21 · 迭代 A 安全地基 + 迭代 B AI 交互确认门 + 迭代 C1 监控条（决议全文见 `docs/situations/260721-three-iterations.md`）；更早：SFTP 双面板（ADR 0003）、Tool 调用闭环（ADR 0002）、single 形态落地（ADR 0001）、模型设置、UI 改版（Linear/Warp 风）。
+**已交付简史**：2026-07-27 · client UI 全量重设计「电路霓虹·能量流」（仅深色 + motion 弹簧动效 + Chakra Petch/JetBrains Mono 本地打包；设计系统落 `ssh-client/DESIGN.md` + `.impeccable/design.json`，决议见 `docs/situations/260726-ui-neon-circuit-redesign.md`；注意 CSS Modules 内 keyframes 必须与消费方同模块）；2026-07-24 · AI 会话生命周期整改（历史只读+冷启动归档+配置变更判定+AI_SESSION_EXPIRED 协议+未连接卡片脉冲反馈，决议见 `docs/situations/260723-ai-session-lifecycle.md`）；2026-07-23 · 三开关体验优化（报错检测默认关/深思粘滞/按钮语义）+ confirm 卡死孤儿卡兜底 + 思考过程可视化（附带修复 thinking 注入流式失效与 ADK 重复调用熔断，决议见 `docs/situations/260723-ux-thinking-confirm.md`）；2026-07-21 · 迭代 A 安全地基 + 迭代 B AI 交互确认门 + 迭代 C1 监控条（决议全文见 `docs/situations/260721-three-iterations.md`）；更早：SFTP 双面板（ADR 0003）、Tool 调用闭环（ADR 0002）、single 形态落地（ADR 0001）、模型设置、UI 改版（Linear/Warp 风）。
 
 ## 常用命令
 

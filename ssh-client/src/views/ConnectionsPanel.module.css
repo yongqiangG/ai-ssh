@@ -1,3 +1,6 @@
+/* 电路节点卡：每台服务器是电路上的一个节点——
+   在线 = 通电呼吸；连接中 = 电流沿边框爬行；当前激活 = 能量流描边 */
+
 .list {
   padding: 8px;
   display: flex;
@@ -7,51 +10,60 @@
 
 .card {
   position: relative;
-  overflow: hidden;
   padding: 10px 12px;
   border: 1px solid var(--vsc-border);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.03);
-  transition: transform var(--dur-base) var(--ease-out),
-    border-color var(--dur-base) var(--ease-out),
+  background: rgba(158, 170, 255, 0.03);
+  transition: border-color var(--dur-base) var(--ease-out),
     background var(--dur-base) var(--ease-out),
     box-shadow var(--dur-base) var(--ease-out);
 }
 
-.card:hover {
+.card:hover:not(.cardActive) {
   background: var(--vsc-list-hover);
   border-color: var(--vsc-border-strong);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-/* 当前选中（终端活跃连接 = SFTP 连接）：accent 边框 + 左侧呼吸光条 */
+/* 当前选中（终端活跃连接 = SFTP 连接）：能量流描边 + 通电呼吸光 */
 .cardActive {
-  border-color: var(--vsc-accent);
-  background: rgba(94, 106, 210, 0.07);
+  --frame-bg: #0d1020;
+  border-color: transparent;
+  background: linear-gradient(var(--frame-bg), var(--frame-bg)) padding-box,
+    var(--energy-flow-loop) border-box;
+  background-size: 100% 100%, 300% 100%;
+  animation: energyFlow 3.2s linear infinite;
 }
 
-.cardActive::before {
+.cardActive::after {
   content: "";
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--vsc-accent);
-  animation: breathe 2s ease-in-out infinite;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 2px 18px var(--glow-circuit);
+  animation: glowBreathe 2.4s ease-in-out infinite;
 }
 
-@keyframes breathe {
-  0%,
-  100% {
-    opacity: 0.45;
-    box-shadow: 0 0 3px var(--accent-glow);
-  }
-  50% {
-    opacity: 1;
-    box-shadow: 0 0 13px var(--accent-glow), 0 0 4px var(--vsc-accent);
-  }
+/* 连接中：一段亮弧沿边框巡行（电流爬行找路） */
+.connectingRing {
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(var(--radius-md) + 1px);
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--crawl-angle),
+    transparent 0turn 0.72turn,
+    var(--energy-volt) 0.86turn,
+    var(--energy-plasma) 0.96turn,
+    transparent 1turn
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: crawlSpin 1.4s linear infinite;
 }
 
 .cardMain {
@@ -75,7 +87,7 @@
 
 .dot.connected {
   background: var(--vsc-green);
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+  box-shadow: 0 0 8px var(--glow-live);
 }
 
 .dot.connecting {
@@ -85,6 +97,7 @@
 
 .dot.error {
   background: var(--vsc-red);
+  box-shadow: 0 0 6px var(--glow-overload);
 }
 
 .nameWrap {
@@ -104,35 +117,41 @@
 }
 
 .sub {
-  font-size: 11px;
+  font-family: var(--mono-font);
+  font-size: 10.5px;
   color: var(--vsc-fg-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 状态徽标：电路板丝印风格标签 */
 .badge {
   flex: 0 0 auto;
+  font-family: var(--display-font);
   font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--vsc-border-strong);
   color: var(--vsc-fg-muted);
 }
 
 .badge.connected {
   color: var(--vsc-green);
-  border-color: var(--vsc-green);
+  border-color: rgba(61, 255, 168, 0.5);
+  box-shadow: 0 0 8px rgba(61, 255, 168, 0.15);
 }
 
 .badge.connecting {
   color: var(--vsc-yellow);
-  border-color: var(--vsc-yellow);
+  border-color: rgba(255, 176, 32, 0.5);
 }
 
 .badge.error {
   color: var(--vsc-red);
-  border-color: var(--vsc-red);
+  border-color: rgba(255, 77, 109, 0.5);
 }
 
 .cardFoot {
@@ -156,7 +175,7 @@
   opacity: 1;
 }
 
-/* ===== toggle 开关 ===== */
+/* ===== toggle 开关：合闸 = 能量渐变通电 ===== */
 .switch {
   position: relative;
   width: 34px;
@@ -172,8 +191,12 @@
 }
 
 .switch.on {
-  background: var(--vsc-accent);
-  box-shadow: 0 0 8px var(--accent-glow);
+  background: linear-gradient(
+    100deg,
+    var(--energy-circuit),
+    var(--energy-volt)
+  );
+  box-shadow: 0 0 10px var(--glow-volt);
 }
 
 .switch:disabled {
@@ -188,12 +211,13 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--vsc-accent-fg);
-  transition: transform var(--dur-base) var(--ease-spring);
+  background: #f0f3ff;
+  transition: transform var(--dur-base) var(--ease-out-quint);
 }
 
 .switch.on .knob {
   transform: translateX(16px);
+  background: #041018;
 }
 
 .confirm {
@@ -233,6 +257,7 @@
   background: var(--vsc-danger-bg);
   color: var(--vsc-red);
   border-color: var(--vsc-danger-border);
+  box-shadow: 0 0 8px var(--glow-overload);
 }
 
 @keyframes pulse {
@@ -242,6 +267,33 @@
   }
   50% {
     opacity: 0.4;
+  }
+}
+
+/* CSS Modules 会把 animation 名哈希化——keyframes 必须与消费方同模块，
+   不能只在 index.css 里放全局版（否则引用悬空、动画静死） */
+@keyframes energyFlow {
+  from {
+    background-position: 0% 50%, 0% 50%;
+  }
+  to {
+    background-position: 0% 50%, -300% 50%;
+  }
+}
+
+@keyframes glowBreathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes crawlSpin {
+  to {
+    --crawl-angle: 360deg;
   }
 }
 
@@ -257,12 +309,15 @@
   }
   35% {
     box-shadow: inset 0 0 0 2px var(--vsc-accent);
-    background: color-mix(in srgb, var(--vsc-accent) 8%, transparent);
+    background: rgba(0, 229, 255, 0.08);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .attentionPulse {
+  .attentionPulse,
+  .cardActive,
+  .cardActive::after,
+  .connectingRing {
     animation: none;
   }
 }

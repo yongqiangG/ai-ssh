@@ -183,8 +183,11 @@ export function getRecentOutput(connectionId: string, lines = 50): string | null
 function readXtermTheme() {
   const css = getComputedStyle(document.documentElement);
   return {
-    background: css.getPropertyValue("--terminal-bg").trim() || "#0a0b10",
-    foreground: css.getPropertyValue("--vsc-fg").trim() || "#c8cad4",
+    background: css.getPropertyValue("--terminal-bg").trim() || "#07080f",
+    foreground: css.getPropertyValue("--terminal-fg").trim() || "#ccd2e8",
+    cursor: css.getPropertyValue("--terminal-cursor").trim() || "#00e5ff",
+    cursorAccent: css.getPropertyValue("--terminal-bg").trim() || "#07080f",
+    selectionBackground: "rgba(0, 229, 255, 0.25)",
   };
 }
 
@@ -224,7 +227,7 @@ export async function openTerminalIn(
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: '"Cascadia Mono", Consolas, "Courier New", monospace',
+      fontFamily: '"JetBrains Mono", "Cascadia Mono", Consolas, monospace',
       scrollback: 5000,
       theme: readXtermTheme(),
     });

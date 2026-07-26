@@ -1,3 +1,5 @@
+/* 能量轨道：垂直导轨，活跃项通电发光，指示器由 motion layoutId 滑动 */
+
 .bar {
   flex: 0 0 48px;
   width: 48px;
@@ -30,15 +32,16 @@
   justify-content: center;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--vsc-fg-faint);
   border-radius: 0;
   transition: color var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
+    background var(--dur-fast) var(--ease-out),
+    filter var(--dur-fast) var(--ease-out);
 }
 
 .btn:hover:not(:disabled) {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--vsc-fg-strong);
+  background: var(--vsc-list-hover);
 }
 
 .btn:disabled {
@@ -46,10 +49,13 @@
   opacity: 0.4;
 }
 
+/* 通电：活跃项本体染 volt 并微微发光 */
 .btn.active {
-  color: #ffffff;
+  color: var(--vsc-accent);
+  filter: drop-shadow(0 0 6px var(--glow-volt));
 }
 
+/* 能量指示器：plasma→volt 竖向渐变棒，位置切换由 motion 弹簧接管 */
 .indicator {
   position: absolute;
   left: 0;
@@ -57,19 +63,11 @@
   transform: translateY(-50%);
   width: 2px;
   height: 24px;
-  background: var(--vsc-accent);
-  box-shadow: 0 0 6px var(--accent-glow);
+  background: linear-gradient(
+    180deg,
+    var(--energy-volt),
+    var(--energy-circuit)
+  );
+  box-shadow: 1px 0 8px var(--glow-volt);
   border-radius: 0 1px 1px 0;
-  animation: indicatorIn var(--dur-base) var(--ease-spring);
-}
-
-@keyframes indicatorIn {
-  from {
-    transform: translateY(-50%) scaleY(0.3);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(-50%) scaleY(1);
-    opacity: 1;
-  }
 }

@@ -41,19 +41,19 @@
 
 .fill {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
+  inset: 0;
   border-radius: 9px;
   opacity: 0.6;
-  transition: width 0.2s linear;
+  transform-origin: left;
+  transition: transform 0.2s linear;
 }
 
-/* running：渐变 + 流光扫动 */
+/* running：能量流在轨道里奔涌（与充能条/激活卡同一签名隐喻） */
 .track.running .fill {
-  background: linear-gradient(90deg, var(--vsc-accent), var(--ai-grad-b), var(--vsc-accent));
-  background-size: 200% 100%;
-  animation: stream 1.1s linear infinite;
+  background: var(--energy-flow-loop);
+  background-size: 300% 100%;
+  animation: stream 1.4s linear infinite;
+  box-shadow: 0 0 8px var(--glow-circuit);
 }
 
 .track.done .fill {
@@ -69,7 +69,7 @@
     background-position: 0 0;
   }
   to {
-    background-position: -200% 0;
+    background-position: -300% 0;
   }
 }
 

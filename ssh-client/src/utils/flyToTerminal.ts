@@ -44,9 +44,9 @@ function spawnChip(
   outer.style.cssText = `position:fixed;z-index:9999;pointer-events:none;left:${from.left}px;top:${from.top}px;opacity:${opacity}`;
   const mid = document.createElement("div");
   const chip = document.createElement("div");
-  chip.textContent = "▶ " + command;
+  chip.textContent = "⚡ " + command;
   chip.style.cssText =
-    "max-width:300px;padding:5px 11px;border-radius:6px;background:var(--vsc-accent);color:var(--vsc-accent-fg);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 20px rgba(0,0,0,0.6),0 0 18px var(--accent-glow)";
+    "max-width:300px;padding:5px 11px;border-radius:6px;background:linear-gradient(100deg,var(--energy-circuit),var(--energy-volt));color:var(--vsc-accent-fg);font-family:var(--mono-font,ui-monospace,Consolas,monospace);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 20px rgba(0,0,0,0.6),0 0 18px var(--glow-volt),0 0 30px var(--glow-circuit)";
   mid.appendChild(chip);
   outer.appendChild(mid);
   document.body.appendChild(outer);
@@ -92,21 +92,25 @@ function spawnChip(
   return outer;
 }
 
-/** 第三幕：落点冲击波 ripple + 面板震动 + 内发光 */
+/** 第三幕：落点电流浪涌——volt 主波 + plasma 余波 + 面板震动 + 内发光 */
 function impact(target: HTMLElement, to: DOMRect) {
   const cx = to.left + to.width / 2;
   const cy = to.top + to.height / 2;
-  const ripple = document.createElement("div");
-  ripple.style.cssText = `position:fixed;z-index:9998;pointer-events:none;left:${cx - 30}px;top:${cy - 30}px;width:60px;height:60px;border-radius:50%;border:2px solid var(--vsc-accent);box-shadow:0 0 24px var(--accent-glow)`;
-  document.body.appendChild(ripple);
-  ripple.animate(
-    [
-      { transform: "scale(0.2)", opacity: 0.85 },
-      { transform: "scale(2.5)", opacity: 0 },
-    ],
-    { duration: 350, easing: "ease-out", fill: "forwards" }
-  );
-  window.setTimeout(() => ripple.remove(), 420);
+  const spawnRipple = (color: string, glow: string, delay: number) => {
+    const ripple = document.createElement("div");
+    ripple.style.cssText = `position:fixed;z-index:9998;pointer-events:none;left:${cx - 30}px;top:${cy - 30}px;width:60px;height:60px;border-radius:50%;border:2px solid ${color};box-shadow:0 0 24px ${glow};opacity:0`;
+    document.body.appendChild(ripple);
+    ripple.animate(
+      [
+        { transform: "scale(0.2)", opacity: 0.85 },
+        { transform: "scale(2.5)", opacity: 0 },
+      ],
+      { duration: 350, delay, easing: "ease-out", fill: "forwards" }
+    );
+    window.setTimeout(() => ripple.remove(), 420 + delay);
+  };
+  spawnRipple("var(--energy-volt)", "var(--glow-volt)", 0);
+  spawnRipple("var(--energy-plasma)", "var(--glow-plasma)", 90);
 
   // 面板震动两下：接住了这条命令
   target.animate(

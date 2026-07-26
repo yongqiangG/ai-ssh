@@ -14,89 +14,241 @@
   gap: 8px;
 }
 
-.agentSelect {
+/* ===== 智能体选择器 = 供电源选择（自绘下拉：原生 select 弹层无法样式化）===== */
+.agentBox {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 4px 0 8px;
-  background: var(--vsc-input-bg);
-  border: 1px solid var(--vsc-border-strong);
-  border-radius: 3px;
-  color: var(--vsc-fg);
-}
-
-.agentIcon {
-  color: var(--ai-grad-a);
   flex: 0 0 auto;
 }
 
-.select {
-  appearance: none;
-  border: none;
-  background: transparent;
+.agentBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 6px 0 8px;
+  background: var(--vsc-input-bg);
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: var(--radius-sm);
   color: var(--vsc-fg);
   font-size: 12px;
-  padding-right: 2px;
-  outline: none;
   cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
-.select option {
-  background: var(--vsc-input-bg);
-  color: var(--vsc-fg);
+
+.agentBtn:hover {
+  border-color: rgba(124, 92, 255, 0.5);
+}
+
+/* 展开 = 通电：紫色电场 */
+.agentBtnOpen {
+  border-color: var(--vsc-purple);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16), 0 0 10px var(--glow-circuit);
+}
+
+.agentIcon {
+  color: var(--vsc-purple);
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0 4px var(--glow-circuit));
+}
+
+.agentName {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chevron {
   color: var(--vsc-fg-muted);
   pointer-events: none;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
-.newBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
+.chevronUp {
+  transform: rotate(180deg);
+}
+
+/* 弹出菜单：向上展开的悬浮电路板 */
+.agentMenu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 40;
+  min-width: 100%;
+  max-width: 240px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--vsc-sidebar-bg);
   border: 1px solid var(--vsc-border-strong);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 16px rgba(124, 92, 255, 0.1);
+  animation: menuIn var(--dur-fast) var(--ease-out);
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 选项：状态灯 + 充足边距，选中 = 灯亮 + circuit 底 */
+.agentOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--vsc-fg);
   font-size: 12px;
-}
-.newBtn:hover {
-  background: var(--vsc-list-hover);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
+.agentOption:hover {
+  background: var(--vsc-list-hover);
+  color: var(--vsc-fg-strong);
+}
+
+.agentOptionOn {
+  background: rgba(124, 92, 255, 0.14);
+  color: var(--vsc-fg-strong);
+}
+
+.optionDot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vsc-fg-faint);
+  transition: background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.agentOptionOn .optionDot {
+  background: var(--vsc-purple);
+  box-shadow: 0 0 6px var(--glow-circuit);
+}
+
+/* ===== 开关芯片：带状态灯的通电开关（深度思考 / 让 AI 看终端） =====
+   灯亮 = 开启；开启态 volt 描边 + 电场辉光，一眼可辨 */
+.switchChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vsc-fg-muted);
+  font-size: 12px;
+  transition: color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.switchChip:hover {
+  background: var(--vsc-list-hover);
+  color: var(--vsc-fg);
+}
+
+.chipDot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vsc-fg-faint);
+  transition: background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.chipOn {
+  color: var(--vsc-accent);
+  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.06);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.12);
+}
+
+.chipOn .chipDot {
+  background: var(--vsc-accent);
+  box-shadow: 0 0 6px var(--glow-volt);
+}
+
+/* 新建对话：动作类，靠右与开关分族 */
+.newChatBtn {
+  margin-left: auto;
+}
+
+/* 能量注入口：文本区在上、动作行在下，发送钮是注入口的一部分 */
 .inputRow {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   background: var(--vsc-input-bg);
   border: 1px solid var(--vsc-border-strong);
   border-radius: var(--radius-md);
-  padding: 6px 6px 6px 10px;
+  padding: 10px 10px 8px 12px;
   transition: border-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
 }
+
+.inputRow:hover:not(:focus-within) {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+/* 输入中 = 电流沿边框环流：能量渐变描边位移 + 通电辉光 */
 .inputRow:focus-within {
-  border-color: var(--ai-grad-a);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-color: transparent;
+  background: linear-gradient(var(--vsc-input-bg), var(--vsc-input-bg))
+      padding-box,
+    var(--energy-flow-loop) border-box;
+  background-size: 100% 100%, 300% 100%;
+  animation: inputFlow 2.8s linear infinite;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.14);
+}
+
+/* keyframes 与消费方同模块（CSS Modules 名称哈希化约束）；
+   双层 background 各自位移：底层不动，描边层环流 */
+@keyframes inputFlow {
+  from {
+    background-position: 0% 50%, 0% 50%;
+  }
+  to {
+    background-position: 0% 50%, -300% 50%;
+  }
 }
 
 .textarea {
-  flex: 1 1 auto;
+  width: 100%;
   border: none;
   outline: none;
   background: transparent;
   color: var(--vsc-fg-strong);
   font-family: var(--ui-font);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.6;
   resize: none;
+  /* 默认三行高的从容输入区，内容超出后随打随长（上限 160px） */
+  min-height: 63px;
   max-height: 160px;
   overflow: auto;
-  padding: 3px 0;
+  padding: 2px 4px 2px 2px;
 }
 .textarea::placeholder {
   color: var(--vsc-fg-muted);
@@ -105,24 +257,39 @@
   opacity: 0.6;
 }
 
+/* 动作行：左快捷键提示、右发送/停止 */
+.inputActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inputHint {
+  font-size: 10.5px;
+  color: var(--vsc-fg-faint);
+  user-select: none;
+}
+
+/* 发送 = 注入：有字即充能（微辉光），hover 满档 */
 .sendBtn {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  height: 26px;
+  padding: 0 14px;
   border: none;
   border-radius: var(--radius-sm);
-  /* AI 身份渐变：与头像/光标同一色族 */
-  background: linear-gradient(135deg, var(--ai-grad-a), var(--ai-grad-b));
+  background: linear-gradient(135deg, var(--energy-circuit), var(--energy-volt));
   color: var(--vsc-accent-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.14);
   transition: box-shadow var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out),
     opacity var(--dur-fast) var(--ease-out);
 }
 .sendBtn:hover:not(:disabled) {
-  box-shadow: 0 2px 12px var(--accent-glow);
+  box-shadow: 0 2px 14px var(--glow-volt), 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 .sendBtn:active:not(:disabled) {
   transform: scale(0.94);
@@ -130,13 +297,20 @@
 .sendBtn:disabled {
   background: var(--vsc-secondary-bg);
   color: var(--vsc-fg-faint);
+  box-shadow: none;
   cursor: not-allowed;
 }
 
-/* 深度思考按钮开启态：高亮提示当前消息将开启思考 */
-.thinkingOn {
-  color: var(--vsc-accent, #4a9eff);
-  border-color: var(--vsc-accent, #4a9eff);
+/* 停止 = 断路：红色断电语义，与发送的注入语义相对 */
+.stopBtn {
+  background: var(--vsc-danger-bg);
+  border: 1px solid var(--vsc-danger-border);
+  color: var(--vsc-red);
+  box-shadow: none;
+}
+.stopBtn:hover:not(:disabled) {
+  background: rgba(255, 77, 109, 0.2);
+  box-shadow: 0 0 10px var(--glow-overload);
 }
 
 /* ===== F1 引用块（输入区上方待发送引用）===== */
@@ -146,9 +320,9 @@
   gap: 8px;
   margin: 0 0 6px;
   padding: 7px 10px;
-  border-left: 3px solid var(--vsc-accent, #4f8cff);
+  border: 1px solid rgba(0, 229, 255, 0.3);
   border-radius: 6px;
-  background: rgba(127, 127, 127, 0.08);
+  background: rgba(0, 229, 255, 0.05);
   font-size: 12px;
 }
 
@@ -165,7 +339,7 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono-font);
   font-size: 11px;
   line-height: 1.5;
   color: var(--vsc-fg-muted, rgba(255, 255, 255, 0.65));
