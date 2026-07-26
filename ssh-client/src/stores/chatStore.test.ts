@@ -533,6 +533,94 @@ describe("确认决定的三种结果", () => {
   });
 });
 
+describe("停止对话释放确认门（防后端 120s 空等连锁卡死）", () => {
+  const seedPending = (toolCalls: unknown[]) =>
+    useChatStore.setState({
+      conversations: [
+        {
+          id: "conv",
+          title: "对话",
+          agentId: "general",
+          contextStatus: "active",
+          messages: [
+            {
+              id: "a1",
+              role: "assistant",
+              content: "",
+              timestamp: 1,
+              toolCalls: toolCalls as never,
+            },
+          ],
+          createdAt: 1,
+        },
+      ],
+      currentId: "conv",
+      sending: true,
+    });
+
+  it("stop 对所有 pending_confirm 块发送拒绝，且本地转 error 终态", () => {
+    seedPending([
+      {
+        toolCallId: "t1",
+        toolName: "executeCommand",
+        command: "rm /tmp/x",
+        status: "pending_confirm",
+        confirmId: "c1",
+      },
+      {
+        toolCallId: "t2",
+        toolName: "executeCommand",
+        command: "touch /tmp/y",
+        status: "pending_confirm",
+        confirmId: "c2",
+      },
+      { toolCallId: "t3", toolName: "executeCommand", status: "success" },
+    ]);
+    vi.mocked(confirmDecision).mockClear();
+
+    useChatStore.getState().stop();
+
+    expect(vi.mocked(confirmDecision)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(confirmDecision)).toHaveBeenCalledWith("c1", false);
+    expect(vi.mocked(confirmDecision)).toHaveBeenCalledWith("c2", false);
+    const toolCalls = useChatStore.getState().conversations[0].messages[0].toolCalls!;
+    expect(toolCalls[0].status).toBe("error");
+    expect(toolCalls[1].status).toBe("error");
+    expect(toolCalls[2].status).toBe("success");
+    expect(useChatStore.getState().sending).toBe(false);
+  });
+
+  it("拒绝请求网络失败不阻断停止流程（fire-and-forget，服务端有双兜底）", () => {
+    seedPending([
+      {
+        toolCallId: "t1",
+        toolName: "executeCommand",
+        command: "rm /tmp/x",
+        status: "pending_confirm",
+        confirmId: "c1",
+      },
+    ]);
+    vi.mocked(confirmDecision).mockRejectedValueOnce(new Error("网络断了"));
+
+    expect(() => useChatStore.getState().stop()).not.toThrow();
+    expect(useChatStore.getState().sending).toBe(false);
+    expect(
+      useChatStore.getState().conversations[0].messages[0].toolCalls![0].status
+    ).toBe("error");
+  });
+
+  it("无待确认块时 stop 不发确认请求", () => {
+    seedPending([
+      { toolCallId: "t1", toolName: "executeCommand", status: "running" },
+    ]);
+    vi.mocked(confirmDecision).mockClear();
+
+    useChatStore.getState().stop();
+
+    expect(vi.mocked(confirmDecision)).not.toHaveBeenCalled();
+  });
+});
+
 describe("调用失败人话提示与手动重试", () => {
   it("onError 写入 errorText/errorCode，半截回复保留在 content", async () => {
     vi.mocked(streamChat).mockImplementationOnce((opts: unknown) => {

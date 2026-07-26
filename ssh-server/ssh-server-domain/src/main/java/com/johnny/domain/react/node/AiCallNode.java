@@ -174,6 +174,9 @@ public class AiCallNode extends AbstractReActSupport {
             // 清理注册，防内存泄漏；思考标志复位为默认关；思考旁路注销
             TerminalContext.register(adkSessionId, null);
             confirmGate.registerEmitter(adkSessionId, null);
+            // 请求已收尾：该会话残留的挂起确认不可能再被点击，立即按拒绝唤醒，
+            // 不让工具线程空等 120s 超时（停止对话/断开场景的服务端兜底）
+            confirmGate.cancelSession(adkSessionId);
             ThinkingContext.set(false);
             ReasoningRelay.register(null);
         }

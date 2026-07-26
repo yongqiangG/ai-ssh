@@ -57,8 +57,19 @@ public class ConfirmGate {
         }
     }
 
-    /** confirmId → 等待用户决定的 future */
-    private final Map<String, CompletableFuture<Boolean>> pending = new ConcurrentHashMap<>();
+    /** 挂起中的确认：future + 归属会话（cancelSession 按会话批量唤醒用） */
+    private static class Pending {
+        final CompletableFuture<Boolean> future;
+        final String adkSessionId;
+
+        Pending(CompletableFuture<Boolean> future, String adkSessionId) {
+            this.future = future;
+            this.adkSessionId = adkSessionId;
+        }
+    }
+
+    /** confirmId → 等待用户决定的挂起项 */
+    private final Map<String, Pending> pending = new ConcurrentHashMap<>();
 
     /** adkSessionId → confirm_request 发射回调（写入该请求的 emitter） */
     private final Map<String, Consumer<ConfirmRequest>> emitters = new ConcurrentHashMap<>();
@@ -89,7 +100,7 @@ public class ConfirmGate {
         }
         String confirmId = UUID.randomUUID().toString().replace("-", "");
         CompletableFuture<Boolean> future = new CompletableFuture<>();
-        pending.put(confirmId, future);
+        pending.put(confirmId, new Pending(future, adkSessionId));
         try {
             emitter.accept(new ConfirmRequest(confirmId, toolCallId, command, reason));
             log.info("确认门挂起等待用户决定 confirmId={} command=[{}] reason={}", confirmId, command, reason);
@@ -114,10 +125,27 @@ public class ConfirmGate {
      * @return 是否找到了等待中的确认（false=已超时清理或 confirmId 无效）
      */
     public boolean decide(String confirmId, boolean allow) {
-        CompletableFuture<Boolean> future = confirmId == null ? null : pending.get(confirmId);
-        if (future == null) {
+        Pending p = confirmId == null ? null : pending.get(confirmId);
+        if (p == null) {
             return false;
         }
-        return future.complete(allow);
+        return p.future.complete(allow);
+    }
+
+    /**
+     * 按会话批量取消：该会话所有挂起确认立即按拒绝唤醒（工具线程不再空等 120s）。
+     *
+     * <p>调用点：{@code AiCallNode} finally——请求结束（含客户端停止/断开导致的取消）时，
+     * 该会话不可能再有人点击确认，残留挂起只会白白占住线程。
+     */
+    public void cancelSession(String adkSessionId) {
+        if (adkSessionId == null || adkSessionId.isEmpty()) {
+            return;
+        }
+        pending.forEach((confirmId, p) -> {
+            if (adkSessionId.equals(p.adkSessionId) && p.future.complete(false)) {
+                log.info("确认门随会话结束被取消，按拒绝唤醒 confirmId={} adkSessionId={}", confirmId, adkSessionId);
+            }
+        });
     }
 }

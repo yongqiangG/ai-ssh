@@ -107,14 +107,17 @@ public class ChatController {
         ReActContext ctx = new ReActContext();
         ctx.setEmitter(emitter);
 
-        // 客户端断开 / 超时 / 正常完成 → 置取消标志，AiCallNode 循环检测后中断并 dispose 上游
+        // 客户端断开 / 超时 / 正常完成 → 置取消标志，AiCallNode 循环检测后中断并 dispose 上游；
+        // 断开/超时同时取消该会话挂起的确认门——客户端已不在，没人能点击，别让工具线程空等 120s
         emitter.onError(t -> {
             log.info("chat_stream emitter onError（客户端断开）sessionId={}", req.getSessionId());
             ctx.markCancelled();
+            confirmGate.cancelSession(req.getSessionId());
         });
         emitter.onTimeout(() -> {
             log.info("chat_stream emitter onTimeout sessionId={}", req.getSessionId());
             ctx.markCancelled();
+            confirmGate.cancelSession(req.getSessionId());
         });
         emitter.onCompletion(() -> ctx.markCancelled());
 

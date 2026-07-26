@@ -91,4 +91,54 @@ public class ConfirmGateTest {
         assertFalse(gate.decide("nonexistent", true));
         assertFalse(gate.decide(null, true));
     }
+
+    @Test
+    public void cancel_session_wakes_pending_with_deny() throws Exception {
+        ConfirmGate gate = new ConfirmGate();
+        AtomicReference<ConfirmGate.ConfirmRequest> captured = new AtomicReference<>();
+        gate.registerEmitter("s-cancel", captured::set);
+
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            CompletableFuture<Boolean> toolResult = CompletableFuture.supplyAsync(
+                    () -> gate.requestConfirm("s-cancel", "fc-c", "rm /tmp/x", "命中写规则"), pool);
+            long deadline = System.currentTimeMillis() + 3000;
+            while (captured.get() == null && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertNotNull("应发射 confirm_request", captured.get());
+
+            gate.cancelSession("s-cancel");
+            assertFalse("会话取消后挂起确认必须按拒绝唤醒", toolResult.get(3, TimeUnit.SECONDS));
+            // 已被取消清理：后续 decide 找不到该确认
+            assertFalse(gate.decide(captured.get().confirmId, true));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    public void cancel_session_leaves_other_sessions_untouched() throws Exception {
+        ConfirmGate gate = new ConfirmGate();
+        AtomicReference<ConfirmGate.ConfirmRequest> captured = new AtomicReference<>();
+        gate.registerEmitter("s-other", captured::set);
+
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            CompletableFuture<Boolean> toolResult = CompletableFuture.supplyAsync(
+                    () -> gate.requestConfirm("s-other", "fc-o", "touch /tmp/y", "命中写规则"), pool);
+            long deadline = System.currentTimeMillis() + 3000;
+            while (captured.get() == null && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertNotNull(captured.get());
+
+            gate.cancelSession("unrelated-session");
+            // 其它会话的确认不受影响，仍可正常允许
+            assertTrue(gate.decide(captured.get().confirmId, true));
+            assertTrue(toolResult.get(3, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
 }

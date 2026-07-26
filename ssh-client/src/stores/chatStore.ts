@@ -603,6 +603,18 @@ export const useChatStore = create<ChatState>()(
         },
 
         stop: () => {
+          // 先释放后端确认门：挂起的工具线程立即按拒绝唤醒。只中止流不发拒绝的话，
+          // 后端要空等 120s 超时，期间本会话假死、共享 LLM 通道也可能被拖垮
+          //（详见 ConfirmGate.cancelSession 注释）。fire-and-forget：网络失败也无妨，
+          // 服务端有会话级取消 + 120s 超时双兜底。
+          const conv = get().conversations.find((c) => c.id === get().currentId);
+          conv?.messages.forEach((m) =>
+            m.toolCalls?.forEach((tc) => {
+              if (tc.status === "pending_confirm" && tc.confirmId) {
+                confirmDecision(tc.confirmId, false).catch(() => {});
+              }
+            })
+          );
           if (abortRef) {
             abortRef();
             abortRef = null;

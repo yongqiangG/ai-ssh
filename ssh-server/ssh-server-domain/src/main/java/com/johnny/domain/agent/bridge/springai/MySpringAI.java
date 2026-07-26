@@ -18,6 +18,7 @@ import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import io.reactivex.rxjava3.core.BackpressureStrategy;
 import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -146,7 +147,7 @@ extends BaseLlm {
 
     private Flowable<LlmResponse> generateStreamingContent(LlmRequest llmRequest) {
         SpringAIObservabilityHandler.RequestContext context = this.observabilityHandler.startRequest(this.model(), "streaming");
-        return Flowable.create(emitter -> {
+        return Flowable.<LlmResponse>create(emitter -> {
             try {
                 Prompt prompt = this.injectThinkingOptions(this.messageConverter.toLlmPrompt(llmRequest));
                 this.observabilityHandler.logRequest(prompt.toString(), this.model());
@@ -180,7 +181,13 @@ extends BaseLlm {
                 SpringAIErrorMapper.MappedError mappedError = SpringAIErrorMapper.mapError(e);
                 emitter.onError(new RuntimeException(mappedError.getNormalizedMessage(), e));
             }
-        }, BackpressureStrategy.BUFFER);
+        }, BackpressureStrategy.BUFFER)
+        // 【本地扩展 / 260726】把 ADK 下游处理（含工具同步执行）调离 reactor-netty 事件循环：
+        // 不加这行时，LLM 流式 chunk 在 reactor-http-nio-* 线程上直接驱动 FunctionTool——
+        // 确认门/SSH exec 等阻塞型工具会把共享事件循环挂住，所有会话的 LLM 网络收发
+        // 一并瘫痪（jstack 实锤：reactor-http-nio-2 停在 ConfirmGate.requestConfirm 120s）。
+        // observeOn(io) 后阻塞只消耗一根可扩容的 io 线程，事件循环安全。
+        .observeOn(Schedulers.io());
     }
 
     public BaseLlmConnection connect(LlmRequest llmRequest) {
