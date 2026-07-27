@@ -29,7 +29,6 @@ interface DirListViewProps {
   onCrumbClick: (path: string) => void;
   /** 双击条目；调用方按 entry.directory 决定进入目录或其它动作 */
   onOpen: (entry: SftpEntryDTO) => void;
-  onRefresh: () => void;
   /** 有跨侧条目拖入本面板（落点=本面板 cwd）；最小闭环仅处理文件 */
   onDropItems?: (
     sourceSide: "local" | "remote",
@@ -56,7 +55,6 @@ export default function DirListView({
   error,
   onCrumbClick,
   onOpen,
-  onRefresh,
   onDropItems,
   onPickDir,
   emptyHint,
@@ -65,16 +63,13 @@ export default function DirListView({
     <div className={styles.view}>
       <div className={styles.header}>
         <span className={styles.title}>{title}</span>
-        <div className={styles.headerActions}>
-          {onPickDir && (
+        {onPickDir && (
+          <div className={styles.headerActions}>
             <button className="icon-btn" title="选择目录" onClick={onPickDir}>
               <Icon name="folder" size={13} />
             </button>
-          )}
-          <button className="icon-btn" title="刷新" onClick={onRefresh}>
-            <Icon name="refresh" size={13} />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className={styles.crumbs}>

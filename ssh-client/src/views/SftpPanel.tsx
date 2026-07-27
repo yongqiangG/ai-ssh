@@ -159,6 +159,18 @@ export default function SftpPanel() {
         <Icon name="sftp" size={14} />
         <span className="panel-title">SFTP 文件传输</span>
         <div className="panel-actions">
+          {connectionId && (
+            <button
+              className="icon-btn"
+              title="刷新本地和远程"
+              disabled={localLoading || loading}
+              onClick={() => {
+                void Promise.all([refreshLocal(), refreshRemote()]);
+              }}
+            >
+              <Icon name="refresh" size={13} />
+            </button>
+          )}
           {connectionId ? (
             <span className={styles.connTag} title={currentName}>
               <span className={styles.connDot} />
@@ -194,7 +206,6 @@ export default function SftpPanel() {
                     if (e.directory)
                       void openLocalDir(joinLocalPath(localCwd, e.name));
                   }}
-                  onRefresh={() => void refreshLocal()}
                   onPickDir={async () => {
                     try {
                       const sel = await open({
@@ -226,7 +237,6 @@ export default function SftpPanel() {
                     if (e.directory)
                       void openRemoteDir(joinRemotePath(remoteCwd, e.name));
                   }}
-                  onRefresh={() => void refreshRemote()}
                   onDropItems={(src, items) =>
                     handleDrop("remote", src, items)
                   }
