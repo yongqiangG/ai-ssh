@@ -7,6 +7,7 @@
  * 拖拽（阶段 4）：每个条目 draggable，dragStart 把 {side, items} 写入 dataTransfer；
  * 面板 body 接收跨侧 drop（onDropItems）。同侧 drop 忽略（payload.side === side）。
  */
+import { useEffect, useState } from "react";
 import Icon from "./Icon";
 import type { SftpEntryDTO } from "../api/sftp";
 import styles from "./DirListView.module.css";
@@ -32,7 +33,7 @@ interface DirListViewProps {
   /** 有跨侧条目拖入本面板（落点=本面板 cwd）；最小闭环仅处理文件 */
   onDropItems?: (
     sourceSide: "local" | "remote",
-    items: { name: string; directory: boolean }[]
+    items: { name: string; directory: boolean }[],
   ) => void;
   /** 可选：弹出系统目录选择器（本地侧用，Windows 下跨盘切换） */
   onPickDir?: () => void;
@@ -42,7 +43,8 @@ interface DirListViewProps {
 function formatSize(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  if (bytes < 1024 * 1024 * 1024)
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
   return (bytes / 1024 / 1024 / 1024).toFixed(1) + " GB";
 }
 
@@ -59,6 +61,26 @@ export default function DirListView({
   onPickDir,
   emptyHint,
 }: DirListViewProps) {
+  const currentPath = crumbs[crumbs.length - 1]?.path ?? "";
+  const [search, setSearch] = useState({ path: currentPath, value: "" });
+  const query = search.path === currentPath ? search.value : "";
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredEntries = normalizedQuery
+    ? entries.filter((entry) =>
+        entry.name.toLowerCase().includes(normalizedQuery),
+      )
+    : entries;
+
+  useEffect(() => {
+    setSearch((previous) =>
+      previous.path === currentPath
+        ? previous
+        : { path: currentPath, value: "" },
+    );
+  }, [currentPath]);
+
+  const clearSearch = () => setSearch({ path: currentPath, value: "" });
+
   return (
     <div className={styles.view}>
       <div className={styles.header}>
@@ -84,6 +106,37 @@ export default function DirListView({
             </button>
           </span>
         ))}
+      </div>
+
+      <div className={styles.searchBar}>
+        <Icon name="search" size={13} className={styles.searchIcon} />
+        <input
+          className={styles.searchInput}
+          type="text"
+          value={query}
+          disabled={loading}
+          placeholder="搜索当前目录"
+          aria-label={`搜索${title}当前目录`}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(event) =>
+            setSearch({ path: currentPath, value: event.target.value })
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Escape") clearSearch();
+          }}
+        />
+        {query && (
+          <button
+            type="button"
+            className={styles.clearSearch}
+            aria-label="清空搜索"
+            title="清空搜索"
+            onClick={clearSearch}
+          >
+            <Icon name="close" size={12} />
+          </button>
+        )}
       </div>
 
       <div
@@ -114,9 +167,13 @@ export default function DirListView({
           <div className={styles.error}>{error}</div>
         ) : entries.length === 0 ? (
           <div className={styles.hint}>{emptyHint ?? "空目录"}</div>
+        ) : filteredEntries.length === 0 ? (
+          <div className={styles.hint}>
+            未找到匹配“{query.trim()}”的文件或文件夹
+          </div>
         ) : (
           <ul className={styles.list}>
-            {entries.map((e) => (
+            {filteredEntries.map((e) => (
               <li
                 key={e.name}
                 className={styles.row}
@@ -127,7 +184,7 @@ export default function DirListView({
                     JSON.stringify({
                       side,
                       items: [{ name: e.name, directory: e.directory }],
-                    })
+                    }),
                   );
                   ev.dataTransfer.effectAllowed = "copy";
                 }}

@@ -26,6 +26,7 @@ export type IconName =
   | "check"
   | "folder"
   | "file"
+  | "search"
   | "copy"
   | "stop"
   | "alert";
@@ -165,6 +166,12 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M14 2v6h6" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.35-4.35" />
+    </>
+  ),
   copy: (
     <>
       <rect x="9" y="9" width="11" height="11" rx="2" />
@@ -187,12 +194,7 @@ interface IconProps {
   style?: CSSProperties;
 }
 
-export default function Icon({
-  name,
-  size = 16,
-  className,
-  style,
-}: IconProps) {
+export default function Icon({ name, size = 16, className, style }: IconProps) {
   return (
     <svg
       width={size}
