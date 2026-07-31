@@ -52,6 +52,7 @@ export default function SftpPanel() {
   const transfers = useSftpStore((s) => s.transfers);
   const upload = useSftpStore((s) => s.upload);
   const download = useSftpStore((s) => s.download);
+  const openDownload = useSftpStore((s) => s.openDownload);
   const clearTransfer = useSftpStore((s) => s.clearTransfer);
 
   const currentName =
@@ -64,7 +65,7 @@ export default function SftpPanel() {
     const ok =
       !!activeId &&
       connections.some(
-        (c) => c.connectionId === activeId && c.status === "connected"
+        (c) => c.connectionId === activeId && c.status === "connected",
       );
     if (ok && connectionId !== activeId) setConnection(activeId);
     else if (!ok && connectionId) setConnection(null);
@@ -82,7 +83,9 @@ export default function SftpPanel() {
     resolve: (ok: boolean) => void;
   } | null>(null);
   const showModal = (msg: string, kind: "warning" | "info" = "warning") =>
-    new Promise<boolean>((resolve) => setDialog({ message: msg, kind, resolve }));
+    new Promise<boolean>((resolve) =>
+      setDialog({ message: msg, kind, resolve }),
+    );
 
   // 单文件传输上限（与后端 SftpController.MAX_UPLOAD_BYTES 对齐），客户端预检阻断
   const LIMIT_BYTES = 100 * 1024 * 1024;
@@ -97,7 +100,7 @@ export default function SftpPanel() {
   const handleDrop = async (
     targetSide: "local" | "remote",
     sourceSide: "local" | "remote",
-    items: { name: string; directory: boolean }[]
+    items: { name: string; directory: boolean }[],
   ) => {
     if (sourceSide === targetSide) return;
     const dirs = items.filter((i) => i.directory);
@@ -119,7 +122,7 @@ export default function SftpPanel() {
         if (size > LIMIT_BYTES) {
           await showModal(
             `「${it.name}」（${fmtBytes(size)}）超过 100MB 上传上限，已取消`,
-            "info"
+            "info",
           );
           continue;
         }
@@ -136,7 +139,7 @@ export default function SftpPanel() {
         if (remoteSize > LIMIT_BYTES) {
           await showModal(
             `「${it.name}」（${fmtBytes(remoteSize)}）超过 100MB 下载上限，已取消`,
-            "info"
+            "info",
           );
           continue;
         }
@@ -147,7 +150,7 @@ export default function SftpPanel() {
         }
         void download(
           joinRemotePath(remoteCwd, it.name),
-          joinLocalPath(localCwd, it.name)
+          joinLocalPath(localCwd, it.name),
         );
       }
     }
@@ -237,9 +240,7 @@ export default function SftpPanel() {
                     if (e.directory)
                       void openRemoteDir(joinRemotePath(remoteCwd, e.name));
                   }}
-                  onDropItems={(src, items) =>
-                    handleDrop("remote", src, items)
-                  }
+                  onDropItems={(src, items) => handleDrop("remote", src, items)}
                 />
               </div>
             </div>
@@ -250,6 +251,13 @@ export default function SftpPanel() {
                   <TransferTrack
                     key={t.id}
                     transfer={t}
+                    onOpen={() =>
+                      void openDownload(t.id, (localPath) =>
+                        showModal(
+                          `「${localPath}」可能执行代码。文件来自远程服务器，是否仍要打开？`,
+                        ),
+                      )
+                    }
                     onClose={() => clearTransfer(t.id)}
                   />
                 ))}

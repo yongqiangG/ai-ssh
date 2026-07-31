@@ -13,6 +13,7 @@
 import { create } from "zustand";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { homeDir } from "@tauri-apps/api/path";
+import { openPath } from "@tauri-apps/plugin-opener";
 import {
   listRemote,
   uploadRemote,
@@ -29,7 +30,13 @@ export interface TransferItem {
   progress: number;
   status: "running" | "done" | "error";
   error?: string;
+  /** 下载完成后的本地目标；上传项没有此字段。 */
+  localPath?: string;
+  openState?: "idle" | "opening" | "opened";
+  openError?: string;
 }
+
+type ConfirmDangerousOpen = (localPath: string) => Promise<boolean>;
 
 interface SftpState {
   // === 远程侧 ===
@@ -56,8 +63,16 @@ interface SftpState {
   openLocalDir: (path: string) => Promise<void>;
   refreshLocal: () => Promise<void>;
 
-  upload: (localPath: string, remotePath: string, overwrite: boolean) => Promise<void>;
+  upload: (
+    localPath: string,
+    remotePath: string,
+    overwrite: boolean,
+  ) => Promise<void>;
   download: (remotePath: string, localPath: string) => Promise<void>;
+  openDownload: (
+    transferId: string,
+    confirmDangerous: ConfirmDangerousOpen,
+  ) => Promise<void>;
   patchTransfer: (id: string, patch: Partial<TransferItem>) => void;
   clearTransfer: (id: string) => void;
 }
@@ -65,8 +80,36 @@ interface SftpState {
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 let _seq = 0;
-const nextTxId = () =>
-  "tx" + Date.now().toString(36) + (_seq++).toString(36);
+const nextTxId = () => "tx" + Date.now().toString(36) + (_seq++).toString(36);
+
+const DANGEROUS_OPEN_EXTENSIONS = new Set([
+  "exe",
+  "com",
+  "msi",
+  "bat",
+  "cmd",
+  "ps1",
+  "vbs",
+  "vbe",
+  "js",
+  "jse",
+  "wsf",
+  "wsh",
+  "scr",
+  "hta",
+  "lnk",
+  "reg",
+  "jar",
+]);
+
+function isDangerousToOpen(localPath: string): boolean {
+  const pathParts = localPath.split(/[\\/]/);
+  const fileName = pathParts[pathParts.length - 1] ?? "";
+  const dot = fileName.lastIndexOf(".");
+  return dot >= 0
+    ? DANGEROUS_OPEN_EXTENSIONS.has(fileName.slice(dot + 1).toLowerCase())
+    : false;
+}
 
 export const useSftpStore = create<SftpState>((set, get) => ({
   connectionId: null,
@@ -126,7 +169,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
           ? a.directory
             ? -1
             : 1
-          : a.name.localeCompare(b.name)
+          : a.name.localeCompare(b.name),
       );
       set({ localCwd: path, localEntries: entries, localLoading: false });
     } catch (e) {
@@ -156,7 +199,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     }));
     try {
       await uploadRemote(id, localPath, remotePath, overwrite, (p) =>
-        get().patchTransfer(txId, { progress: p })
+        get().patchTransfer(txId, { progress: p }),
       );
       get().patchTransfer(txId, { status: "done", progress: 1 });
       void get().refreshRemote();
@@ -183,29 +226,65 @@ export const useSftpStore = create<SftpState>((set, get) => ({
           name: basename(remotePath),
           progress: 0,
           status: "running",
+          localPath,
+          openState: "idle",
         },
       ],
     }));
     try {
       await downloadRemote(id, remotePath, localPath, (p) =>
-        get().patchTransfer(txId, { progress: p })
+        get().patchTransfer(txId, { progress: p }),
       );
       get().patchTransfer(txId, { status: "done", progress: 1 });
       void get().refreshLocal();
-      setTimeout(() => {
-        const t = get().transfers.find((x) => x.id === txId);
-        if (t && t.status === "done") get().clearTransfer(txId);
-      }, 1800);
     } catch (e) {
       get().patchTransfer(txId, { status: "error", error: errMsg(e) });
     }
   },
 
+  openDownload: async (transferId, confirmDangerous) => {
+    const transfer = get().transfers.find((item) => item.id === transferId);
+    if (
+      !transfer ||
+      transfer.direction !== "download" ||
+      transfer.status !== "done" ||
+      !transfer.localPath ||
+      transfer.openState !== "idle"
+    ) {
+      return;
+    }
+
+    get().patchTransfer(transferId, {
+      openState: "opening",
+      openError: undefined,
+    });
+
+    if (
+      isDangerousToOpen(transfer.localPath) &&
+      !(await confirmDangerous(transfer.localPath))
+    ) {
+      get().patchTransfer(transferId, { openState: "idle" });
+      return;
+    }
+
+    try {
+      await openPath(transfer.localPath);
+      get().patchTransfer(transferId, { openState: "opened" });
+      setTimeout(() => {
+        const current = get().transfers.find((item) => item.id === transferId);
+        if (current?.openState === "opened") get().clearTransfer(transferId);
+      }, 1800);
+    } catch (e) {
+      get().patchTransfer(transferId, {
+        openState: "idle",
+        openError: `打开文件失败（${transfer.localPath}）：${errMsg(e)}`,
+      });
+    }
+  },
+
   patchTransfer: (id, patch) =>
     set((s) => ({
-      transfers: s.transfers.map((t) =>
-        t.id === id ? { ...t, ...patch } : t
-      ),
+      transfers: s.transfers.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     })),
 
   clearTransfer: (id) =>
@@ -234,9 +313,7 @@ export function remoteCrumbs(cwd: string): { label: string; path: string }[] {
     return crumbs;
   }
   const parts = cwd.split("/").filter(Boolean);
-  const crumbs: { label: string; path: string }[] = [
-    { label: "/", path: "/" },
-  ];
+  const crumbs: { label: string; path: string }[] = [{ label: "/", path: "/" }];
   let acc = "";
   for (const p of parts) {
     acc = acc + "/" + p;

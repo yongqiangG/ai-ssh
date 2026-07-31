@@ -1,9 +1,51 @@
+.item {
+  min-width: 0;
+}
+
 .row {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
   padding: 4px 0;
+}
+
+.openButton {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--vsc-border);
+  border-radius: var(--radius-sm);
+  background: var(--vsc-secondary-bg);
+  color: var(--vsc-fg);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.openButton:hover:not(:disabled) {
+  border-color: var(--vsc-accent);
+  background: var(--vsc-secondary-bg-hover);
+  color: var(--vsc-accent);
+}
+
+.openButton:disabled {
+  cursor: default;
+  color: var(--vsc-green);
+  opacity: 0.75;
+}
+
+.openError {
+  margin: 0 30px 3px 22px;
+  overflow: hidden;
+  color: var(--vsc-red);
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dir {
