@@ -10,7 +10,6 @@
  * 切到此视图时 TerminalPanel 由 App.tsx 用 visibility 隐藏保留（不卸载，会话不丢）。
  */
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 import { stat } from "@tauri-apps/plugin-fs";
 import ConfirmDialog from "../components/ConfirmDialog";
 import TransferTrack from "../components/TransferTrack";
@@ -21,8 +20,10 @@ import {
   useSftpStore,
   joinRemotePath,
   remoteCrumbs,
+  remoteParentPath,
   joinLocalPath,
   localCrumbs,
+  localParentPath,
 } from "../stores/sftpStore";
 import { useConnectionStore } from "../stores/connectionStore";
 import { useTerminalStore } from "../stores/terminalStore";
@@ -42,6 +43,7 @@ export default function SftpPanel() {
   const refreshRemote = useSftpStore((s) => s.refreshRemote);
 
   const localCwd = useSftpStore((s) => s.localCwd);
+  const localRoots = useSftpStore((s) => s.localRoots);
   const localEntries = useSftpStore((s) => s.localEntries);
   const localLoading = useSftpStore((s) => s.localLoading);
   const localError = useSftpStore((s) => s.localError);
@@ -200,26 +202,17 @@ export default function SftpPanel() {
                 <DirListView
                   side="local"
                   title="本地"
+                  cwd={localCwd}
+                  parentPath={localCwd ? localParentPath(localCwd) : ""}
                   crumbs={localCrumbsList}
+                  drives={localRoots}
                   entries={localEntries}
                   loading={localLoading}
                   error={localError}
-                  onCrumbClick={(p) => void openLocalDir(p)}
+                  onNavigate={openLocalDir}
                   onOpen={(e) => {
                     if (e.directory)
                       void openLocalDir(joinLocalPath(localCwd, e.name));
-                  }}
-                  onPickDir={async () => {
-                    try {
-                      const sel = await open({
-                        directory: true,
-                        multiple: false,
-                      });
-                      if (typeof sel === "string" && sel)
-                        void openLocalDir(sel);
-                    } catch {
-                      /* 用户取消或桌面壳外不可用 */
-                    }
                   }}
                   onDropItems={(src, items) => handleDrop("local", src, items)}
                   emptyHint="空文件夹"
@@ -231,11 +224,13 @@ export default function SftpPanel() {
                 <DirListView
                   side="remote"
                   title="远程"
+                  cwd={remoteCwd}
+                  parentPath={remoteParentPath(remoteCwd)}
                   crumbs={crumbs}
                   entries={remoteEntries}
                   loading={loading}
                   error={error}
-                  onCrumbClick={(p) => void openRemoteDir(p)}
+                  onNavigate={openRemoteDir}
                   onOpen={(e) => {
                     if (e.directory)
                       void openRemoteDir(joinRemotePath(remoteCwd, e.name));

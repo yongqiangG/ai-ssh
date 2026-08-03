@@ -22,48 +22,6 @@
   letter-spacing: 0.08em;
 }
 
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.crumbs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--vsc-border);
-}
-
-.crumbItem {
-  display: inline-flex;
-  align-items: center;
-}
-
-.sep {
-  margin: 0 4px;
-  color: var(--vsc-fg-faint);
-}
-
-.crumbBtn {
-  background: none;
-  border: none;
-  color: var(--vsc-fg-muted);
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  transition:
-    color var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-}
-
-.crumbBtn:hover {
-  color: var(--vsc-fg);
-  background: var(--vsc-list-hover);
-}
-
 .searchBar {
   position: relative;
   display: flex;
@@ -178,8 +136,7 @@
   color: var(--vsc-fg-faint);
 }
 
-.hint,
-.error {
+.hint {
   padding: 16px;
   font-size: 12px;
   text-align: center;
@@ -187,8 +144,4 @@
 
 .hint {
   color: var(--vsc-fg-muted);
-}
-
-.error {
-  color: var(--vsc-red);
 }

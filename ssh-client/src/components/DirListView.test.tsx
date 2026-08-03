@@ -15,14 +15,18 @@ const localCrumbs: Crumb[] = [{ label: "work", path: "C:\\work" }];
 function props(
   overrides: Partial<React.ComponentProps<typeof DirListView>> = {},
 ) {
+  const crumbs = overrides.crumbs ?? localCrumbs;
+  const cwd = overrides.cwd ?? crumbs[crumbs.length - 1]?.path ?? "";
   return {
     title: "本地",
     side: "local" as const,
-    crumbs: localCrumbs,
+    cwd,
+    parentPath: "C:\\",
+    crumbs,
     entries,
     loading: false,
     error: null,
-    onCrumbClick: vi.fn(),
+    onNavigate: vi.fn().mockResolvedValue(true),
     onOpen: vi.fn(),
     ...overrides,
   };

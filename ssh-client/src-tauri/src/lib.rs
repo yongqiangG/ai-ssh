@@ -70,6 +70,22 @@ fn backend_log_dir(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|e| format!("resolve app data dir failed: {e}"))
 }
 
+/// 返回当前 Windows 会话中可读取的逻辑盘根；非 Windows 返回 POSIX 根。
+#[tauri::command]
+fn list_local_roots() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        ('A'..='Z')
+            .map(|letter| format!(r"{letter}:\"))
+            .filter(|root| Path::new(root).is_dir() && fs::read_dir(root).is_ok())
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        vec!["/".to_string()]
+    }
+}
+
 /// 定位 extracted 布局的后端目录（ssh-server-app.jar + lib/，由
 /// build-personal.sh 的 jarmode=tools extract 产出）
 fn find_backend_dir(resource_dir: &Path) -> Option<PathBuf> {
@@ -372,7 +388,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             backend_launch_failure,
-            backend_log_dir
+            backend_log_dir,
+            list_local_roots
         ])
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {

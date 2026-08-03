@@ -13,6 +13,7 @@ export type IconName =
   | "server"
   | "close"
   | "chevronDown"
+  | "chevronUp"
   | "bot"
   | "refresh"
   | "play"
@@ -91,6 +92,7 @@ const PATHS: Record<IconName, ReactElement> = {
   ),
   close: <path d="M18 6L6 18M6 6l12 12" />,
   chevronDown: <path d="M6 9l6 6 6-6" />,
+  chevronUp: <path d="M6 15l6-6 6 6" />,
   bot: (
     <>
       <rect x="3" y="11" width="18" height="10" rx="2" />

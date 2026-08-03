@@ -9,25 +9,25 @@
  */
 import { useEffect, useState } from "react";
 import Icon from "./Icon";
+import PathNavigator, { type Crumb, type NavigatePath } from "./PathNavigator";
 import type { SftpEntryDTO } from "../api/sftp";
 import styles from "./DirListView.module.css";
 
 const DRAG_KEY = "application/x-ai-ssh-sftp";
 
-export interface Crumb {
-  label: string;
-  /** 点击该段后要 list 的路径（本地/远程各自语义） */
-  path: string;
-}
+export type { Crumb } from "./PathNavigator";
 
 interface DirListViewProps {
   title: string;
   side: "local" | "remote";
+  cwd: string;
+  parentPath: string;
   crumbs: Crumb[];
+  drives?: string[];
   entries: SftpEntryDTO[];
   loading: boolean;
   error: string | null;
-  onCrumbClick: (path: string) => void;
+  onNavigate: NavigatePath;
   /** 双击条目；调用方按 entry.directory 决定进入目录或其它动作 */
   onOpen: (entry: SftpEntryDTO) => void;
   /** 有跨侧条目拖入本面板（落点=本面板 cwd）；最小闭环仅处理文件 */
@@ -35,8 +35,6 @@ interface DirListViewProps {
     sourceSide: "local" | "remote",
     items: { name: string; directory: boolean }[],
   ) => void;
-  /** 可选：弹出系统目录选择器（本地侧用，Windows 下跨盘切换） */
-  onPickDir?: () => void;
   emptyHint?: string;
 }
 
@@ -51,17 +49,19 @@ function formatSize(bytes: number): string {
 export default function DirListView({
   title,
   side,
+  cwd,
+  parentPath,
   crumbs,
+  drives,
   entries,
   loading,
   error,
-  onCrumbClick,
+  onNavigate,
   onOpen,
   onDropItems,
-  onPickDir,
   emptyHint,
 }: DirListViewProps) {
-  const currentPath = crumbs[crumbs.length - 1]?.path ?? "";
+  const currentPath = cwd;
   const [search, setSearch] = useState({ path: currentPath, value: "" });
   const query = search.path === currentPath ? search.value : "";
   const normalizedQuery = query.trim().toLowerCase();
@@ -85,28 +85,19 @@ export default function DirListView({
     <div className={styles.view}>
       <div className={styles.header}>
         <span className={styles.title}>{title}</span>
-        {onPickDir && (
-          <div className={styles.headerActions}>
-            <button className="icon-btn" title="选择目录" onClick={onPickDir}>
-              <Icon name="folder" size={13} />
-            </button>
-          </div>
-        )}
       </div>
 
-      <div className={styles.crumbs}>
-        {crumbs.map((c, i) => (
-          <span key={i} className={styles.crumbItem}>
-            {i > 0 && <span className={styles.sep}>›</span>}
-            <button
-              className={styles.crumbBtn}
-              onClick={() => onCrumbClick(c.path)}
-            >
-              {c.label}
-            </button>
-          </span>
-        ))}
-      </div>
+      <PathNavigator
+        title={title}
+        side={side}
+        cwd={cwd}
+        parentPath={parentPath}
+        crumbs={crumbs}
+        drives={drives}
+        loading={loading}
+        error={error}
+        onNavigate={onNavigate}
+      />
 
       <div className={styles.searchBar}>
         <Icon name="search" size={13} className={styles.searchIcon} />
@@ -164,7 +155,7 @@ export default function DirListView({
         {loading ? (
           <div className={styles.hint}>加载中…</div>
         ) : error ? (
-          <div className={styles.error}>{error}</div>
+          <div className={styles.hint}>无法显示当前目录内容</div>
         ) : entries.length === 0 ? (
           <div className={styles.hint}>{emptyHint ?? "空目录"}</div>
         ) : filteredEntries.length === 0 ? (
