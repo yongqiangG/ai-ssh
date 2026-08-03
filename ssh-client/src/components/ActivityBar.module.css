@@ -59,10 +59,10 @@
 .indicator {
   position: absolute;
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
   width: 2px;
-  height: 100%;
+  height: auto;
   background: linear-gradient(
     180deg,
     var(--energy-volt),
