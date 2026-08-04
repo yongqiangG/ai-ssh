@@ -129,6 +129,37 @@
   border-radius: 2px;
 }
 
+.rollbackBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--vsc-border-strong);
+  border-radius: 6px;
+  background: rgba(158, 170, 255, 0.03);
+}
+
+.rollbackTitle {
+  font-size: 11px;
+  color: var(--vsc-fg-muted);
+}
+
+.rollbackSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--vsc-fg);
+  word-break: break-all;
+}
+
+.rollbackAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .footer {
   display: flex;
   justify-content: flex-end;

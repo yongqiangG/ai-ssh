@@ -1,11 +1,14 @@
 package com.johnny.trigger.http;
 
 import com.johnny.api.dto.LlmConfigDTO;
+import com.johnny.api.dto.LlmConfigRollbackSummaryDTO;
 import com.johnny.api.dto.LlmConfigSaveRequestDTO;
 import com.johnny.api.response.Response;
 import com.johnny.domain.agent.model.LlmConfigEntity;
+import com.johnny.domain.agent.model.LlmConfigRollbackSnapshot;
 import com.johnny.domain.agent.model.LlmConfigSaveResult;
 import com.johnny.domain.agent.service.AgentRunnerRegistry;
+import com.johnny.domain.agent.service.ILlmConfigRollbackService;
 import com.johnny.domain.agent.service.ILlmConfigService;
 import com.johnny.types.enums.ResponseCode;
 import com.johnny.types.exception.AppException;
@@ -28,6 +31,8 @@ public class LlmConfigController {
     private ILlmConfigService llmConfigService;
     @Resource
     private AgentRunnerRegistry agentRunnerRegistry;
+    @Resource
+    private ILlmConfigRollbackService llmConfigRollbackService;
 
     @GetMapping
     public Response<LlmConfigDTO> getConfig() {
@@ -35,7 +40,7 @@ public class LlmConfigController {
     }
 
     @PostMapping
-    public Response<LlmConfigDTO> saveConfig(@RequestBody LlmConfigSaveRequestDTO req) {
+    public synchronized Response<LlmConfigDTO> saveConfig(@RequestBody LlmConfigSaveRequestDTO req) {
         LlmConfigEntity current = llmConfigService.getDefaultConfig();
         boolean keepExistingApiKey = req.getKeepExistingApiKey() == null || req.getKeepExistingApiKey();
         if (StringUtils.isBlank(req.getApiKey()) && !keepExistingApiKey) {
@@ -52,6 +57,12 @@ public class LlmConfigController {
                 .model(req.getModel())
                 .completionsPath(req.getCompletionsPath())
                 .build(), keepExistingApiKey);
+        if (result.isConfigChanged() && current.hasApiKey()) {
+            llmConfigRollbackService.remember(
+                    current,
+                    result.getConfig(),
+                    result.isRunnerReloadRequired());
+        }
         boolean runnerRebuilt = false;
         if (result.isRunnerReloadRequired()) {
             agentRunnerRegistry.rebuild();
@@ -64,8 +75,47 @@ public class LlmConfigController {
         return Response.success(dto);
     }
 
+    @PostMapping("/rollback")
+    public synchronized Response<LlmConfigDTO> rollbackConfig() {
+        LlmConfigRollbackSnapshot snapshot = llmConfigRollbackService.getSnapshot()
+                .orElseThrow(() -> new AppException(
+                        ResponseCode.ILLEGAL_PARAMETER.getCode(), "当前没有可用的上一版模型配置"));
+        LlmConfigEntity current = llmConfigService.getDefaultConfig();
+
+        boolean retryRunnerRebuild = snapshot.matchesPrevious(current);
+        if (!retryRunnerRebuild && !snapshot.matchesCurrent(current)) {
+            throw new AppException(
+                    ResponseCode.ILLEGAL_PARAMETER.getCode(),
+                    "模型配置已发生变化，请重新打开设置后重试回滚");
+        }
+
+        LlmConfigEntity restored = current;
+        boolean runnerReloadRequired = snapshot.isRunnerReloadRequired();
+        boolean configChanged = false;
+        if (!retryRunnerRebuild) {
+            LlmConfigSaveResult result = llmConfigService.saveDefaultConfig(
+                    snapshot.getPreviousConfig(), false);
+            restored = result.getConfig();
+            runnerReloadRequired = result.isRunnerReloadRequired();
+            configChanged = result.isConfigChanged();
+        }
+
+        boolean runnerRebuilt = false;
+        if (runnerReloadRequired) {
+            agentRunnerRegistry.rebuild();
+            runnerRebuilt = true;
+        }
+        llmConfigRollbackService.clear();
+
+        LlmConfigDTO dto = toDTO(restored);
+        dto.setConfigChanged(configChanged);
+        dto.setRunnerReloadRequired(runnerReloadRequired);
+        dto.setRunnerRebuilt(runnerRebuilt);
+        return Response.success(dto);
+    }
+
     private LlmConfigDTO toDTO(LlmConfigEntity entity) {
-        return LlmConfigDTO.builder()
+        LlmConfigDTO.LlmConfigDTOBuilder builder = LlmConfigDTO.builder()
                 .providerName(entity.getProviderName())
                 .baseUrl(entity.getBaseUrl())
                 .model(entity.getModel())
@@ -73,7 +123,22 @@ public class LlmConfigController {
                 .apiKeyConfigured(entity.hasApiKey())
                 .configChanged(false)
                 .runnerReloadRequired(false)
-                .runnerRebuilt(false)
+                .runnerRebuilt(false);
+        llmConfigRollbackService.getSnapshot().ifPresentOrElse(
+                snapshot -> builder
+                        .rollbackAvailable(true)
+                        .rollbackConfig(toRollbackSummary(snapshot.getPreviousConfig())),
+                () -> builder.rollbackAvailable(false).rollbackConfig(null));
+        return builder.build();
+    }
+
+    private LlmConfigRollbackSummaryDTO toRollbackSummary(LlmConfigEntity entity) {
+        return LlmConfigRollbackSummaryDTO.builder()
+                .providerName(entity.getProviderName())
+                .baseUrl(entity.getBaseUrl())
+                .model(entity.getModel())
+                .completionsPath(entity.getCompletionsPath())
+                .apiKeyConfigured(entity.hasApiKey())
                 .build();
     }
 }

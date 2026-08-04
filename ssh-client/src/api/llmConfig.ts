@@ -6,6 +6,16 @@ export interface LlmConfig {
   model: string;
   completionsPath: string;
   apiKeyConfigured: boolean;
+  rollbackAvailable?: boolean;
+  rollbackConfig?: LlmConfigRollbackSummary | null;
+}
+
+export interface LlmConfigRollbackSummary {
+  providerName: string;
+  baseUrl: string;
+  model: string;
+  completionsPath: string;
+  apiKeyConfigured: boolean;
 }
 
 export interface LlmConfigSaveResult extends LlmConfig {
@@ -29,4 +39,8 @@ export function getLlmConfig(): Promise<LlmConfig> {
 
 export function saveLlmConfig(req: SaveLlmConfigRequest): Promise<LlmConfigSaveResult> {
   return http.post<LlmConfigSaveResult>("/api/v1/llm-config", req);
+}
+
+export function rollbackLlmConfig(): Promise<LlmConfigSaveResult> {
+  return http.post<LlmConfigSaveResult>("/api/v1/llm-config/rollback");
 }

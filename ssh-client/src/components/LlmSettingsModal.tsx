@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { getLlmConfig, saveLlmConfig } from "../api/llmConfig";
+import {
+  getLlmConfig,
+  rollbackLlmConfig,
+  saveLlmConfig,
+  type LlmConfigRollbackSummary,
+} from "../api/llmConfig";
 import { useChatStore } from "../stores/chatStore";
 import { classifyLlmConfigChange } from "../utils/llmConfigChange";
 import ConfirmDialog from "./ConfirmDialog";
@@ -26,11 +31,17 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
   const [completionsPath, setCompletionsPath] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [rollbackAvailable, setRollbackAvailable] = useState(false);
+  const [rollbackConfig, setRollbackConfig] = useState<LlmConfigRollbackSummary | null>(null);
   const [loadedConfig, setLoadedConfig] = useState<LoadedLlmConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [rollingBack, setRollingBack] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
+  const sending = useChatStore((s) => s.sending);
+  const conversations = useChatStore((s) => s.conversations);
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +62,8 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
         setModel(config.model || "");
         setCompletionsPath(config.completionsPath || "");
         setApiKeyConfigured(Boolean(config.apiKeyConfigured));
+        setRollbackAvailable(Boolean(config.rollbackAvailable));
+        setRollbackConfig(config.rollbackConfig ?? null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -84,6 +97,25 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const doRollback = async () => {
+    setRollingBack(true);
+    setError(null);
+    try {
+      const result = await rollbackLlmConfig();
+      if (result.configChanged || result.runnerRebuilt) {
+        await useChatStore.getState().loadAgents();
+        useChatStore
+          .getState()
+          .archiveAllAndStartNew("model_reloaded", "模型配置已回滚，原对话已转为历史");
+      }
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRollingBack(false);
     }
   };
 
@@ -131,6 +163,36 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
     }
     void doSave();
   };
+
+  const requestRollback = () => {
+    setError(null);
+    const store = useChatStore.getState();
+    const hasActiveToolCalls = store.conversations.some(
+      (c) =>
+        c.contextStatus !== "history" &&
+        c.messages.some((m) =>
+          m.toolCalls?.some(
+            (tc) => tc.status === "running" || tc.status === "pending_confirm"
+          )
+        )
+    );
+    if (store.sending || hasActiveToolCalls) {
+      setError("当前 AI 会话正在进行中，请先停止或等待结束后再回滚模型配置");
+      return;
+    }
+    setRollbackConfirmOpen(true);
+  };
+
+  const hasActiveToolCalls = conversations.some(
+    (c) =>
+      c.contextStatus !== "history" &&
+      c.messages.some((m) =>
+        m.toolCalls?.some(
+          (tc) => tc.status === "running" || tc.status === "pending_confirm"
+        )
+      )
+  );
+  const rollbackDisabled = loading || saving || rollingBack || sending || hasActiveToolCalls;
 
   return (
     <>
@@ -200,6 +262,33 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
                   placeholder={apiKeyConfigured ? "留空表示沿用已保存 Key" : "首次配置必须填写"}
                 />
               </label>
+              {rollbackAvailable && rollbackConfig && (
+                <div className={modalStyles.rollbackBox}>
+                  <div className={modalStyles.rollbackTitle}>上一版模型配置</div>
+                  <div className={modalStyles.rollbackSummary}>
+                    <span>服务商：{rollbackConfig.providerName || "未命名"}</span>
+                    <span>模型：{rollbackConfig.model || "未填写"}</span>
+                    <span>Base URL：{rollbackConfig.baseUrl || "未填写"}</span>
+                    <span>API Key：{rollbackConfig.apiKeyConfigured ? "已配置" : "未配置"}</span>
+                  </div>
+                  <div className={modalStyles.rollbackAction}>
+                    <span className={modalStyles.hint}>回滚会丢弃未保存修改并新建会话</span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={requestRollback}
+                      disabled={rollbackDisabled}
+                      title={
+                        sending || hasActiveToolCalls
+                          ? "当前 AI 会话正在进行中"
+                          : "回滚到上一版配置"
+                      }
+                    >
+                      {rollingBack ? "回滚中..." : "回滚上一版"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {error && <div className={modalStyles.error}>{error}</div>}
             </>
           )}
@@ -208,7 +297,7 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             取消
           </button>
-          <button type="button" className="btn" onClick={requestSave} disabled={loading || saving}>
+          <button type="button" className="btn" onClick={requestSave} disabled={loading || saving || rollingBack}>
             {saving ? "保存中..." : "保存"}
           </button>
         </div>
@@ -222,6 +311,17 @@ export default function LlmSettingsModal({ open, onClose }: LlmSettingsModalProp
           onResolve={(ok) => {
             setArchiveConfirmOpen(false);
             if (ok) void doSave();
+          }}
+        />
+      )}
+      {rollbackConfirmOpen && (
+        <ConfirmDialog
+          message="回滚将丢弃当前未保存的修改，结束当前 AI 会话并恢复上一版模型配置。是否继续？"
+          confirmText="回滚并新建会话"
+          cancelText="取消"
+          onResolve={(ok) => {
+            setRollbackConfirmOpen(false);
+            if (ok) void doRollback();
           }}
         />
       )}
