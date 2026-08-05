@@ -41,7 +41,7 @@
 **验收标准**：点按钮切到本地视图、右栏消失；添加项目、项目列表显示；切回 sftp/terminal 布局复原。
 
 **测试用例**：layoutStore 加 local 枚举的 zustand 测试；projectStore persist 测试；ActivityBar 渲染测试。
-**验证**：执行 `npm run test:run`（21 个测试文件、151 个测试通过）与 `npm run build`；layout、project persist、ActivityBar 的新增测试均通过，local 视图下右栏派生隐藏且切回原布局偏好保留。
+**验证**：执行 `npm run test:run`（22 个测试文件、152 个测试通过）与 `npm run build`；layout、project persist、ActivityBar、LocalSidebar 的新增测试均通过，local 视图下右栏派生隐藏且切回原布局偏好保留。
 **状态**：已完成
 
 ## 阶段 3：NewTaskView + 终端会话面板
@@ -58,7 +58,7 @@
 **验收标准**：新建任务→启动 claude/codex→终端交互可用；多会话并发切换各自独立；resume/fork 续聊成功；附件/@引用进 prompt。
 
 **测试用例**：NewTaskView 表单 state 测试；useTerminalManager buffer 压缩/恢复纯逻辑测试；session 发现解析单测（可回 Rust 侧）。
-**验证**：新增 buffer 压缩/分片测试（10MB、256 chunks、128KB frame）与 NewTaskView 表单测试；`npm run test:run`（21 个测试文件、151 个测试通过）、`npm run build` 通过；Rust 侧 JSONL session discovery 测试通过。真实 agent 交互留阶段 4。
+**验证**：新增 buffer 压缩/分片测试（10MB、256 chunks、128KB frame）与 NewTaskView/LocalSidebar 组件测试；`npm run test:run`（22 个测试文件、152 个测试通过）、`npm run build` 通过；修复 Zustand selector 返回新数组导致的 React 无限重渲染/黑屏；Rust 侧 JSONL session discovery 测试通过。真实 agent 交互留阶段 4。
 **状态**：已完成
 
 ## 阶段 4：联调 + 收尾
@@ -70,5 +70,5 @@
 **验收标准**：矩阵全通过；`cargo test` + `npm run test:run` 全绿；无回归（SSH/终端/SFTP/chat 功能不受影响）。
 
 **测试用例**：即上述矩阵本身。
-**验证**：已确认本机 vendor 可执行文件版本为 Claude Code 2.1.222、Codex CLI 0.146.0；自动化验证 `cargo test`（19 个）与 `npm run test:run`（151 个）均通过。尚未在本轮启动真实 GUI ConPTY 矩阵（裸启动、resume/fork、cancel、双会话、附件），故暂不归档 action。
+**验证**：已确认本机 vendor 可执行文件版本为 Claude Code 2.1.222、Codex CLI 0.146.0；自动化验证 `cargo test`（19 个）与 `npm run test:run`（152 个）均通过。尚未在本轮启动真实 GUI ConPTY 矩阵（裸启动、resume/fork、cancel、双会话、附件），故暂不归档 action。
 **状态**：进行中

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import Icon from "../components/Icon";
 import { useProjectStore } from "../stores/projectStore";
 import {
@@ -12,12 +13,15 @@ export default function LocalSidebar() {
   const addProject = useProjectStore((state) => state.addProject);
   const selectProject = useProjectStore((state) => state.selectProject);
   const removeProject = useProjectStore((state) => state.removeProject);
-  const sessions = useLocalSessionStore((state) =>
-    activeProjectPath
-      ? state.sessions
-          .filter((session) => session.projectPath === activeProjectPath)
-          .slice(0, 80)
-      : [],
+  const allSessions = useLocalSessionStore((state) => state.sessions);
+  const sessions = useMemo(
+    () =>
+      activeProjectPath
+        ? allSessions
+            .filter((session) => session.projectPath === activeProjectPath)
+            .slice(0, 80)
+        : [],
+    [activeProjectPath, allSessions],
   );
   const activeTaskId = useLocalSessionStore((state) => state.activeTaskId);
   const selectSession = useLocalSessionStore((state) => state.selectSession);
