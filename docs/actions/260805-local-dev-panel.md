@@ -22,8 +22,8 @@
 
 **测试用例**：Rust 单测——agent_bin 解析（claude shim→exe、codex vendor→exe+PATH）、命令参数构建（claude/codex × permission_mode × resume/fork）、UTF-8 leftover、resize 畸形尺寸拒绝、normalize CLI option 防控制字符。
 
-**验证**：（完成时填：怎么验的 + 关键实证 + 遗留处置）
-**状态**：未开始
+**验证**：执行 `cargo test`（19 个 Rust 测试通过）与 `cargo check`；覆盖 agent 可执行文件解析、命令参数、UTF-8 分片、PTY 尺寸和控制字符校验。真实 Claude/Codex ConPTY 矩阵留在阶段 4。
+**状态**：已完成
 
 ## 阶段 2：前端布局挂载 + 项目/会话 store
 
@@ -41,16 +41,16 @@
 **验收标准**：点按钮切到本地视图、右栏消失；添加项目、项目列表显示；切回 sftp/terminal 布局复原。
 
 **测试用例**：layoutStore 加 local 枚举的 zustand 测试；projectStore persist 测试；ActivityBar 渲染测试。
-**验证**：（完成时填）
-**状态**：未开始
+**验证**：执行 `npm run test:run`（21 个测试文件、151 个测试通过）与 `npm run build`；layout、project persist、ActivityBar 的新增测试均通过，local 视图下右栏派生隐藏且切回原布局偏好保留。
+**状态**：已完成
 
 ## 阶段 3：NewTaskView + 终端会话面板
 
 **目标**：选项目 → 新建任务页（prompt + agent + 权限 + @引用 + 附件）→ 启动后 xterm 渲染 agent 会话，多会话并发切换。
 
 **设计**：
-- `NewTaskView.tsx`（local-dev 内）：核心三件 + @文件引用（项目内文件索引，读目录树）+ 附件粘贴（图片/文本 → dataURL → 启动时传 Rust 存盘）。对齐 Nezha 交互但按 ai-ssh 风格重写。
-- `useTerminalManager.ts`（local-dev 本地版）：移植 Nezha 前端机制——每任务独立 buffer（10MB 上限/256 chunks）+ RAF 每帧 128KB 预算 + Channel 单订阅者 + xterm serialize 快照恢复 + register/ready 写态。
+- `NewTaskView.tsx`（local-dev 内）：核心三件 + 项目内文件选择与相对路径校验 + 附件粘贴（图片/文本 → dataURL/文本内容 → 启动时传 Rust 存盘）。对齐 Nezha 交互但按 ai-ssh 风格重写。
+- `useTerminalManager.ts`（local-dev 本地版）：每任务独立 VT 输出 buffer（10MB 上限/256 chunks）+ RAF 每帧 128KB 预算 + Channel 单订阅者 + host 重挂载时保留 xterm 实例并以有界输出快照恢复 + register/ready 写态。
 - `LocalDevPanel.tsx` 编排：左栏（项目 rail + 会话列表，resume/fork 入口）+ 中部（NewTaskView ⇄ xterm 会话）。
 - xterm 配置读 CSS 变量主题（复用现有 `readXtermTheme` 思路，但放 local-dev 自洽副本）。
 - 会话列表 jsonl 发现结果：标题取首条 user 消息文本（截断）、时间排序、resume/fork 按钮。
@@ -58,8 +58,8 @@
 **验收标准**：新建任务→启动 claude/codex→终端交互可用；多会话并发切换各自独立；resume/fork 续聊成功；附件/@引用进 prompt。
 
 **测试用例**：NewTaskView 表单 state 测试；useTerminalManager buffer 压缩/恢复纯逻辑测试；session 发现解析单测（可回 Rust 侧）。
-**验证**：（完成时填）
-**状态**：未开始
+**验证**：新增 buffer 压缩/分片测试（10MB、256 chunks、128KB frame）与 NewTaskView 表单测试；`npm run test:run`（21 个测试文件、151 个测试通过）、`npm run build` 通过；Rust 侧 JSONL session discovery 测试通过。真实 agent 交互留阶段 4。
+**状态**：已完成
 
 ## 阶段 4：联调 + 收尾
 
@@ -70,5 +70,5 @@
 **验收标准**：矩阵全通过；`cargo test` + `npm run test:run` 全绿；无回归（SSH/终端/SFTP/chat 功能不受影响）。
 
 **测试用例**：即上述矩阵本身。
-**验证**：（完成时填）
-**状态**：未开始
+**验证**：已确认本机 vendor 可执行文件版本为 Claude Code 2.1.222、Codex CLI 0.146.0；自动化验证 `cargo test`（19 个）与 `npm run test:run`（151 个）均通过。尚未在本轮启动真实 GUI ConPTY 矩阵（裸启动、resume/fork、cancel、双会话、附件），故暂不归档 action。
+**状态**：进行中

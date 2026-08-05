@@ -24,6 +24,11 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+base64 = "0.22"
+# 本地开发面板：跨平台 PTY（Windows 走 ConPTY）承载本地 claude/codex 进程
+portable-pty = "0.8"
+# 本地开发面板：jsonl 会话发现文件监视
+notify = "6"
 # 启动自愈：孤儿后端的进程校验与清理（PID 存活/可执行路径/杀进程）
 sysinfo = "0.33"
 # 双开归一：第二实例只拉起已有窗口，保住「8091 占用者必是孤儿」公理
@@ -32,4 +37,3 @@ tauri-plugin-single-instance = "2"
 # 内核级父死子亡：后端 JVM 挂进 KILL_ON_JOB_CLOSE 的 Job Object
 [target.'cfg(windows)'.dependencies]
 win32job = "2"
-

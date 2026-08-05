@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type SidebarView = "servers" | "files" | "sftp";
+export type SidebarView = "servers" | "files" | "sftp" | "local";
 
 /** 中间工作区视图：终端 ⇄ SFTP（点 ActivityBar sftp 按钮切换） */
-export type CenterView = "terminal" | "sftp";
+export type CenterView = "terminal" | "sftp" | "local";
 
 export const MIN_LEFT_WIDTH = 220;
 export const MAX_LEFT_WIDTH = 560;

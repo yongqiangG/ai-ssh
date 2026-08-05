@@ -10,6 +10,7 @@ use std::{
 use tauri::{Emitter, Manager, WindowEvent};
 
 mod lifecycle;
+mod local_agent;
 
 const BACKEND_PORT: u16 = 8091;
 const BACKEND_JAR_NAME: &str = "ssh-server-app.jar";
@@ -356,6 +357,7 @@ pub fn run() {
         }))
         .manage(BackendProcess(Mutex::new(None)))
         .manage(BackendLaunchFailure(Mutex::new(None)))
+        .manage(local_agent::TaskManager::default())
         .setup(|app| {
             match start_backend(app) {
                 Ok(child) => {
@@ -389,12 +391,21 @@ pub fn run() {
             greet,
             backend_launch_failure,
             backend_log_dir,
-            list_local_roots
+            list_local_roots,
+            local_agent::pty::run_task,
+            local_agent::pty::resume_task,
+            local_agent::pty::fork_task,
+            local_agent::pty::cancel_task,
+            local_agent::pty::complete_task,
+            local_agent::pty::send_input,
+            local_agent::pty::resize_pty,
+            local_agent::session_discovery::discover_sessions
         ])
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {
                 // 先藏窗口再同步等待优雅退出（≤3s），用户观感是秒关
                 let _ = window.hide();
+                window.state::<local_agent::TaskManager>().kill_all();
                 window.state::<BackendProcess>().stop();
                 // 后端已确认终结，进程证据随之销档
                 if let Ok(data_dir) = window.app_handle().path().app_data_dir() {

@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "servers", icon: "terminal", label: "终端" },
   { id: "files", icon: "files", label: "文件" },
   { id: "sftp", icon: "sftp", label: "SFTP 传输" },
+  { id: "local", icon: "bot", label: "本地开发" },
 ];
 
 export default function ActivityBar() {
@@ -32,6 +33,12 @@ export default function ActivityBar() {
       // SFTP：中间工作区切到 SFTP 面板
       setActiveSidebarView("servers");
       setCenterView("sftp");
+      if (!showSidebar) toggleSidebar();
+      return;
+    }
+    if (id === "local") {
+      setCenterView("local");
+      setActiveSidebarView("local");
       if (!showSidebar) toggleSidebar();
       return;
     }
@@ -56,6 +63,8 @@ export default function ActivityBar() {
             const isActive =
               item.id === "sftp"
                 ? centerView === "sftp"
+                : item.id === "local"
+                ? centerView === "local"
                 : item.id === "servers"
                 ? centerView === "terminal"
                 : centerView === "terminal" && showSidebar && active === item.id;

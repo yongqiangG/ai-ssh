@@ -8,6 +8,7 @@ import TerminalPanel from "./views/TerminalPanel";
 import ChatPanel from "./views/ChatPanel";
 import SftpPanel from "./views/SftpPanel";
 import EmptyState from "./components/EmptyState";
+import LocalDevPanel from "./local-dev/LocalDevPanel";
 import { useBackendStore } from "./stores/backendStore";
 import { useChatStore } from "./stores/chatStore";
 import { useConnectionStore } from "./stores/connectionStore";
@@ -26,6 +27,7 @@ export default function App() {
   const applyRightDrag = useLayoutStore((s) => s.applyRightDrag);
   const toggleTerminal = useLayoutStore((s) => s.toggleTerminal);
   const centerView = useLayoutStore((s) => s.centerView);
+  const localView = centerView === "local";
   const baseUrl = useBackendStore((s) => s.baseUrl);
   const bootPhase = useBackendStore((s) => s.bootPhase);
   const boot = useBackendStore((s) => s.boot);
@@ -74,7 +76,9 @@ export default function App() {
         )}
 
         <div id="work-center" className={styles.center}>
-          {centerView === "sftp" ? (
+          {centerView === "local" ? (
+            <LocalDevPanel />
+          ) : centerView === "sftp" ? (
             <SftpPanel />
           ) : showTerminal ? (
             <TerminalPanel />
@@ -92,7 +96,7 @@ export default function App() {
           )}
         </div>
 
-        {showAiPanel && (
+        {showAiPanel && !localView && (
           <>
             <Splitter onDrag={applyRightDrag} />
             <div className={styles.rightHost} style={{ width: rightWidth }}>
