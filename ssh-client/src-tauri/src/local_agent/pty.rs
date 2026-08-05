@@ -161,6 +161,7 @@ fn resolve_pty_size(cols: Option<u16>, rows: Option<u16>) -> Result<PtySize, Str
 fn build_command_spec(
     agent: &str,
     launch: &AgentLaunchSpec,
+    project_path: &Path,
     permission_mode: &str,
     operation: LaunchOperation,
 ) -> Result<CommandSpec, String> {
@@ -174,6 +175,14 @@ fn build_command_spec(
     }
 
     let mut args = Vec::new();
+    if agent == AgentKind::Codex {
+        // Codex keeps its own workspace root, so setting the OS process cwd
+        // alone is not sufficient when the PTY is created by a GUI process.
+        args.extend([
+            "--cd".to_string(),
+            project_path.to_string_lossy().into_owned(),
+        ]);
+    }
     match (agent, permission) {
         (AgentKind::Claude, PermissionMode::Ask) => {
             args.extend(["--permission-mode", "default"].map(str::to_string));
@@ -288,7 +297,7 @@ fn launch_task(
     size: PtySize,
 ) -> Result<(Arc<TaskHandle>, Box<dyn Read + Send>), String> {
     let launch = resolve_agent_launch_spec(agent, None);
-    let command = build_command_spec(agent, &launch, permission_mode, operation)?;
+    let command = build_command_spec(agent, &launch, project_path, permission_mode, operation)?;
     let (handle, reader) = spawn_process(&command, project_path, size)?;
     if let Err(error) = task_manager.insert_task(task_id.to_string(), handle.clone()) {
         handle.kill();
@@ -773,11 +782,16 @@ mod tests {
         }
     }
 
+    fn project_path() -> &'static Path {
+        Path::new(r"C:\workspace\ai-ssh")
+    }
+
     #[test]
     fn builds_claude_run_arguments_for_each_permission_mode() {
         let ask = build_command_spec(
             "claude",
             &launch("claude.exe"),
+            project_path(),
             "ask",
             LaunchOperation::Run("hello".to_string()),
         )
@@ -787,6 +801,7 @@ mod tests {
         let auto_edit = build_command_spec(
             "claude",
             &launch("claude.exe"),
+            project_path(),
             "auto_edit",
             LaunchOperation::Run("hello".to_string()),
         )
@@ -799,6 +814,7 @@ mod tests {
         let full_access = build_command_spec(
             "claude",
             &launch("claude.exe"),
+            project_path(),
             "full_access",
             LaunchOperation::Run("hello".to_string()),
         )
@@ -811,9 +827,23 @@ mod tests {
 
     #[test]
     fn builds_codex_resume_and_fork_arguments_without_shell_parsing() {
+        let run = build_command_spec(
+            "codex",
+            &launch("codex.exe"),
+            project_path(),
+            "ask",
+            LaunchOperation::Run("hello".to_string()),
+        )
+        .expect("run command");
+        assert_eq!(
+            run.args,
+            vec!["--cd", r"C:\workspace\ai-ssh", "--", "hello"]
+        );
+
         let resume = build_command_spec(
             "codex",
             &launch("codex.exe"),
+            project_path(),
             "auto_edit",
             LaunchOperation::Resume("session-id".to_string()),
         )
@@ -821,6 +851,8 @@ mod tests {
         assert_eq!(
             resume.args,
             vec![
+                "--cd",
+                r"C:\workspace\ai-ssh",
                 "--sandbox",
                 "workspace-write",
                 "-a",
@@ -833,11 +865,15 @@ mod tests {
         let fork = build_command_spec(
             "codex",
             &launch("codex.exe"),
+            project_path(),
             "ask",
             LaunchOperation::Fork("session-id".to_string()),
         )
         .expect("fork command");
-        assert_eq!(fork.args, vec!["fork", "session-id"]);
+        assert_eq!(
+            fork.args,
+            vec!["--cd", r"C:\workspace\ai-ssh", "fork", "session-id"]
+        );
     }
 
     #[test]

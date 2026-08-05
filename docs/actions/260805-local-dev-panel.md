@@ -65,10 +65,10 @@
 
 **目标**：真实 claude/codex 会话端到端可用，补测试，归档。
 
-**设计**：真机联调矩阵——claude REPL 裸启动、codex REPL 裸启动、带 prompt 启动、resume、fork、cancel、多会话并发、@引用、附件、切走切回布局复原、后端未启动时本地面板照常。
+**设计**：真机联调矩阵——claude REPL 裸启动、codex REPL 裸启动、带 prompt 启动、resume、fork、cancel、多会话并发、@引用、附件、切走切回布局复原、后端未启动时本地面板照常；Codex 启动命令显式追加 `--cd <canonical project path>`，同时保留 PTY 子进程 `cwd` 设置，确保 Codex 自身工作根目录与所选项目一致。
 
 **验收标准**：矩阵全通过；`cargo test` + `npm run test:run` 全绿；无回归（SSH/终端/SFTP/chat 功能不受影响）。
 
-**测试用例**：即上述矩阵本身。
-**验证**：已确认本机 vendor 可执行文件版本为 Claude Code 2.1.222、Codex CLI 0.146.0；自动化验证 `cargo test`（19 个）与 `npm run test:run`（152 个）均通过。尚未在本轮启动真实 GUI ConPTY 矩阵（裸启动、resume/fork、cancel、双会话、附件），故暂不归档 action。
+**测试用例**：上述矩阵本身；Rust 命令构建单测覆盖 Codex 新建任务、resume、fork 均带项目目录参数，且 Claude 参数不变。
+**验证**：已确认本机 vendor 可执行文件版本为 Claude Code 2.1.222、Codex CLI 0.146.0；先以失败测试锁定缺少 `--cd` 的回归，再修复并通过 `cargo test`（19 个）、`cargo check`、`npm run test:run`（22 个文件/152 个测试）与 `npm run build`。尚未在本轮启动真实 GUI ConPTY 矩阵（裸启动、resume/fork、cancel、双会话、附件），故暂不归档 action。
 **状态**：进行中
