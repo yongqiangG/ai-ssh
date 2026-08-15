@@ -67,5 +67,5 @@
 - 测试基线：全量 `npm run test:run` + `cargo test`（如适用）绿
 **验收标准**：全部测试绿；CLAUDE.md 更新完成；action 归档进 done/。
 **测试用例**：既有测试回归；新增模块的核心单测（见各阶段）。
-**验证**：
-**状态**：未开始
+**验证**：最终基线 vitest 28 文件/218 测试全绿 + cargo test 67/67 绿（exit 0）。CLAUDE.md 已更新：红线章节标注适用范围限 SSH 运维链路、新增「AI Coding 面板」段（独立功能域/零共享约定/hook 双路径/ConPTY/GPL-3.0/tauri dev 工作流）、简史追加 2026-08-15 条目。DESIGN.md 无需补记：色板映射全部复用既有电路霓虹 token，未引入新 token。归档说明：阶段 3 的真机验证（tauri dev 下 PTY/hook/ConPTY 端到端）待用户实测，实测通过后本文档移入 done/。
+**状态**：已完成（归档挂起：待阶段 3 真机验证）
