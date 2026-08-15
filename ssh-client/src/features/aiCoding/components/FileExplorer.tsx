@@ -188,7 +188,9 @@ export function FileExplorer({
   const readEntries = useCallback(
     (path: string) =>
       safeInvoke<FsEntry[]>(
-        compactEmptyFolders ? "read_compact_dir_entries" : "read_dir_entries",
+        compactEmptyFolders
+          ? "coding_read_compact_dir_entries"
+          : "coding_read_dir_entries",
         { path, projectPath },
       ),
     [compactEmptyFolders, projectPath, safeInvoke],
