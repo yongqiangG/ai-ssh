@@ -55,14 +55,13 @@
   filter: drop-shadow(0 0 6px var(--glow-volt));
 }
 
-/* 能量指示器：plasma→volt 竖向渐变棒，位置切换由 motion 弹簧接管 */
+/* 能量指示器：plasma→volt 竖向渐变棒，与按钮等高，位置切换由 motion 弹簧接管 */
 .indicator {
   position: absolute;
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
   width: 2px;
-  height: 24px;
   background: linear-gradient(
     180deg,
     var(--energy-volt),
