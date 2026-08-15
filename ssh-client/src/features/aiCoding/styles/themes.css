@@ -11,7 +11,11 @@
  *   live 绿 #3dffa8 · surge 黄 #ffb020 · overload 红 #ff4d6d
  *   文字冷蓝灰阶梯 #f0f3ff / #c6cbe0 / #8a93b2 / #6a7394
  */
-body.ai-coding-active {
+/* 令牌同时挂 body 作用域类与根类：body 类覆盖 Radix Portal 弹层（渲染在
+ * body 下、不在子树内）；根类保证子树自身永远拿得到令牌（防御挂载时序
+ * 或样式注入异常导致 body 类短暂缺失的面板黑屏）。 */
+body.ai-coding-active,
+.ai-coding-root {
   --bg-root: #07080f;
   --bg-shell: #0b0d17;
   --bg-titlebar: #0d0f1b;

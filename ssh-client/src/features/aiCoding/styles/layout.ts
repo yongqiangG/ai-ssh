@@ -11,6 +11,12 @@ export const layout = {
   rootRelative: {
     display: "flex",
     flexDirection: "column" as const,
+    // 子层（appProjectLayer/appWelcomeLayer）全部 position:absolute，不贡献
+    // 流内宽度；nezha 原版根是 fixed inset:0 自带尺寸，改成 relative 后必须
+    // 显式占满父容器（flex:1 + width:100%），否则整棵子树 0 宽不可见。
+    width: "100%",
+    flex: "1 1 auto",
+    minWidth: 0,
     height: "100%",
     background: "var(--bg-root)",
     overflow: "hidden",
