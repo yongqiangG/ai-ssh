@@ -22,16 +22,24 @@ body.ai-coding-active,
   --bg-sidebar: #090a12;
   --bg-sidebar-elevated: #0b0d17;
   --bg-panel: #10131f;
-  --bg-card: #10131f;
+  /* 卡片/弹层用更高一层的底色：叠在近黑遮罩或面板上必须肉眼可辨 */
+  --bg-card: #171b2c;
   --bg-hover: rgba(158, 170, 255, 0.06);
   --bg-selected: rgba(124, 92, 255, 0.22);
   --bg-subtle: rgba(140, 160, 255, 0.08);
   --bg-input: #0d1020;
   --bg: var(--bg-root);
+  /* 看板全屏接管底色（nezha 遗留引用） */
+  --bg-app: #0b0d17;
+  /* 次级面（附件小卡等） */
+  --bg-secondary: rgba(140, 160, 255, 0.1);
+  --bg-elevated: #171b2c;
 
-  --border-dim: rgba(140, 160, 255, 0.1);
-  --border-medium: rgba(140, 160, 255, 0.16);
-  --border-strong: rgba(140, 160, 255, 0.22);
+  /* 对比度整体上调：16% 透明度的边框在近黑底上肉眼不可见，弹层/卡片
+   * 会被误判为「没有样式」 */
+  --border-dim: rgba(140, 160, 255, 0.14);
+  --border-medium: rgba(140, 160, 255, 0.24);
+  --border-strong: rgba(140, 160, 255, 0.34);
   --border-focus: #00e5ff;
   --border: var(--border-dim);
 
@@ -93,6 +101,9 @@ body.ai-coding-active,
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--danger);
+  --accent-success: #3dffa8;
+  --danger-action-bg: #ff4d6d;
+  --danger-action-fg: #ffffff;
   --usage-good: #3dffa8;
   --usage-warn: #ffb020;
   --usage-danger: #ff4d6d;
@@ -133,10 +144,11 @@ body.ai-coding-active,
   --code-line-hover-bg: rgba(140, 160, 255, 0.05);
   --image-checker-bg: rgba(140, 160, 255, 0.06);
 
-  --overlay-bg: rgba(3, 4, 10, 0.72);
+  --overlay-bg: rgba(3, 4, 10, 0.78);
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.22);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-popover: 0 8px 32px rgba(0, 0, 0, 0.55);
   --shadow-drawer: 4px 0 16px rgba(0, 0, 0, 0.4);
   --shadow-compose: 0 6px 18px rgba(0, 0, 0, 0.18);
@@ -145,6 +157,11 @@ body.ai-coding-active,
   --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.35);
   --shadow-media: 0 16px 40px rgba(0, 0, 0, 0.6);
   --agent-badge-filter: brightness(0) invert(1) opacity(0.7);
+
+  /* xterm 滚动条（App.css 引用） */
+  --xterm-scrollbar-width: 8px;
+  --xterm-scrollbar-thumb: rgba(140, 160, 255, 0.18);
+  --xterm-scrollbar-thumb-hover: rgba(140, 160, 255, 0.32);
 
   --radius-sm: 6px;
   --radius-md: 8px;
