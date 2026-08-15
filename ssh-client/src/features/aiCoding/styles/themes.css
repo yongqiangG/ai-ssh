@@ -3,7 +3,7 @@
  * 隔离方式：令牌挂在 body.ai-coding-active 上（AiCodingPanel 挂载时添加、
  * 卸载时移除）。挂 body 而不是 .ai-coding-root 的原因：Radix Portal 直接
  * 渲染到 document.body 下，不在 .ai-coding-root 子树内，只有 body 级作用域
- * 才能让弹层也拿到变量。client 的 --vsc-*/--terminal-* 令牌名零冲突。
+ * 才能让弹层也拿到变量。client 的 --vsc-* 与 --terminal-* 令牌名零冲突。
  *
  * 色板映射（client src/index.css）：
  *   三层底 void  #07080f / #0b0d17 / #10131f
