@@ -1,0 +1,151 @@
+/* aiCoding 设计令牌：电路霓虹单深色主题（决议 260815 / 260726 色板）。
+ *
+ * 隔离方式：令牌挂在 body.ai-coding-active 上（AiCodingPanel 挂载时添加、
+ * 卸载时移除）。挂 body 而不是 .ai-coding-root 的原因：Radix Portal 直接
+ * 渲染到 document.body 下，不在 .ai-coding-root 子树内，只有 body 级作用域
+ * 才能让弹层也拿到变量。client 的 --vsc-*/--terminal-* 令牌名零冲突。
+ *
+ * 色板映射（client src/index.css）：
+ *   三层底 void  #07080f / #0b0d17 / #10131f
+ *   plasma #ff2d95 · circuit #7c5cff · volt #00e5ff
+ *   live 绿 #3dffa8 · surge 黄 #ffb020 · overload 红 #ff4d6d
+ *   文字冷蓝灰阶梯 #f0f3ff / #c6cbe0 / #8a93b2 / #6a7394
+ */
+body.ai-coding-active {
+  --bg-root: #07080f;
+  --bg-shell: #0b0d17;
+  --bg-titlebar: #0d0f1b;
+  --bg-sidebar: #090a12;
+  --bg-sidebar-elevated: #0b0d17;
+  --bg-panel: #10131f;
+  --bg-card: #10131f;
+  --bg-hover: rgba(158, 170, 255, 0.06);
+  --bg-selected: rgba(124, 92, 255, 0.22);
+  --bg-subtle: rgba(140, 160, 255, 0.08);
+  --bg-input: #0d1020;
+  --bg: var(--bg-root);
+
+  --border-dim: rgba(140, 160, 255, 0.1);
+  --border-medium: rgba(140, 160, 255, 0.16);
+  --border-strong: rgba(140, 160, 255, 0.22);
+  --border-focus: #00e5ff;
+  --border: var(--border-dim);
+
+  --text-primary: #f0f3ff;
+  --text-secondary: #c6cbe0;
+  --text-muted: #8a93b2;
+  --text-hint: #6a7394;
+  --fg-on-accent: #041018;
+  --control-active-bg: rgba(0, 229, 255, 0.16);
+  --control-active-fg: #00e5ff;
+  --control-selected-bg: #00e5ff;
+  --control-selected-fg: #041018;
+  --control-knob-bg: #ffffff;
+  --primary-action-bg: #00e5ff;
+  --primary-action-fg: #041018;
+  --primary-action-hover: #4deeff;
+
+  --accent: #00e5ff;
+  --accent-strong: #4deeff;
+  --accent-soft: rgba(0, 229, 255, 0.32);
+  --accent-hover: #4deeff;
+  --accent-subtle: rgba(0, 229, 255, 0.12);
+
+  /* 品牌标识 = 能量流渐变 plasma → circuit → volt */
+  --brand-mark-gradient: linear-gradient(145deg, #ff2d95, #7c5cff 58%, #00e5ff 100%);
+  --brand-mark-glow: rgba(124, 92, 255, 0.35);
+  --brand-mark-inner-bg: rgba(7, 8, 15, 0.82);
+  --brand-mark-fg: #ffffff;
+  --badge-muted-bg: rgba(140, 160, 255, 0.14);
+
+  --icon-folder: #8a93b2;
+  --icon-folder-open: #a4aeca;
+  --icon-folder-root: #9aa3c2;
+  --icon-file-default: #8a93b2;
+  --icon-file-ignored: #6a7394;
+  --icon-file-config: #8b94a3;
+  --icon-file-docker: #38bdf8;
+  --icon-file-build: #94a3b8;
+  --icon-file-ruby: #ff4d6d;
+  --icon-file-ts: #5ca8ff;
+  --icon-file-js: #ffb020;
+  --icon-file-json: #ffb020;
+  --icon-file-rust: #ff4d6d;
+  --icon-file-html: #fb923c;
+  --icon-file-css: #7c5cff;
+  --icon-file-md: #7c5cff;
+  --icon-file-yaml: #ff4d6d;
+  --icon-file-toml: #d97757;
+  --icon-file-python: #5ca8ff;
+  --icon-file-go: #00e5ff;
+  --icon-file-shell: #3dffa8;
+  --icon-file-svg: #ffb020;
+  --icon-file-image: #3dffa8;
+  --icon-file-wasm: #7c5cff;
+
+  --success: #3dffa8;
+  --warning: #ffb020;
+  --danger: #ff4d6d;
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--danger);
+  --usage-good: #3dffa8;
+  --usage-warn: #ffb020;
+  --usage-danger: #ff4d6d;
+  --usage-codex: #7c5cff;
+
+  --warning-surface: rgba(255, 176, 32, 0.1);
+  --warning-code-bg: rgba(255, 176, 32, 0.16);
+  --warning-border: rgba(255, 176, 32, 0.3);
+  --danger-surface: rgba(255, 77, 109, 0.1);
+  --danger-border: rgba(255, 77, 109, 0.3);
+  --danger-fg: #ff4d6d;
+  --star-fg: #ffb020;
+  --inverse-muted: rgba(255, 255, 255, 0.75);
+
+  --diff-add-bg: rgba(61, 255, 168, 0.12);
+  --diff-add-fg: #3dffa8;
+  --diff-add-marker-bg: rgba(61, 255, 168, 0.22);
+  --diff-delete-bg: rgba(255, 77, 109, 0.12);
+  --diff-delete-fg: #ff4d6d;
+  --diff-delete-marker-bg: rgba(255, 77, 109, 0.22);
+  --diff-hunk-bg: rgba(92, 168, 255, 0.08);
+  --diff-hunk-fg: #5ca8ff;
+  --diff-meta-fg: #6a7394;
+  --diff-gutter-bg: rgba(255, 255, 255, 0.02);
+  --diff-empty-bg: rgba(255, 255, 255, 0.02);
+  --diff-status-added-fg: #3dffa8;
+  --diff-status-added-bg: rgba(61, 255, 168, 0.16);
+  --diff-status-deleted-fg: #ff4d6d;
+  --diff-status-deleted-bg: rgba(255, 77, 109, 0.16);
+  --diff-status-renamed-fg: #5ca8ff;
+  --diff-status-renamed-bg: rgba(92, 168, 255, 0.16);
+  --diff-status-modified-fg: #ffb020;
+  --diff-status-modified-bg: rgba(255, 176, 32, 0.16);
+
+  --code-line-number: rgba(140, 160, 255, 0.35);
+  --code-line-number-hover: rgba(140, 160, 255, 0.6);
+  --code-line-divider: rgba(140, 160, 255, 0.1);
+  --code-line-hover-bg: rgba(140, 160, 255, 0.05);
+  --image-checker-bg: rgba(140, 160, 255, 0.06);
+
+  --overlay-bg: rgba(3, 4, 10, 0.72);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-popover: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --shadow-drawer: 4px 0 16px rgba(0, 0, 0, 0.4);
+  --shadow-compose: 0 6px 18px rgba(0, 0, 0, 0.18);
+  --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.35);
+  --shadow-switch-thumb: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.35);
+  --shadow-media: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --agent-badge-filter: brightness(0) invert(1) opacity(0.7);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --font-ui: "SF Pro Display", "IBM Plex Sans", "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
+}

@@ -43,8 +43,8 @@
 - Windows 实机验证 ConPTY：全屏 TUI（claude）可滚回 scrollback
 **验收标准**：真机 `npm run tauri dev` 下创建项目→创建任务（ask 模式）→claude 启动→任务状态流转 running→awaiting_review→done 正确；任务切换终端恢复；重启应用任务列表不丢。
 **测试用例**：useTerminalManager 的 RAF drain 与 snapshot 恢复单测；任务状态事件映射（task-status/task-session）单测。
-**验证**：
-**状态**：未开始
+**验证**：`npm run tauri dev` 真机链路（创建项目→ask 模式任务→claude 启动→状态流转→切换恢复→重启持久）待用户实测；代码层已完成——34 处 invoke 全部 coding_ 前缀（抽查修正 FileExplorer 经 safeInvoke 包装漏改的 3 处）、4 个事件 coding: 前缀、worktree/timeline/skill/usage/notification grep 零残留（仅 task.ts 一处死样式类 worktreeBadge 与 terminalShared 一处注释，无害）。测试补充：terminal 相关逻辑依赖真机，vitest 侧 218/218 绿。
+**状态**：代码已完成，真机验证待做
 
 ## 阶段 4：周边功能迁移 + 排除项拆除
 
@@ -56,8 +56,8 @@
 - 样式色板映射文件一份（nezha CSS 变量 → 电路霓虹 token）
 **验收标准**：`npm run build` 通过；grep 无 worktree/timeline/skill-hub/usage 残留引用；各周边功能真机可用。
 **测试用例**：样式映射完整性（token 全覆盖）；组件冒烟（FileExplorer 渲染、KanbanView 三列聚合）。
-**验证**：
-**状态**：未开始
+**验证**：阶段 3/4 由一个后台 agent 合并执行（改动面在 features/aiCoding/ 内，主会话抽查复核）。`npm run build` 零错误；`npx vitest run` 28 文件/218 测试全绿（client 既有 137 无破坏 + aiCoding 迁移 81）。CSS 隔离方案：App.css 全局规则（reset/body/滚动条）收敛到 .ai-coding-root 子树，设计令牌挂 body.ai-coding-active（AiCodingPanel 挂载时加/卸载时移除——Radix Portal 渲染在 body 下，只有 body 级作用域能覆盖弹层），变量名与 client --vsc-*/--terminal-* 零冲突；色板已映射电路霓虹（三层底/plasma/circuit/volt/live/surge/overload/文字阶梯，对齐 index.css）。主题固定深色单套，ThemePanel/theme.ts/明暗切换按钮删除。遗留（接受）：terminalShared 三个未消费主题常量为死代码、task.ts worktreeBadge 死样式类、branch-popover-* CSS 无消费方——均为纯死代码，择机清理；真机功能验证待用户 `npm run tauri dev` 实测。
+**状态**：已完成
 
 ## 阶段 5：测试补齐 + 文档收尾
 

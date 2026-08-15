@@ -1,0 +1,196 @@
+import { useState } from "react";
+import { Search, ChevronLeft, Plus, Trash2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type {
+  Project,
+  Task,
+  TerminalFontSize,
+  TerminalScrollback,
+  TaskDisplayWindow,
+  FontFamily,
+} from "../types";
+import { ProjectAvatar } from "./ProjectAvatar";
+import { SidebarFooterActions } from "./SidebarFooterActions";
+import { TaskList } from "./task-panel/TaskList";
+import { useI18n } from "../i18n";
+import s from "../styles";
+
+export function TaskPanel({
+  project,
+  tasks,
+  selectedId,
+  isNewTask,
+  onNewTask,
+  onSelectTask,
+  onDeleteTask,
+  onDeleteAllTasks,
+  onToggleTaskStar,
+  onRunTodo,
+  onBack,
+  backTitle,
+  terminalFontSize,
+  onTerminalFontSizeChange,
+  taskDisplayWindow,
+  onTaskDisplayWindowChange,
+  attentionBadge,
+  onAttentionBadgeChange,
+  terminalScrollback,
+  onTerminalScrollbackChange,
+  uiFontFamily,
+  onUiFontFamilyChange,
+  monoFontFamily,
+  onMonoFontFamilyChange,
+  collapsed = false,
+  onToggleCollapsed,
+}: {
+  project: Project;
+  tasks: Task[];
+  selectedId: string | null;
+  isNewTask: boolean;
+  onNewTask: () => void;
+  onSelectTask: (id: string) => void;
+  onDeleteTask: (id: string) => void;
+  onDeleteAllTasks: () => void;
+  onToggleTaskStar: (id: string) => void;
+  onRunTodo: (task: Task) => void;
+  onBack: () => void;
+  backTitle?: string;
+  terminalFontSize: TerminalFontSize;
+  onTerminalFontSizeChange: (size: TerminalFontSize) => void;
+  taskDisplayWindow: TaskDisplayWindow;
+  onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  attentionBadge: boolean;
+  onAttentionBadgeChange: (enabled: boolean) => void;
+  terminalScrollback: TerminalScrollback;
+  onTerminalScrollbackChange: (value: TerminalScrollback) => void;
+  uiFontFamily: FontFamily;
+  onUiFontFamilyChange: (family: FontFamily) => void;
+  monoFontFamily: FontFamily;
+  onMonoFontFamilyChange: (family: FontFamily) => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}) {
+  const { t } = useI18n();
+  const [query, setQuery] = useState("");
+  const hasAttention = tasks.some(
+    (t) =>
+      t.status === "input_required" ||
+      t.status === "awaiting_review" ||
+      t.status === "detached" ||
+      t.status === "interrupted",
+  );
+
+  if (collapsed) {
+    return (
+      <div style={s.taskPanelCollapsedRoot}>
+        <button
+          type="button"
+          style={s.taskPanelExpandBtn}
+          onClick={onToggleCollapsed}
+          title={hasAttention ? t("task.showTasksAttention") : t("task.showTasks")}
+          aria-label={hasAttention ? t("task.showTasksAttentionAria") : t("task.showTasks")}
+        >
+          <PanelLeftOpen size={16} strokeWidth={2} />
+          {hasAttention && <span style={s.taskPanelAttentionDot} aria-hidden />}
+        </button>
+        <div style={s.taskPanelCollapsedBody}>
+          <ProjectAvatar name={project.name} size={24} />
+          <button
+            type="button"
+            style={
+              isNewTask ? s.taskPanelCollapsedNewBtnActive : s.taskPanelCollapsedNewBtnInactive
+            }
+            onClick={onNewTask}
+            title={t("task.newTask")}
+            aria-label={t("task.newTask")}
+          >
+            <Plus size={15} strokeWidth={2.4} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={s.taskPanel}>
+      {/* Project header */}
+      <div style={s.panelHeader}>
+        <button style={s.backBtn} onClick={onBack} title={backTitle ?? t("task.switchProject")}>
+          <ChevronLeft size={15} strokeWidth={2} />
+        </button>
+        <ProjectAvatar name={project.name} size={22} />
+        <span style={s.panelProjectName}>{project.name}</span>
+        <button
+          type="button"
+          style={s.panelCollapseBtn}
+          onClick={onToggleCollapsed}
+          title={t("task.hideTasks")}
+        >
+          <PanelLeftClose size={15} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* Search */}
+      <div style={s.panelSearchWrap}>
+        <Search size={13} strokeWidth={2} color="var(--text-muted)" style={s.flexShrinkIcon} />
+        <input
+          style={s.panelSearchInput}
+          placeholder={t("task.searchTasks")}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {/* New Task row */}
+      <button style={isNewTask ? s.newTaskRowActive : s.newTaskRowInactive} onClick={onNewTask}>
+        <Plus size={14} strokeWidth={2.5} style={s.flexShrinkIcon} />
+        <span style={s.newTaskRowLabel}>{t("task.newTask")}</span>
+      </button>
+
+      <div style={s.taskActionsRow}>
+        <div style={s.taskActionsMeta}>
+          {tasks.length} {t("task.tasks")}
+        </div>
+        <button
+          type="button"
+          style={tasks.length > 0 ? s.taskActionBtn : s.taskActionBtnDisabled}
+          disabled={tasks.length === 0}
+          onClick={onDeleteAllTasks}
+        >
+          <Trash2 size={12} strokeWidth={2.2} />
+          <span>{t("task.clearAll")}</span>
+        </button>
+      </div>
+
+      <div style={s.taskDivider} />
+
+      {/* Task list */}
+      <TaskList
+        tasks={tasks}
+        taskDisplayWindow={taskDisplayWindow}
+        query={query}
+        selectedId={selectedId}
+        isNewTask={isNewTask}
+        onSelectTask={onSelectTask}
+        onDeleteTask={onDeleteTask}
+        onToggleTaskStar={onToggleTaskStar}
+        onRunTodo={onRunTodo}
+      />
+      <div style={s.taskPanelFooter}>
+        <SidebarFooterActions
+          terminalFontSize={terminalFontSize}
+          onTerminalFontSizeChange={onTerminalFontSizeChange}
+          taskDisplayWindow={taskDisplayWindow}
+          onTaskDisplayWindowChange={onTaskDisplayWindowChange}
+          attentionBadge={attentionBadge}
+          onAttentionBadgeChange={onAttentionBadgeChange}
+          terminalScrollback={terminalScrollback}
+          onTerminalScrollbackChange={onTerminalScrollbackChange}
+          uiFontFamily={uiFontFamily}
+          onUiFontFamilyChange={onUiFontFamilyChange}
+          monoFontFamily={monoFontFamily}
+          onMonoFontFamilyChange={onMonoFontFamilyChange}
+        />
+      </div>
+    </div>
+  );
+}
