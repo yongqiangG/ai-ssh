@@ -29,6 +29,27 @@ sysinfo = "0.33"
 # 双开归一：第二实例只拉起已有窗口，保住「8091 占用者必是孤儿」公理
 tauri-plugin-single-instance = "2"
 
+# ── AI Coding 功能域（迁移自 nezha，见 docs/situations/260815-ai-coding-panel.md）──
+# PTY 终端（claude/codex/本地 shell）
+portable-pty = "0.8"
+tokio = { version = "1", features = ["sync", "macros", "rt", "time", "process", "io-util"] }
+once_cell = "1.19"
+chrono = "0.4"
+base64 = "0.22"
+# 文件/hook 事件监听
+notify = "6"
+# gitignore 匹配（文件树标灰）
+ignore = "0.4"
+# 项目级配置与 codex hook 注入
+toml = "0.8"
+libc = "0.2"
+parking_lot = "0.12"
+uuid = { version = "1", features = ["v4"] }
+# 文件树删除走回收站
+trash = "=5.2.6"
+# 终端字体枚举
+font-kit = "=0.14.3"
+
 # 内核级父死子亡：后端 JVM 挂进 KILL_ON_JOB_CLOSE 的 Job Object
 [target.'cfg(windows)'.dependencies]
 win32job = "2"

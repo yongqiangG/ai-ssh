@@ -9,6 +9,7 @@ use std::{
 
 use tauri::{Emitter, Manager, WindowEvent};
 
+mod coding;
 mod lifecycle;
 
 const BACKEND_PORT: u16 = 8091;
@@ -356,7 +357,29 @@ pub fn run() {
         }))
         .manage(BackendProcess(Mutex::new(None)))
         .manage(BackendLaunchFailure(Mutex::new(None)))
+        .manage(coding::TaskManager::new())
         .setup(|app| {
+            // ── AI Coding 功能域初始化（迁移自 nezha）──
+            // Windows：后台线程预加载随包侧载的新版 ConPTY（修复部分系统全屏 TUI
+            // 输出不进 scrollback）。失败自动回退系统版，见 coding/platform/windows.rs。
+            #[cfg(windows)]
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                coding::platform::spawn_conpty_preload(resource_dir);
+            }
+            // 后台预热登录 shell 环境，避免第一次启动任务时阻塞
+            std::thread::spawn(|| {
+                coding::app_settings::get_login_shell_path();
+            });
+            // 安装 hook 脚本与用户级配置注入（失败不阻塞启动，前端可查询状态）。
+            std::thread::spawn(|| {
+                coding::hooks::cache_status(coding::hooks::ensure_installed());
+                let _ = coding::hooks::regenerate_claude_settings();
+            });
+            // hook 事件文件 watcher
+            coding::event_watcher::start(app.handle().clone());
+            // 文件树 fs 事件监听（coding_watch_dir/coding_unwatch_dir 的托管状态与防抖线程）
+            coding::fs_watcher::init(app);
+
             match start_backend(app) {
                 Ok(child) => {
                     let backend = app.state::<BackendProcess>();
@@ -389,12 +412,73 @@ pub fn run() {
             greet,
             backend_launch_failure,
             backend_log_dir,
-            list_local_roots
+            list_local_roots,
+            // ── AI Coding 功能域命令（统一 coding_ 前缀）──
+            coding::pty::coding_run_task,
+            coding::pty::coding_resume_task,
+            coding::pty::coding_fork_task,
+            coding::pty::coding_cancel_task,
+            coding::pty::coding_complete_task,
+            coding::pty::coding_get_active_task_ids,
+            coding::pty::coding_reset_task_process,
+            coding::pty::coding_send_input,
+            coding::pty::coding_resize_pty,
+            coding::pty::coding_open_shell,
+            coding::pty::coding_kill_shell,
+            coding::fs::coding_read_dir_entries,
+            coding::fs::coding_read_compact_dir_entries,
+            coding::fs_watcher::coding_watch_dir,
+            coding::fs_watcher::coding_unwatch_dir,
+            coding::fs::coding_open_in_system_file_manager,
+            coding::fs::coding_read_file_content,
+            coding::fs::coding_read_image_preview,
+            coding::fs::coding_write_file_content,
+            coding::fs::coding_create_file,
+            coding::fs::coding_create_directory,
+            coding::fs::coding_delete_path,
+            coding::fs::coding_list_project_files,
+            coding::fs::coding_search_project_files,
+            coding::agent_assist::coding_generate_task_name,
+            coding::analytics::coding_read_session_metrics,
+            coding::session::coding_read_session_messages,
+            coding::session::coding_export_session_markdown,
+            coding::config::coding_init_project_config,
+            coding::config::coding_read_project_config,
+            coding::config::coding_write_project_config,
+            coding::config::coding_get_agent_config_file_path,
+            coding::config::coding_read_agent_config_file,
+            coding::config::coding_write_agent_config_file,
+            coding::storage::coding_load_projects,
+            coding::storage::coding_save_projects,
+            coding::storage::coding_load_project_tasks,
+            coding::storage::coding_save_project_tasks,
+            coding::app_settings::coding_load_app_settings,
+            coding::app_settings::coding_save_app_settings,
+            coding::app_settings::coding_save_agent_paths,
+            coding::app_settings::coding_save_agent_model_catalog,
+            coding::app_settings::coding_initialize_agent_model_catalog,
+            coding::app_settings::coding_save_send_shortcut,
+            coding::app_settings::coding_save_shift_enter_newline,
+            coding::app_settings::coding_save_claude_force_default_tui,
+            coding::app_settings::coding_save_use_sideloaded_conpty,
+            coding::app_settings::coding_save_terminal_scrollback,
+            coding::app_settings::coding_save_terminal_copy_on_select,
+            coding::app_settings::coding_detect_agent_paths,
+            coding::app_settings::coding_detect_agent_versions_for_settings,
+            coding::app_settings::coding_get_system_fonts,
+            coding::hooks::coding_get_hook_status,
+            coding::hooks::coding_get_hook_readiness,
+            coding::hooks::coding_install_hooks,
+            coding::hooks::coding_uninstall_hooks,
         ])
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {
                 // 先藏窗口再同步等待优雅退出（≤3s），用户观感是秒关
                 let _ = window.hide();
+                // 终止所有仍在运行的 AI Coding 任务/Shell 子进程，防孤儿
+                window
+                    .state::<coding::TaskManager>()
+                    .kill_all_children();
                 window.state::<BackendProcess>().stop();
                 // 后端已确认终结，进程证据随之销档
                 if let Ok(data_dir) = window.app_handle().path().app_data_dir() {
