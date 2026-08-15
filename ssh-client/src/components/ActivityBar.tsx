@@ -6,7 +6,8 @@ import { useLayoutStore, type SidebarView } from "../stores/layoutStore";
 import styles from "./ActivityBar.module.css";
 
 interface NavItem {
-  id: SidebarView;
+  /** aiCoding 不是侧栏视图，是整窗接管的中部视图（与 SidebarView 并列的入口 id） */
+  id: SidebarView | "aiCoding";
   icon: IconName;
   label: string;
 }
@@ -15,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "servers", icon: "terminal", label: "终端" },
   { id: "files", icon: "files", label: "文件" },
   { id: "sftp", icon: "sftp", label: "SFTP 传输" },
+  { id: "aiCoding", icon: "aiCoding", label: "AI Coding" },
 ];
 
 export default function ActivityBar() {
@@ -27,7 +29,13 @@ export default function ActivityBar() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const onItemClick = (id: SidebarView) => {
+  const onItemClick = (id: SidebarView | "aiCoding") => {
+    if (id === "aiCoding") {
+      // AI Coding：整窗接管视图（Header/左侧栏/ChatPanel 隐藏），不动侧栏状态，
+      // 切回 SSH 视图时布局原样恢复
+      setCenterView("aiCoding");
+      return;
+    }
     if (id === "sftp") {
       // SFTP：中间工作区切到 SFTP 面板
       setActiveSidebarView("servers");
@@ -54,7 +62,9 @@ export default function ActivityBar() {
         <div className={styles.top}>
           {NAV_ITEMS.map((item) => {
             const isActive =
-              item.id === "sftp"
+              item.id === "aiCoding"
+                ? centerView === "aiCoding"
+                : item.id === "sftp"
                 ? centerView === "sftp"
                 : item.id === "servers"
                 ? centerView === "terminal"

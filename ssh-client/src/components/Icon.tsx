@@ -31,7 +31,8 @@ export type IconName =
   | "search"
   | "copy"
   | "stop"
-  | "alert";
+  | "alert"
+  | "aiCoding";
 
 // 零依赖内联 SVG（feather/lucide 风格，stroke=currentColor）
 const PATHS: Record<IconName, ReactElement> = {
@@ -192,6 +193,13 @@ const PATHS: Record<IconName, ReactElement> = {
     <>
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
       <path d="M12 9v4M12 17h.01" />
+    </>
+  ),
+  // lucide sparkles：AI Coding 功能入口
+  aiCoding: (
+    <>
+      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+      <path d="M20 3v4M22 5h-4M4 17v2M5 18H3" />
     </>
   ),
 };

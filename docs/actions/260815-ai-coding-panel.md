@@ -30,8 +30,8 @@
 - vite/tsconfig alias 无需改（相对导入）
 **验收标准**：`npm run build` 通过；点击按钮整窗切换、切回 SSH 布局状态不丢（layoutStore persist 兼容）。
 **测试用例**：ActivityBar 点击切换 centerView；layoutStore 旧持久化值（"terminal"|"sftp"）回退正常。
-**验证**：
-**状态**：未开始
+**验证**：`npm run build`（tsc + vite）通过；vitest 137/137 绿（新增 ActivityBar.test.tsx 3 例：点击切入 aiCoding 且不动侧栏状态、aiCoding 视图下点终端切回并自动展开侧栏、激活态 aria-pressed 断言）。CenterView 联合类型只增不改，旧持久化值 "terminal"|"sftp" 仍是合法成员，无需 migrate。AiCodingPanel 暂为占位骨架（src/features/aiCoding/），阶段 3 替换为 nezha 完整界面。Header 在 aiCoding 视图一并隐藏（连接信息与面板开关均为 SSH 专属）。
+**状态**：已完成
 
 ## 阶段 3：任务管理 + PTY 核心链路
 

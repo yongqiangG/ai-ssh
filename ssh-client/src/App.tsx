@@ -8,6 +8,7 @@ import TerminalPanel from "./views/TerminalPanel";
 import ChatPanel from "./views/ChatPanel";
 import SftpPanel from "./views/SftpPanel";
 import EmptyState from "./components/EmptyState";
+import AiCodingPanel from "./features/aiCoding/AiCodingPanel";
 import { useBackendStore } from "./stores/backendStore";
 import { useChatStore } from "./stores/chatStore";
 import { useConnectionStore } from "./stores/connectionStore";
@@ -49,6 +50,20 @@ export default function App() {
   // 启动门未通过（booting/failed）时全屏遮罩接管，主界面不挂载
   if (bootPhase !== "done") {
     return <BootSplash />;
+  }
+
+  // AI Coding 整窗接管：SSH 专属的 Header/左侧栏/ChatPanel 全部隐藏，
+  // 仅保留 ActivityBar 作为回到 SSH 运维视图的入口；侧栏/面板状态不动，
+  // 切回时布局原样恢复
+  if (centerView === "aiCoding") {
+    return (
+      <div className={styles.app}>
+        <div className={styles.workspace}>
+          <ActivityBar />
+          <AiCodingPanel />
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -3,8 +3,11 @@ import { persist } from "zustand/middleware";
 
 export type SidebarView = "servers" | "files" | "sftp";
 
-/** 中间工作区视图：终端 ⇄ SFTP（点 ActivityBar sftp 按钮切换） */
-export type CenterView = "terminal" | "sftp";
+/**
+ * 中间工作区视图：终端 ⇄ SFTP（点 ActivityBar sftp 按钮切换）；
+ * aiCoding 为整窗接管视图（隐藏 Header/左侧栏/ChatPanel，AI Coding 面板占满）。
+ */
+export type CenterView = "terminal" | "sftp" | "aiCoding";
 
 export const MIN_LEFT_WIDTH = 220;
 export const MAX_LEFT_WIDTH = 560;
