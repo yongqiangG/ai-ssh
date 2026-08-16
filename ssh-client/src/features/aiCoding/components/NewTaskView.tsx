@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { TriangleAlert, Sparkles } from "lucide-react";
-import type { Project, AgentType, PermissionMode } from "../types";
+import type { Project, AgentType, PermAgentCatalog, PermissionMode } from "../types";
 import {
   APP_SETTINGS_CHANGED_EVENT,
   DEFAULT_APP_SETTINGS,
@@ -117,6 +117,7 @@ export function NewTaskView({
   );
   const [sendShortcut, setSendShortcut] = useState<SendShortcut>(DEFAULT_SEND_SHORTCUT);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [permCatalogs, setPermCatalogs] = useState<PermAgentCatalog[] | null>(null);
 
   const { editorRef, isComposingRef, handle: editorHandle } = usePromptEditor();
   const editorContentRef = useRef<PromptEditorContent>({
@@ -306,6 +307,16 @@ export function NewTaskView({
       })
       .finally(() => setFilesLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.path]);
+
+  // 权限目录（适配层：按当前安装的 CLI 版本解析三档实际 flag + codex 信任层）
+  useEffect(() => {
+    setPermCatalogs(null);
+    invoke<PermAgentCatalog[]>("coding_get_permission_catalog", { projectPath: project.path })
+      .then(setPermCatalogs)
+      .catch(() => {
+        /* 目录拉取失败不阻塞建任务，选择器按无副标题渲染 */
+      });
   }, [project.path]);
 
   // Lazily load cross-project files when user enters cross-project mode
@@ -596,6 +607,7 @@ export function NewTaskView({
           isEmpty={isEmpty}
           hasImages={pastedImages.length > 0 || pastedTexts.length > 0}
           sendShortcutKeys={getSendShortcutKeys(sendShortcut, APP_PLATFORM)}
+          permCatalog={permCatalogs?.find((c) => c.agent === agent) ?? null}
           modelSelector={
             <TaskModelSelector
               catalog={

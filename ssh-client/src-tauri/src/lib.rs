@@ -470,6 +470,7 @@ pub fn run() {
             coding::hooks::coding_get_hook_readiness,
             coding::hooks::coding_install_hooks,
             coding::hooks::coding_uninstall_hooks,
+            coding::agent_compat::coding_get_permission_catalog,
         ])
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {

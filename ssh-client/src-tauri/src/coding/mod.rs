@@ -5,6 +5,7 @@
 //! 展示 / 远程通知未迁移。
 
 pub mod agent_assist;
+pub mod agent_compat;
 pub mod analytics;
 pub mod app_settings;
 pub mod codex_rpc;

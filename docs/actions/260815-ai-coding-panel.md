@@ -69,3 +69,17 @@
 **测试用例**：既有测试回归；新增模块的核心单测（见各阶段）。
 **验证**：最终基线 vitest 28 文件/218 测试全绿 + cargo test 67/67 绿（exit 0）。CLAUDE.md 已更新：红线章节标注适用范围限 SSH 运维链路、新增「AI Coding 面板」段（独立功能域/零共享约定/hook 双路径/ConPTY/GPL-3.0/tauri dev 工作流）、简史追加 2026-08-15 条目。DESIGN.md 无需补记：色板映射全部复用既有电路霓虹 token，未引入新 token。归档说明：阶段 3 的真机验证（tauri dev 下 PTY/hook/ConPTY 端到端）待用户实测，实测通过后本文档移入 done/。
 **状态**：已完成（归档挂起：待阶段 3 真机验证）
+
+## 阶段 6：Agent CLI 参数适配层（docs/situations/260816-agent-cli-compat.md）
+
+**目标**：权限三档 + 思考深度档经「版本号→flag 映射表」适配，ask 档双 agent 显式传手动确认参数；映射不命中安全侧回退；UI 差异副标题 + tooltip 透出实际 flag；codex trusted 项目警示。
+**设计**：
+- Rust 新增 `coding/agent_compat.rs`：每 agent 一组 semver 门槛→TierSpec（args 数组 + 副标题 key）映射表；resolve(agent, version) 命中返回 spec、未命中返回降级方案（ask/auto_edit→无权限参数，full_access→ask 参数）+ 警告文本
+- claude 条目（≥2.1.87）：ask=`--permission-mode default`、auto_edit=`--permission-mode acceptEdits`、full_access=`--dangerously-skip-permissions`、effort=`--effort <v>`；codex 条目（≥0.131.0）：ask=`-s read-only -a untrusted`（修订：原无参数）、auto_edit=`--sandbox workspace-write -a on-request`、full_access=旁路 flag、effort=`-c model_reasoning_effort="<v>"`
+- pty.rs 三条启动路径（run/resume/fork）统一走 resolve；降级发生时 emit `coding:compat-warning`，前端 toast
+- 新命令 `coding_get_permission_catalog(project_path)`：返回两 agent 当前版本、三档 args（tooltip 用）、effort 传参方式、codex trusted 命中标志
+- 前端 AgentPermSelector：按当前 agent 渲染差异副标题（i18n 6 词条）+ tooltip 显示 args 原文 + codex trusted 警示
+**验收标准**：cargo test/vitest 全绿；真机 ask 档 claude/codex 写文件均弹确认（codex 在非 trusted 项目下）。
+**测试用例**：Rust resolve 版本区间命中/未命中降级/full_access 降 ask/args 拼装（扩 fork_command_tests）；前端 catalog 渲染副标题与 tooltip。
+**验证**：cargo test 72/72（新增 agent_compat 5 例 + 更新 pty 命令拼装 2 例为经适配层解析）；vitest 30 文件/223 全绿（新增 perm-tier-subtitle 4 例）；npm run build 通过。真机验收点：非 trusted 项目下 codex ask 任务写文件应在 PTY 终端内弹审批；权限下拉各档显示差异副标题，hover 透出实际 flag；把 CLI 降到门槛版本以下启动任务应弹「未映射到当前 CLI 版本」告警 toast。遗留：真机验收并入用户验收清单。
+**状态**：代码已完成，真机验收待做

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
-import type { AgentType, PermissionMode } from "../../types";
+import type { AgentType, PermAgentCatalog, PermissionMode } from "../../types";
 import { permissionModeLabel } from "../../types";
 import { useI18n } from "../../i18n";
 import s from "../../styles";
@@ -20,6 +20,25 @@ import chatgptLogo from "../../assets/chatgpt.svg";
 
 const AGENTS: AgentType[] = ["claude", "codex"];
 const PERMS: PermissionMode[] = ["ask", "auto_edit", "full_access"];
+
+/**
+ * 档位差异副标题：适配层按 agent×档位给出真实行为描述；
+ * codex ask 在 trusted 项目下追加警示（codex 信任层会放宽审批）。
+ * 纯函数，单测覆盖（docs/situations/260816-agent-cli-compat.md）。
+ */
+export function permTierSubtitle(
+  catalog: PermAgentCatalog | null | undefined,
+  agent: AgentType,
+  perm: PermissionMode,
+  t: (key: string) => string,
+): string {
+  const tier = catalog?.tiers.find((it) => it.key === perm);
+  let subtitle = tier ? t(tier.subtitleKey) : "";
+  if (agent === "codex" && perm === "ask" && catalog?.trustedProject) {
+    subtitle = `${subtitle} ${t("perm.subtitle.codex.trustedSuffix")}`.trim();
+  }
+  return subtitle;
+}
 
 function agentLabel(agent: AgentType): string {
   return agent === "claude" ? "Claude Code" : "Codex";
@@ -71,6 +90,7 @@ export function AgentPermSelector({
   saveAsTodoDisabledReason,
   sendShortcutKeys,
   modelSelector,
+  permCatalog,
   onSetAgent,
   onSetPermMode,
   onTogglePlanMode,
@@ -85,6 +105,8 @@ export function AgentPermSelector({
   saveAsTodoDisabledReason?: string;
   sendShortcutKeys: string[];
   modelSelector?: ReactNode;
+  /** 权限目录（适配层按 CLI 版本解析，NewTaskView 拉取后传入） */
+  permCatalog?: PermAgentCatalog | null;
   onSetAgent: (agent: AgentType) => void;
   onSetPermMode: (mode: PermissionMode) => void;
   onTogglePlanMode: () => void;
@@ -226,16 +248,40 @@ export function AgentPermSelector({
           <Select.Portal>
             <Select.Content position="popper" sideOffset={6} style={s.toolbarMenuContent}>
               <Select.Viewport>
-                {PERMS.map((perm) => (
-                  <Select.Item
-                    key={perm}
-                    value={perm}
-                    className="branch-popover-item"
-                    style={s.toolbarMenuItem}
-                  >
-                    <Select.ItemText>{permissionModeLabel(perm, agent)}</Select.ItemText>
-                  </Select.Item>
-                ))}
+                {PERMS.map((perm) => {
+                  const tier = permCatalog?.tiers.find((it) => it.key === perm);
+                  const subtitle = permTierSubtitle(permCatalog, agent, perm, t);
+                  // tooltip 透出实际下发的 flag 原文（适配层行为一眼可验）
+                  const tooltip = tier
+                    ? tier.args.length > 0
+                      ? `${tier.args.join(" ")}`
+                      : t("perm.subtitle.fallback")
+                    : undefined;
+                  return (
+                    <Select.Item
+                      key={perm}
+                      value={perm}
+                      className="branch-popover-item"
+                      style={{ ...s.toolbarMenuItem, flexDirection: "column", alignItems: "flex-start", gap: 1 }}
+                      title={tooltip}
+                    >
+                      <Select.ItemText>{permissionModeLabel(perm, agent)}</Select.ItemText>
+                      {subtitle && (
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            lineHeight: 1.35,
+                            color: tier?.degraded ? "var(--warning)" : "var(--text-hint)",
+                            fontWeight: 400,
+                            whiteSpace: "normal",
+                          }}
+                        >
+                          {subtitle}
+                        </span>
+                      )}
+                    </Select.Item>
+                  );
+                })}
               </Select.Viewport>
             </Select.Content>
           </Select.Portal>

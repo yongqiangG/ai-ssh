@@ -494,9 +494,23 @@ function App() {
         updateTaskSession(task_id, session_id, session_path);
       },
     );
+    // 适配层安全侧回退告警（版本映射不命中，任务已按最保守行为启动）
+    const p3 = listen<{ agent: string; permissionMode: string }>(
+      "coding:compat-warning",
+      (e) => {
+        showToast(
+          t("perm.compatWarning", {
+            agent: e.payload.agent === "codex" ? "Codex" : "Claude",
+            mode: e.payload.permissionMode,
+          }),
+          "warning",
+        );
+      },
+    );
     return () => {
       p1.then((fn) => fn());
       p2.then((fn) => fn());
+      p3.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

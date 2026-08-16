@@ -143,6 +143,24 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "settings.defaultAgentHint": "Default agent used when creating new tasks",
     "settings.defaultPermissionMode": "Default Permission Mode",
     "settings.defaultPermissionModeHint": "Default permission mode used when creating new tasks",
+    "perm.subtitle.claude.ask":
+      "Reads run freely; every file edit and command asks first",
+    "perm.subtitle.claude.auto_edit":
+      "Edits and common filesystem commands auto-approved; other commands still ask",
+    "perm.subtitle.claude.full_access":
+      "Skips all permission prompts — use with care",
+    "perm.subtitle.codex.ask":
+      "Read-only sandbox; untrusted commands need approval in the terminal",
+    "perm.subtitle.codex.auto_edit":
+      "Workspace-write sandbox; commands outside the workspace ask",
+    "perm.subtitle.codex.full_access":
+      "No sandbox, no approvals — use with care",
+    "perm.subtitle.fallback":
+      "CLI version not covered by the compat table; started with CLI defaults",
+    "perm.subtitle.codex.trustedSuffix":
+      "This project is trusted by Codex; approvals may be looser than described",
+    "perm.compatWarning":
+      "{agent} permission tier “{mode}” is not mapped for the installed CLI version; started with the most conservative behavior",
     "settings.promptPrefix": "Prompt Prefix",
     "settings.promptPrefixHint": "Automatically prepended to every task prompt",
     "settings.promptPrefixPlaceholder": "e.g. Reply in Chinese.",
@@ -508,6 +526,16 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "settings.defaultAgentHint": "创建新任务时默认使用的智能体",
     "settings.defaultPermissionMode": "默认权限模式",
     "settings.defaultPermissionModeHint": "创建新任务时默认使用的权限模式",
+    "perm.subtitle.claude.ask": "只读操作自动放行；文件修改与命令执行均需手动确认",
+    "perm.subtitle.claude.auto_edit": "文件编辑与常见文件系统命令自动放行，其余命令仍需确认",
+    "perm.subtitle.claude.full_access": "跳过全部权限提示，谨慎使用",
+    "perm.subtitle.codex.ask": "只读沙箱；非信任命令需在终端内确认后执行",
+    "perm.subtitle.codex.auto_edit": "工作区可写沙箱；越界命令仍需确认",
+    "perm.subtitle.codex.full_access": "无沙箱无审批，谨慎使用",
+    "perm.subtitle.fallback": "当前 CLI 版本未覆盖在适配表内，已按 CLI 默认行为启动",
+    "perm.subtitle.codex.trustedSuffix": "该项目已被 Codex 标记为受信任，实际审批可能比描述更宽松",
+    "perm.compatWarning":
+      "{agent} 的「{mode}」档位未映射到当前安装的 CLI 版本，已按最保守行为启动",
     "settings.promptPrefix": "提示词前缀",
     "settings.promptPrefixHint": "自动追加到每个任务提示词之前",
     "settings.promptPrefixPlaceholder": "例如：请用中文回复。",

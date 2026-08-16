@@ -473,10 +473,12 @@ fn normalize_agent_cli_option(
     Ok(Some(trimmed.to_string()))
 }
 
-/// 为 Claude 命令构建 CommandBuilder，并添加权限、模型与思考深度标志。
+/// 为 Claude 命令构建 CommandBuilder。权限参数由 agent_compat 适配层解析后
+/// 以 args 形式传入（版本映射 + 安全侧回退，见 agent_compat.rs），这里不再
+/// 关心档位语义；model 与思考深度仍是本函数职责。
 fn build_claude_cmd(
     agent_bin: &str,
-    permission_mode: &str,
+    permission_args: &[String],
     model: Option<&str>,
     reasoning_effort: Option<&str>,
 ) -> CommandBuilder {
@@ -487,19 +489,8 @@ fn build_claude_cmd(
     // 让滚轮失效（见 anthropics/claude-code#51393），所以只对 macOS 启用。
     #[cfg(target_os = "macos")]
     c.env("CLAUDE_CODE_DISABLE_MOUSE", "1");
-    match permission_mode {
-        "ask" => {
-            c.arg("--permission-mode");
-            c.arg("default");
-        }
-        "auto_edit" => {
-            c.arg("--permission-mode");
-            c.arg("acceptEdits");
-        }
-        "full_access" => {
-            c.arg("--dangerously-skip-permissions");
-        }
-        _ => {}
+    for arg in permission_args {
+        c.arg(arg);
     }
     if let Some(model) = model {
         c.arg("--model");
@@ -512,27 +503,17 @@ fn build_claude_cmd(
     c
 }
 
-/// 为 Codex 命令构建 CommandBuilder，并添加权限、模型与思考深度全局标志。
+/// 为 Codex 命令构建 CommandBuilder。权限参数同上经适配层传入；思考深度走
+/// `-c model_reasoning_effort` 配置键（TOML 字符串引号转义）。
 fn build_codex_cmd(
     agent_bin: &str,
-    permission_mode: &str,
+    permission_args: &[String],
     model: Option<&str>,
     reasoning_effort: Option<&str>,
 ) -> CommandBuilder {
     let mut c = CommandBuilder::new(agent_bin);
-    match permission_mode {
-        "auto_edit" => {
-            // 等价于已弃用的 --full-auto（codex >= 0.128 已移除该别名）：
-            // 工作区内自动写、越界命令才升级审批。
-            c.arg("--sandbox");
-            c.arg("workspace-write");
-            c.arg("-a");
-            c.arg("on-request");
-        }
-        "full_access" => {
-            c.arg("--dangerously-bypass-approvals-and-sandbox");
-        }
-        _ => {}
+    for arg in permission_args {
+        c.arg(arg);
     }
     if let Some(model) = model {
         c.arg("--model");
@@ -566,6 +547,7 @@ struct SpawnedForkTask {
     child: Box<dyn portable_pty::Child + Send + Sync>,
     is_codex: bool,
     use_hooks: bool,
+    perm_degraded: bool,
 }
 
 /// Fork 启动涉及路径解析、设置读取、版本探测、PTY 创建与子进程启动，
@@ -586,6 +568,9 @@ fn spawn_fork_task_process(
     let launch = crate::coding::app_settings::get_agent_launch_spec(agent);
     let agent_bin = launch.program.clone();
     let is_codex = agent == "codex";
+    // 权限参数经适配层按 CLI 版本解析（本函数整体在 blocking 线程）
+    let tier = crate::coding::agent_compat::resolve_tier(agent, permission_mode);
+    let permission_args: Vec<String> = tier.args.iter().map(|s| s.to_string()).collect();
     let use_hooks = crate::coding::hooks::usable_for(agent);
     let claude_pass_settings = !is_codex
         && (use_hooks || {
@@ -596,7 +581,7 @@ fn spawn_fork_task_process(
 
     let mut command = if is_codex {
         let mut command =
-            build_codex_cmd(&agent_bin, permission_mode, model, reasoning_effort);
+            build_codex_cmd(&agent_bin, &permission_args, model, reasoning_effort);
         if use_hooks {
             command.arg("--dangerously-bypass-hook-trust");
         }
@@ -604,7 +589,7 @@ fn spawn_fork_task_process(
         command
     } else {
         let mut command =
-            build_claude_cmd(&agent_bin, permission_mode, model, reasoning_effort);
+            build_claude_cmd(&agent_bin, &permission_args, model, reasoning_effort);
         append_fork_session_args(&mut command, false, source_session_id);
         if claude_pass_settings {
             if let Ok(path) = crate::coding::hooks::coding_claude_settings_path() {
@@ -661,6 +646,7 @@ fn spawn_fork_task_process(
         child,
         is_codex,
         use_hooks,
+        perm_degraded: tier.degraded,
     })
 }
 
@@ -702,17 +688,26 @@ mod fork_command_tests {
 
     #[test]
     fn builds_codex_model_and_reasoning_arguments_without_shell_parsing() {
-        let command = build_codex_cmd(
+        // 权限 args 来自适配层（codex ask 档 = 只读沙箱 + 非信任命令审批）
+        let perm: Vec<String> = crate::coding::agent_compat::resolve_tier_with_version(
             "codex",
             "ask",
-            Some("provider/model:deployment"),
-            Some("high"),
-        );
+            Some("0.144.6"),
+        )
+        .args
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let command = build_codex_cmd("codex", &perm, Some("provider/model:deployment"), Some("high"));
 
         assert_eq!(
             command.get_argv(),
             &vec![
                 OsStr::new("codex").to_owned(),
+                OsStr::new("-s").to_owned(),
+                OsStr::new("read-only").to_owned(),
+                OsStr::new("-a").to_owned(),
+                OsStr::new("untrusted").to_owned(),
                 OsStr::new("--model").to_owned(),
                 OsStr::new("provider/model:deployment").to_owned(),
                 OsStr::new("-c").to_owned(),
@@ -723,12 +718,17 @@ mod fork_command_tests {
 
     #[test]
     fn builds_claude_model_and_effort_arguments() {
-        let command = build_claude_cmd(
+        // 权限 args 来自适配层（claude ask 档 = --permission-mode default，即 Manual 模式）
+        let perm: Vec<String> = crate::coding::agent_compat::resolve_tier_with_version(
             "claude",
             "ask",
-            Some("custom-provider-model"),
-            Some("max"),
-        );
+            Some("2.1.233"),
+        )
+        .args
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let command = build_claude_cmd("claude", &perm, Some("custom-provider-model"), Some("max"));
 
         assert_eq!(
             command.get_argv(),
@@ -874,15 +874,37 @@ pub async fn coding_run_task(
             .await
             .unwrap_or(false));
 
+    // 权限参数经适配层按 CLI 版本解析（版本探测首跑可能起子进程，放 blocking 线程）；
+    // 映射不命中时安全侧回退（无权限 flag）并广播告警，前端 toast 提示。
+    let (permission_args, perm_degraded) = {
+        let agent = agent.clone();
+        let permission_mode = permission_mode.clone();
+        tokio::task::spawn_blocking(move || {
+            let r = crate::coding::agent_compat::resolve_tier(&agent, &permission_mode);
+            (
+                r.args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                r.degraded,
+            )
+        })
+        .await
+        .unwrap_or((vec![], true))
+    };
+    if perm_degraded {
+        let _ = app.emit(
+            "coding:compat-warning",
+            serde_json::json!({ "agent": agent, "permissionMode": permission_mode }),
+        );
+    }
+
     let mut cmd = if is_codex {
         let mut c = build_codex_cmd(
             &agent_bin,
-            &permission_mode,
+            &permission_args,
             model.as_deref(),
             reasoning_effort.as_deref(),
         );
-        // Codex 对非 managed 的 command hook 默认要求 trust,Nezha 注入的是新 hash 会被
-        // skip;由 Nezha 注入、来源可信,这里免 trust 直接运行。必须在 `--`/prompt 之前。
+        // Codex 对非 managed 的 command hook 默认要求 trust,注入的是新 hash 会被
+        // skip;由本应用注入、来源可信,这里免 trust 直接运行。必须在 `--`/prompt 之前。
         if use_hooks {
             c.arg("--dangerously-bypass-hook-trust");
         }
@@ -895,7 +917,7 @@ pub async fn coding_run_task(
     } else {
         let mut c = build_claude_cmd(
             &agent_bin,
-            &permission_mode,
+            &permission_args,
             model.as_deref(),
             reasoning_effort.as_deref(),
         );
@@ -1150,10 +1172,31 @@ pub async fn coding_resume_task(
             .await
             .unwrap_or(false));
 
+    // 权限参数经适配层按 CLI 版本解析（与 run_task 同一套回退与告警）
+    let (permission_args, perm_degraded) = {
+        let agent = agent.clone();
+        let permission_mode = permission_mode.clone();
+        tokio::task::spawn_blocking(move || {
+            let r = crate::coding::agent_compat::resolve_tier(&agent, &permission_mode);
+            (
+                r.args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                r.degraded,
+            )
+        })
+        .await
+        .unwrap_or((vec![], true))
+    };
+    if perm_degraded {
+        let _ = app.emit(
+            "coding:compat-warning",
+            serde_json::json!({ "agent": agent, "permissionMode": permission_mode }),
+        );
+    }
+
     let mut cmd = if agent == "codex" {
         let mut c = build_codex_cmd(
             &agent_bin,
-            &permission_mode,
+            &permission_args,
             model.as_deref(),
             reasoning_effort.as_deref(),
         );
@@ -1168,7 +1211,7 @@ pub async fn coding_resume_task(
         // resume 时 session_id 已知，使用 --resume 标志
         let mut c = build_claude_cmd(
             &agent_bin,
-            &permission_mode,
+            &permission_args,
             model.as_deref(),
             reasoning_effort.as_deref(),
         );
@@ -1258,13 +1301,14 @@ pub async fn coding_fork_task(
     let launch_project_path = project_path.clone();
     let launch_task_id = task_id.clone();
     let launch_agent = agent.clone();
+    let launch_permission_mode = permission_mode.clone();
     let spawned = tokio::task::spawn_blocking(move || {
         spawn_fork_task_process(
             &launch_project_path,
             &launch_task_id,
             &launch_agent,
             &source_session_id,
-            &permission_mode,
+            &launch_permission_mode,
             model.as_deref(),
             reasoning_effort.as_deref(),
             cols.unwrap_or(220),
@@ -1287,7 +1331,14 @@ pub async fn coding_fork_task(
         child,
         is_codex,
         use_hooks,
+        perm_degraded,
     } = spawned;
+    if perm_degraded {
+        let _ = app.emit(
+            "coding:compat-warning",
+            serde_json::json!({ "agent": agent, "permissionMode": permission_mode }),
+        );
+    }
     register_pty_handles(&task_manager, &task_id, master, writer, child)?;
 
     let _ = app.emit(

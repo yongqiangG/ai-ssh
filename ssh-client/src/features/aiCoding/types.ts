@@ -136,6 +136,23 @@ export const PERM_LABELS: Record<PermissionMode, string> = {
   full_access: "Full Access",
 };
 
+/** 权限目录条目（coding_get_permission_catalog）：适配层按 CLI 版本解析出的
+ * 实际下发参数与副标题 key（docs/situations/260816-agent-cli-compat.md） */
+export interface PermTierCatalogItem {
+  key: PermissionMode;
+  args: string[];
+  subtitleKey: string;
+  degraded: boolean;
+}
+
+export interface PermAgentCatalog {
+  agent: AgentType;
+  version: string;
+  tiers: PermTierCatalogItem[];
+  effortStyle: string;
+  trustedProject: boolean;
+}
+
 export function permissionModeLabel(
   mode: PermissionMode,
   agent?: AgentType,
