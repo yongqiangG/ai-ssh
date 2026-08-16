@@ -30,3 +30,6 @@ ssh-client/src-tauri/resources/*
 
 # 鍙嶇紪璇戝弬鑰冩簮鐮侊紙涓婃父 jar 鍙鐜帮紝涓嶅叆搴擄級
 /decompiled/
+
+# AI Coding 功能在本仓库内测试时生成的项目级运行时产物
+/.ai-coding/

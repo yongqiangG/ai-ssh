@@ -85,4 +85,10 @@ impl TaskManager {
             }
         }
     }
+
+    /// 活跃会话数（agent 任务 + 本地 Shell，按 PTY 子进程句柄计）。
+    /// 关窗确认用。
+    pub(crate) fn live_session_count(&self) -> usize {
+        self.child_handles.lock().len()
+    }
 }

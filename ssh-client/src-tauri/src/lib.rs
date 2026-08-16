@@ -473,7 +473,46 @@ pub fn run() {
             coding::agent_compat::coding_get_permission_catalog,
         ])
         .on_window_event(|window, event| {
-            if matches!(event, WindowEvent::CloseRequested { .. }) {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // 有任务/终端在跑时先确认：挂起本次关闭，子线程弹原生对话框
+                // ——事件回调跑在主线程，同步等待对话框会死锁。确认后走统一
+                // 退出清理并 destroy（prevent_close 已取消默认关闭，必须显式
+                // 销毁窗口）；取消则原样留在应用。
+                let live = window.state::<coding::TaskManager>().live_session_count();
+                if live > 0 {
+                    api.prevent_close();
+                    let app = window.app_handle().clone();
+                    std::thread::spawn(move || {
+                        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+                        let confirmed = app
+                            .dialog()
+                            .message(format!(
+                                "还有 {live} 个运行中的任务或终端，退出将终止它们。确定退出吗？"
+                            ))
+                            .title("仍有任务在运行")
+                            .kind(MessageDialogKind::Warning)
+                            .buttons(MessageDialogButtons::OkCancelCustom(
+                                "退出".to_string(),
+                                "取消".to_string(),
+                            ))
+                            .blocking_show();
+                        if confirmed {
+                            if let Some(main) = app.get_webview_window("main") {
+                                let _ = main.hide();
+                            }
+                            app.state::<coding::TaskManager>().kill_all_children();
+                            app.state::<BackendProcess>().stop();
+                            if let Ok(data_dir) = app.path().app_data_dir() {
+                                lifecycle::remove_pid_file(&data_dir);
+                            }
+                            if let Some(main) = app.get_webview_window("main") {
+                                let _ = main.destroy();
+                            }
+                        }
+                    });
+                    return;
+                }
+                // 无活跃会话：直接走原有退出链
                 // 先藏窗口再同步等待优雅退出（≤3s），用户观感是秒关
                 let _ = window.hide();
                 // 终止所有仍在运行的 AI Coding 任务/Shell 子进程，防孤儿
