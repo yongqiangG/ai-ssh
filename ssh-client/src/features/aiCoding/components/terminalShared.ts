@@ -11,6 +11,22 @@ import type { XTermWithPrivates } from "./xterm-private";
 // 计算可用列数，因此必须和 App.css 中的滚动条槽宽保持一致。
 const XTERM_SCROLLBAR_WIDTH = 12;
 
+/**
+ * AiCodingPanel 视图激活状态变化事件（App.tsx 切 centerView 时由面板广播）。
+ * 消费方：AiCodingApp（快捷键激活门/关看板浮层）、TerminalView（切回刷新）。
+ */
+export const AI_CODING_PANEL_VISIBILITY_EVENT = "ai-ssh:aiCoding:panel-visibility";
+
+export interface AiCodingPanelVisibilityDetail {
+  active: boolean;
+}
+
+/** 读取 panel-visibility 事件的 detail；缺省视为 active（兼容手工派发）。 */
+export function readPanelVisibilityDetail(event: Event): boolean {
+  const detail = (event as CustomEvent<AiCodingPanelVisibilityDetail>).detail;
+  return detail?.active !== false;
+}
+
 // ── Theme ────────────────────────────────────────────────────────────────────
 
 export const DARK_THEME = {
@@ -551,8 +567,7 @@ export function initTerminal(
   return { term, fitAddon, whenFontsReady };
 }
 
-export function attachTerminalScrollbarAutoHide(term: Terminal, container: HTMLElement): () => void {
-  const ownerWindow = container.ownerDocument.defaultView ?? window;
+export function attachTerminalScrollbarAutoHide(term: Terminal, container: HTMLElement): () => void {  const ownerWindow = container.ownerDocument.defaultView ?? window;
   let scrollHideTimer: number | null = null;
 
   const clearScrollHideTimer = () => {
@@ -581,6 +596,30 @@ export function attachTerminalScrollbarAutoHide(term: Terminal, container: HTMLE
     container.classList.remove("nezha-xterm-scrolling");
     scrollDisposable.dispose();
   };
+}
+
+/**
+ * AiCodingPanel 保活切回（display:none → 可见）后的终端刷新：
+ * 外层 display 切换不触发 document.visibilitychange，而 WebGL canvas 在
+ * layout tree 移除期间可能进入坏状态（xterm.js #6014 一族，项目级切换靠
+ * isActive effect 修复，面板级切换没有该信号）。这里监听面板可见性事件，
+ * 切回后补一次 fit + atlas 刷新。返回退订函数。
+ */
+export function attachPanelVisibilityRefresh(
+  term: Terminal,
+  refit: () => void,
+): () => void {
+  const handler = (event: Event) => {
+    if (!readPanelVisibilityDetail(event)) return;
+    const ownerWindow = getTerminalOwnerWindow(term);
+    ownerWindow.requestAnimationFrame(() => {
+      if (!term.element) return;
+      refit();
+      refreshTerminalDisplay(term);
+    });
+  };
+  window.addEventListener(AI_CODING_PANEL_VISIBILITY_EVENT, handler);
+  return () => window.removeEventListener(AI_CODING_PANEL_VISIBILITY_EVENT, handler);
 }
 
 export interface WebglAddonHandle {

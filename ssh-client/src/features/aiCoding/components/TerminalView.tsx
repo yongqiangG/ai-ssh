@@ -20,6 +20,7 @@ import {
   createSmartWriter,
   attachMacWebKitTerminalGuard,
   attachTerminalScrollbarAutoHide,
+  attachPanelVisibilityRefresh,
   applyTerminalFontSize,
   applyTerminalFontFamily,
   applyDomCharSizeOverride,
@@ -204,6 +205,13 @@ export function TerminalView({
     container.addEventListener("pointerdown", handlePointerDown as EventListener);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
+    // 面板保活切回（display:none → 可见）不触发 visibilitychange，经
+    // AiCodingPanel 广播的事件补一次 fit + atlas 刷新（见 terminalShared 注释）。
+    const disposePanelVisibilityRefresh = attachPanelVisibilityRefresh(term, () => {
+      const s = safeFit(fitAddon, term, container);
+      if (s) notifyResize(s.cols, s.rows);
+    });
+
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
@@ -239,6 +247,7 @@ export function TerminalView({
       resizeObserver.disconnect();
       container.removeEventListener("pointerdown", handlePointerDown as EventListener);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      disposePanelVisibilityRefresh();
       terminalRef.current = null;
       term.dispose();
     };

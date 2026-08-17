@@ -327,16 +327,31 @@ function App() {
   }
 
   useEffect(() => {
+    // 面板保活激活门（App.tsx display 切换而非卸载）：非激活时本组件仍挂载，
+    // window 级监听若不设门会把快捷键泄漏到 SSH 视图（Alt+K 抢占）、看板
+    // Portal（挂 body，display:none 管不到）会残留在 SSH 视图上。
+    const panelActiveRef = { current: true };
+    function handlePanelVisibility(event: Event) {
+      const detail = (event as CustomEvent<{ active: boolean }>).detail;
+      panelActiveRef.current = detail?.active !== false;
+      if (!panelActiveRef.current) setShowKanban(false);
+    }
+    window.addEventListener("ai-ssh:aiCoding:panel-visibility", handlePanelVisibility);
+
     // Cmd+K (macOS) / Alt+K (其他平台) 切换看板浮层。全平台启用——平台差异由
     // isToggleKanbanShortcut 内部处理（非 mac 用 Alt 以避开终端 Ctrl+K / Ctrl+Shift+C）。
     // 捕获阶段拦截，先于 xterm 处理；浮层内的 Esc 关闭仍由 KanbanView 自己负责。
     function handleToggleKanban(event: KeyboardEvent) {
+      if (!panelActiveRef.current) return;
       if (!isToggleKanbanShortcut(event, APP_PLATFORM)) return;
       event.preventDefault();
       setShowKanban((prev) => !prev);
     }
     window.addEventListener("keydown", handleToggleKanban, true);
-    return () => window.removeEventListener("keydown", handleToggleKanban, true);
+    return () => {
+      window.removeEventListener("ai-ssh:aiCoding:panel-visibility", handlePanelVisibility);
+      window.removeEventListener("keydown", handleToggleKanban, true);
+    };
   }, []);
 
   useEffect(() => {

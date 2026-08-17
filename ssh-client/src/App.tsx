@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import Header from "./components/Header";
 import ActivityBar from "./components/ActivityBar";
@@ -63,75 +63,86 @@ export default function App() {
 
   const sidebarWidth = ACTIVITY_BAR_WIDTH + leftWidth;
 
+  // AI Coding 保活：首次进入后 AiCodingPanel 常驻挂载，切换视图走 display 而非
+  // 卸载。卸载会丢掉整棵前端状态树（任务列表/选中项目/终端缓冲），切回重挂载时
+  // 活任务被 normalizeInterruptedTasksOnStartup 判为 detached（「终端连接已断开」
+  // 假象）；进程层从不因切视图被杀（kill_all_children 仅挂窗口关闭）。保活后
+  // 切回即原样恢复，后台任务状态经 Tauri 事件持续同步进内存 state。
+  const [aiCodingMounted, setAiCodingMounted] = useState(centerView === "aiCoding");
+  useEffect(() => {
+    if (centerView === "aiCoding") setAiCodingMounted(true);
+  }, [centerView]);
+
   // 启动门未通过（booting/failed）时全屏遮罩接管，主界面不挂载
   if (bootPhase !== "done") {
     return <BootSplash />;
   }
 
-  // AI Coding 整窗接管：SSH 专属的 Header/左侧栏/ChatPanel 全部隐藏，
-  // 仅保留 ActivityBar 作为回到 SSH 运维视图的入口；侧栏/面板状态不动，
-  // 切回时布局原样恢复
-  if (centerView === "aiCoding") {
-    return (
-      <div className={styles.app}>
-        <div className={styles.workspace}>
-          <ActivityBar />
-          <AiCodingPanel />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={styles.app}>
-      <Header />
-      <div className={styles.workspace}>
-        {showSidebar && (
-          <>
-            <div
-              className={styles.sidebarHost}
-              style={{ width: sidebarWidth }}
-            >
-              <ActivityBar />
-              <div
-                className={styles.sidebarContent}
-                style={{ width: leftWidth }}
-              >
-                <LeftSidebar />
-              </div>
-            </div>
-            <Splitter onDrag={applyLeftDrag} />
-          </>
-        )}
-
-        <div id="work-center" className={styles.center}>
-          {centerView === "sftp" ? (
-            <SftpPanel />
-          ) : showTerminal ? (
-            <TerminalPanel />
-          ) : (
-            <EmptyState
-              icon="terminal"
-              title="终端已隐藏"
-              hint="点击右上角「终端」按钮恢复显示"
-              action={
-                <button className="btn" onClick={toggleTerminal}>
-                  显示终端
-                </button>
-              }
-            />
-          )}
+      {/* AI Coding 整窗接管层：仅保留 ActivityBar 作为回到 SSH 运维视图的入口；
+          非激活时 display:none 冻结（内部本就按多项目 display:none 保活设计）。 */}
+      {aiCodingMounted && (
+        <div
+          className={styles.workspace}
+          style={centerView === "aiCoding" ? undefined : { display: "none" }}
+        >
+          <ActivityBar />
+          <AiCodingPanel active={centerView === "aiCoding"} />
         </div>
+      )}
+      {centerView !== "aiCoding" && (
+        <>
+          <Header />
+          <div className={styles.workspace}>
+            {showSidebar && (
+              <>
+                <div
+                  className={styles.sidebarHost}
+                  style={{ width: sidebarWidth }}
+                >
+                  <ActivityBar />
+                  <div
+                    className={styles.sidebarContent}
+                    style={{ width: leftWidth }}
+                  >
+                    <LeftSidebar />
+                  </div>
+                </div>
+                <Splitter onDrag={applyLeftDrag} />
+              </>
+            )}
 
-        {showAiPanel && (
-          <>
-            <Splitter onDrag={applyRightDrag} />
-            <div className={styles.rightHost} style={{ width: rightWidth }}>
-              <ChatPanel />
+            <div id="work-center" className={styles.center}>
+              {centerView === "sftp" ? (
+                <SftpPanel />
+              ) : showTerminal ? (
+                <TerminalPanel />
+              ) : (
+                <EmptyState
+                  icon="terminal"
+                  title="终端已隐藏"
+                  hint="点击右上角「终端」按钮恢复显示"
+                  action={
+                    <button className="btn" onClick={toggleTerminal}>
+                      显示终端
+                    </button>
+                  }
+                />
+              )}
             </div>
-          </>
-        )}
-      </div>
+
+            {showAiPanel && (
+              <>
+                <Splitter onDrag={applyRightDrag} />
+                <div className={styles.rightHost} style={{ width: rightWidth }}>
+                  <ChatPanel />
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

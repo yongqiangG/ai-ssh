@@ -26,9 +26,9 @@ beforeEach(() => {
 
 describe("AiCodingPanel 首屏", () => {
   it("后端命令全部失败时仍渲染 WelcomePage（非空白）", async () => {
-    const { container } = render(<AiCodingPanel />);
+    const { container } = render(<AiCodingPanel active={true} />);
 
-    // body 作用域类已挂上（设计令牌生效的前提）
+    // body 作用域类已挂上（设计令牌生效的前提；保活后面板常驻，类跟随 active）
     expect(document.body.classList.contains("ai-coding-active")).toBe(true);
 
     // WelcomePage 有可交互内容：新建项目入口

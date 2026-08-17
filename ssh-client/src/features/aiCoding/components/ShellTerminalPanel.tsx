@@ -15,6 +15,7 @@ import {
   createSmartWriter,
   attachMacWebKitTerminalGuard,
   attachTerminalScrollbarAutoHide,
+  attachPanelVisibilityRefresh,
   applyTerminalFontSize,
   applyTerminalFontFamily,
   applyDomCharSizeOverride,
@@ -217,6 +218,10 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
       };
       document.addEventListener("visibilitychange", handleVisibilityChange);
 
+      // 面板保活切回（display:none → 可见）不触发 visibilitychange，经
+      // AiCodingPanel 广播的事件补一次 fit + atlas 刷新（同 TerminalView）。
+      const disposePanelVisibilityRefresh = attachPanelVisibilityRefresh(term, fit);
+
       let unlisten: (() => void) | null = null;
       listen<ShellOutputEvent>("coding:shell-output", (event) => {
         if (event.payload.shell_id === shellId && terminalRef.current) {
@@ -247,6 +252,7 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
         disposeOnData.dispose();
         resizeObserver.disconnect();
         document.removeEventListener("visibilitychange", handleVisibilityChange);
+        disposePanelVisibilityRefresh();
         terminalRef.current = null;
         fitAddonRef.current = null;
         disposeCharSizeOverride();
