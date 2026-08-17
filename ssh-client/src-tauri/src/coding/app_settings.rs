@@ -31,6 +31,26 @@ fn default_shift_enter_newline() -> bool {
     true
 }
 
+/// 是否默认强制 Claude 走 classic 渲染器（经 `--settings` 注入 `"tui": "default"`）。
+///
+/// 【2026-08-17 决议：维持 true，暂时放弃「任务内选项鼠标点击」体验】
+///
+/// 实证（ConPTY 探针，Claude Code 2.1.233，TERM=xterm-256color）：
+/// - 新 TUI（不注入 settings，等价 WT 裸跑）：进入主界面即开全套鼠标上报
+///   `?1000h ?1002h ?1003h ?1006h`(SGR 编码) + `?1049h` 备用屏。终端把点击/
+///   滚轮编码回传，Claude 才有「点击选项」UI——WT 里可点击即此机制。
+/// - classic（tui:default，本应用现状）：全程不开任何鼠标模式 → xterm.js
+///   永远不会转发点击 → 用户只有 ↑↓+Enter。**app 内选项不可点击的根因即本默认值**。
+/// - 附：WT_SESSION 不影响鼠标开关（探针 wtsession 模式与 plain 序列一致，仅多
+///   ?2026 同步输出）；无需伪装 Windows Terminal 身份来换点击。
+///
+/// 若未来要引入点击，回切路径 = 本函数改 false（或设置界面开关单机生效），
+/// 验收清单：
+/// 1. 滚轮被 Claude 虚拟滚动接管——这是 WT 原生行为，属预期而非缺陷；
+/// 2. 拖选需按住 Shift（应用开鼠标上报后的终端惯例，同 WT）；smart copy 不受影响；
+/// 3. 【真风险】任务切换快照恢复：SerializeAddon 对 ?1049 备用屏内容的恢复质量
+///    未实测（托底先例：Codex 全屏 TUI 在本应用配合侧载 ConPTY 正常工作）；
+/// 4. 【真风险】CJK 复制乱码：历史副作用记录（版本不明），需在新版本复测。
 fn default_claude_force_default_tui() -> bool {
     true
 }
