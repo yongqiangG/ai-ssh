@@ -22,6 +22,11 @@ import {
   normalizeTaskDisplayWindow,
 } from "./types";
 import { DEFAULT_UI_FONT, getDefaultMonoFont, isAutoDefaultMonoFont } from "./types";
+import {
+  consumePendingCodingNavigation,
+  peekPendingCodingNavigation,
+  subscribePendingCodingNavigation,
+} from "./pendingNavigation";
 import type { FontFamily } from "./types";
 import { quoteFontName } from "./utils/fonts";
 import { WelcomePage } from "./components/WelcomePage";
@@ -1165,6 +1170,34 @@ function App() {
       updateProjectView(project.id, { selectedTaskId: taskId, isNewTask: false });
     }
   }
+
+  // toast 点击回跳消费（docs/actions/260817 阶段 2）。写入侧在 App.tsx
+  // （面板卸载时也要有人接住事件），桥是「留货待取」：面板挂载中走订阅
+  // 即时导航；刚挂载（SSH 视图切回/应用被 toast 冷拉起）由下方无依赖数组
+  // 的 effect 在 tasks 就绪后取走积压——任务查找命中才 consume，挂载初期
+  // tasks 尚未加载完不会误丢导航。任务已删除（残留通知）则不导航，滞留
+  // 桥中无害。
+  function navigateFromPendingNavigation() {
+    const pending = peekPendingCodingNavigation();
+    if (!pending) return;
+    const task = tasks.find((t) => t.id === pending.taskId);
+    if (!task) return;
+    consumePendingCodingNavigation();
+    const project = projects.find((p) => p.id === task.projectId);
+    if (project) {
+      enterProjectFromKanban(project, task.id);
+    }
+  }
+
+  // tasks/projects 每次变化都重试积压导航（覆盖挂载早于任务加载完成的窗口期）
+  useEffect(() => {
+    navigateFromPendingNavigation();
+  });
+
+  // 面板挂载中收到点击（订阅即时导航，与上面的重试共用同一入口）
+  useEffect(() => {
+    return subscribePendingCodingNavigation(() => navigateFromPendingNavigation());
+  });
 
   return (
     <div ref={rootRef} className="ai-coding-root" style={s.rootRelative}>

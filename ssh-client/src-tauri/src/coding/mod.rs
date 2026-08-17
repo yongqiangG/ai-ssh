@@ -14,6 +14,7 @@ pub mod event_watcher;
 pub mod fs;
 pub mod fs_watcher;
 pub mod hooks;
+pub mod notify;
 pub mod platform;
 pub mod pty;
 pub mod session;

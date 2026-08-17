@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import Header from "./components/Header";
 import ActivityBar from "./components/ActivityBar";
 import LeftSidebar from "./components/LeftSidebar";
@@ -9,6 +10,7 @@ import ChatPanel from "./views/ChatPanel";
 import SftpPanel from "./views/SftpPanel";
 import EmptyState from "./components/EmptyState";
 import AiCodingPanel from "./features/aiCoding/AiCodingPanel";
+import { setPendingCodingNavigation } from "./features/aiCoding/pendingNavigation";
 import { useBackendStore } from "./stores/backendStore";
 import { useChatStore } from "./stores/chatStore";
 import { useConnectionStore } from "./stores/connectionStore";
@@ -44,6 +46,20 @@ export default function App() {
       useChatStore.getState().loadAgents(),
     ]);
   }, [bootPhase, baseUrl]);
+
+  // toast 点击回跳（docs/actions/260817 阶段 2）：单实例回调解析 launch 参数后
+  // emit coding:navigate。监听必须在 AiCodingPanel 之外——SSH 视图下面板是
+  // 卸载的，而「人在 SSH 视图」恰是通知主场景。切视图 + 写桥，具体任务定位
+  // 由 AiCodingApp 挂载后消费（pendingNavigation「留货待取」）。
+  useEffect(() => {
+    const promise = listen<{ task_id: string }>("coding:navigate", (e) => {
+      useLayoutStore.getState().setCenterView("aiCoding");
+      setPendingCodingNavigation({ taskId: e.payload.task_id });
+    });
+    return () => {
+      promise.then((unlisten) => unlisten());
+    };
+  }, []);
 
   const sidebarWidth = ACTIVITY_BAR_WIDTH + leftWidth;
 

@@ -31,6 +31,9 @@ pub(crate) fn emit_task_status(app: &AppHandle, task_id: &str, status: &str) {
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": status }),
     );
+    // 待确认桌面通知挂点：三路状态源（hook/Codex RPC/Claude 轮询）在此归一，
+    // 判定+发送在后台线程，失败不打断状态事件（见 coding/notify.rs）。
+    crate::coding::notify::maybe_notify_attention(app, task_id, status);
 }
 
 fn emit_active_task_status(app: &AppHandle, task_id: &str, status: &str) {

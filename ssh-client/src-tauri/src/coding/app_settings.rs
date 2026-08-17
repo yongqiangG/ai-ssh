@@ -43,6 +43,19 @@ fn default_use_sideloaded_conpty() -> bool {
     true
 }
 
+fn default_desktop_notifications() -> bool {
+    true
+}
+
+fn default_language() -> String {
+    "en".to_string()
+}
+
+/// 仅接受 "en" | "zh"（与前端 AppLanguage 对齐），其余回退英文。
+fn normalize_language(value: String) -> String {
+    if value == "zh" { value } else { default_language() }
+}
+
 /// scrollback 必须在 [500, 5000] 之间且为 500 的倍数；越界或非整步则就近 snap。
 fn clamp_terminal_scrollback(value: u32) -> u32 {
     let clamped = value.clamp(500, 5000);
@@ -128,6 +141,14 @@ pub struct AppSettings {
     /// 回到系统内置 ConPTY。详见 platform/windows.rs::preload_sideloaded_conpty。
     #[serde(default = "default_use_sideloaded_conpty")]
     pub use_sideloaded_conpty: bool,
+    /// AI Coding 待确认桌面通知总开关（input_required/awaiting_review 时弹
+    /// Windows toast，见 coding/notify.rs）。判定时实时读，改完即生效。
+    #[serde(default = "default_desktop_notifications")]
+    pub desktop_notifications_enabled: bool,
+    /// 前端界面语言（"en"|"zh"），由前端启动/切换时同步写入——Rust 侧拼
+    /// toast 状态词用，避免通知文案与应用语言不一致。
+    #[serde(default = "default_language")]
+    pub language: String,
     #[serde(default)]
     pub claude_model_catalog: AgentModelCatalog,
     #[serde(default)]
@@ -145,6 +166,8 @@ impl Default for AppSettings {
             terminal_scrollback: default_terminal_scrollback(),
             terminal_copy_on_select: false,
             use_sideloaded_conpty: default_use_sideloaded_conpty(),
+            desktop_notifications_enabled: default_desktop_notifications(),
+            language: default_language(),
             claude_model_catalog: AgentModelCatalog::default(),
             codex_model_catalog: AgentModelCatalog::default(),
         }
@@ -510,6 +533,8 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         terminal_scrollback: clamp_terminal_scrollback(settings.terminal_scrollback),
         terminal_copy_on_select: settings.terminal_copy_on_select,
         use_sideloaded_conpty: settings.use_sideloaded_conpty,
+        desktop_notifications_enabled: settings.desktop_notifications_enabled,
+        language: normalize_language(settings.language),
         claude_model_catalog: normalize_catalog(settings.claude_model_catalog),
         codex_model_catalog: normalize_catalog(settings.codex_model_catalog),
     }
@@ -531,6 +556,8 @@ fn load_settings_unlocked() -> AppSettings {
             terminal_scrollback: default_terminal_scrollback(),
             terminal_copy_on_select: false,
             use_sideloaded_conpty: default_use_sideloaded_conpty(),
+            desktop_notifications_enabled: default_desktop_notifications(),
+            language: default_language(),
             claude_model_catalog: AgentModelCatalog::default(),
             codex_model_catalog: AgentModelCatalog::default(),
         });
@@ -922,6 +949,46 @@ pub async fn coding_save_use_sideloaded_conpty(enabled: bool) -> Result<AppSetti
 #[cfg(windows)]
 pub(crate) fn use_sideloaded_conpty_enabled() -> bool {
     load_settings_internal().use_sideloaded_conpty
+}
+
+/// 待确认桌面通知总开关（GeneralPanel toggle），判定时实时读（coding/notify.rs）。
+#[tauri::command]
+pub async fn coding_save_desktop_notifications(enabled: bool) -> Result<AppSettings, String> {
+    tokio::task::spawn_blocking(move || {
+        let _guard = settings_lock().lock();
+        let mut settings = load_settings_unlocked();
+        settings.desktop_notifications_enabled = enabled;
+
+        let dir = coding_dir()?;
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = settings_path()?;
+        let normalized = normalize_settings(settings);
+        let raw = serde_json::to_string_pretty(&normalized).map_err(|e| e.to_string())?;
+        atomic_write(&path, &raw)?;
+        Ok::<AppSettings, String>(normalized)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 前端语言同步（I18nProvider 启动/切换时调用），Rust 侧拼 toast 状态词用。
+#[tauri::command]
+pub async fn coding_save_app_language(language: String) -> Result<AppSettings, String> {
+    tokio::task::spawn_blocking(move || {
+        let _guard = settings_lock().lock();
+        let mut settings = load_settings_unlocked();
+        settings.language = normalize_language(language);
+
+        let dir = coding_dir()?;
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = settings_path()?;
+        let normalized = normalize_settings(settings);
+        let raw = serde_json::to_string_pretty(&normalized).map_err(|e| e.to_string())?;
+        atomic_write(&path, &raw)?;
+        Ok::<AppSettings, String>(normalized)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

@@ -53,4 +53,7 @@ font-kit = "=0.14.3"
 # 内核级父死子亡：后端 JVM 挂进 KILL_ON_JOB_CLOSE 的 Job Object
 [target.'cfg(windows)'.dependencies]
 win32job = "2"
+# AI Coding pending-confirmation desktop notification (Windows toast; click callback uses launch
+# parameter + single-instance approach, see docs/situations/260817-coding-desktop-notification.md)
+winrt-toast-reborn = "0.3"
 

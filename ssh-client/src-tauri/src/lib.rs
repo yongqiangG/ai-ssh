@@ -347,12 +347,19 @@ fn normalize_windows_path(path: PathBuf) -> PathBuf {
 pub fn run() {
     tauri::Builder::default()
         // 双开归一必须最先注册：第二实例不落地，只拉起已有窗口。
-        // 由此立住自愈公理——探测到 8091 被占时本应用必无其他活实例
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        // 由此立住自愈公理——探测到 8091 被占时本应用必无其他活实例。
+        // toast 点击回跳也走这里：Windows 经 AUMID 快捷方式拉起第二实例并
+        // 携带 launch 参数（--aish-task=<task_id>），解析成功则通知前端定位
+        // 到对应任务终端（App.tsx 常驻监听 + pendingNavigation 桥，
+        // docs/actions/260817 阶段 2）。
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
+            }
+            if let Some(task_id) = coding::notify::parse_task_launch_arg(&args) {
+                let _ = app.emit("coding:navigate", serde_json::json!({ "task_id": task_id }));
             }
         }))
         .manage(BackendProcess(Mutex::new(None)))
@@ -463,6 +470,8 @@ pub fn run() {
             coding::app_settings::coding_save_use_sideloaded_conpty,
             coding::app_settings::coding_save_terminal_scrollback,
             coding::app_settings::coding_save_terminal_copy_on_select,
+            coding::app_settings::coding_save_desktop_notifications,
+            coding::app_settings::coding_save_app_language,
             coding::app_settings::coding_detect_agent_paths,
             coding::app_settings::coding_detect_agent_versions_for_settings,
             coding::app_settings::coding_get_system_fonts,
