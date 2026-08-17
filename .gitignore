@@ -33,3 +33,7 @@ ssh-client/src-tauri/resources/*
 
 # AI Coding ¹¦ÄÜÔÚ±¾²Ö¿âÄÚ²âÊÔÊ±Éú³ÉµÄÏîÄ¿¼¶ÔËĞĞÊ±²úÎï
 /.ai-coding/
+
+# impeccable è®¾è®¡å·¥å…·é“¾ï¼ˆæœ¬æœº skill è£…ç½®ï¼Œæœªå…¥åº“ï¼›è§ .claude/skills åŒç†ï¼‰
+.agents/
+skills-lock.json
