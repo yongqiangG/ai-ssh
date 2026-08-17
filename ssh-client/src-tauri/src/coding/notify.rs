@@ -2,15 +2,21 @@
 //!
 //! 决策全在 Rust 侧收口（docs/situations/260817-coding-desktop-notification.md）：
 //! `emit_task_status` 命中待确认状态 && 开关开 && 窗口失焦时发 toast。前台不弹，
-//! 靠应用内角标。点击回跳不走 COM 激活回调（不稳定），靠 launch 参数 +
-//! 单实例回调（lib.rs）→ 事件 `coding:navigate` → 前端 pendingNavigation 桥。
-//! dev 模式无 AUMID 快捷方式，toast 不显示/点击无效属预期（决议 Q7），
-//! 正式验证走本机 NSIS 打包安装。
+//! 靠应用内角标。
+//!
+//! 发送：windows-rs 系统模板（GetTemplateContent）——手拼 ToastGeneric XML 会被
+//! shell 静默拒收（Show Ok 但不渲染，真机实测见 docs/actions/done/260817 阶段4）。
+//! 点击回跳：进程内 `ToastNotification::Activated` 回调（应用存活期间触发，
+//! launch 参数经 `Arguments()` 取回）→ emit `coding:navigate` → 前端
+//! pendingNavigation 桥。原计划依赖的「launch 属性 + 快捷方式兜底启动」在
+//! 无 COM 激活器注册的 Win10 上不触发，单实例回调解析（lib.rs）仅作备用保留。
+//! dev 模式无 AUMID 快捷方式，toast 不显示属预期（决议 Q7）。
 
 use tauri::{AppHandle, Manager};
 
-/// toast launch 参数前缀：`--aish-task=<task_id>`，单实例回调按此前缀解析。
-/// 只放 task_id（uuid），不含中文/空格，规避参数编码截断问题。
+/// toast launch 参数前缀：`--aish-task=<task_id>`，Activated 回调与单实例
+/// 回调（lib.rs，备用路径）都按此前缀解析。只放 task_id（uuid），不含
+/// 中文/空格，规避编码截断问题。
 pub(crate) const TASK_ARG_PREFIX: &str = "--aish-task=";
 
 /// AUMID 必须与 tauri.conf.json 的 bundle.identifier 完全一致：Windows 按
@@ -164,6 +170,7 @@ fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str)
     // Activated 回调在应用存活期间于进程内触发（探针 v4 实测），
     // 恰好匹配「只支持热点击」的决议；冷点击（应用已关）无行为，符合设计。
     use std::collections::HashMap;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::OnceLock;
 
     use parking_lot::Mutex;
@@ -179,8 +186,13 @@ fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str)
     };
 
     /// 保活注册表：Activated 事件接线随 ToastNotification 对象销毁而断。
-    /// 同任务新 toast 替换旧条目（与 tag/group 语义一致）。
-    static LIVE_TOASTS: OnceLock<Mutex<HashMap<String, ToastNotification>>> = OnceLock::new();
+    /// 同任务新 toast 替换旧条目（与 tag/group 语义一致）；跨任务只增不减，
+    /// 设容量上限按插入序 FIFO 逐出最老——被逐出的旧 toast 若还躺在通知中心，
+    /// 点击无反应（可接受：距其待确认已隔 ≥64 个任务事件）。
+    static LIVE_TOASTS: OnceLock<Mutex<HashMap<String, (u64, ToastNotification)>>> =
+        OnceLock::new();
+    static LIVE_TOASTS_SEQ: AtomicU64 = AtomicU64::new(0);
+    const LIVE_TOASTS_CAP: usize = 64;
     let live_toasts = LIVE_TOASTS.get_or_init(|| Mutex::new(HashMap::new()));
 
     let doc = ToastNotificationManager::GetTemplateContent(ToastTemplateType::ToastText02)
@@ -242,7 +254,20 @@ fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str)
         .Activated(&handler)
         .map_err(|e| format!("activated: {e}"))?;
 
-    live_toasts.lock().insert(task_id.to_string(), notification.clone());
+    {
+        let mut guard = live_toasts.lock();
+        if guard.len() >= LIVE_TOASTS_CAP {
+            if let Some(oldest) = guard
+                .iter()
+                .min_by_key(|(_, (seq, _))| *seq)
+                .map(|(k, _)| k.clone())
+            {
+                guard.remove(&oldest);
+            }
+        }
+        let seq = LIVE_TOASTS_SEQ.fetch_add(1, Ordering::Relaxed);
+        guard.insert(task_id.to_string(), (seq, notification.clone()));
+    }
 
     let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_USER_MODEL_ID))
         .map_err(|e| format!("notifier: {e}"))?;
@@ -261,9 +286,9 @@ fn focus_main_window(app: &AppHandle) {
     }
 }
 
-/// 非 Windows：应用事实上只发 Windows 包，编译期保住可检查性即可。
+/// 非 Windows：应用事实上只发 Windows 包，编译期保住可检查性即可（决议 Q10）。
 #[cfg(not(windows))]
-fn send_attention_toast(_task_id: &str, _title: &str, _body: &str) -> Result<(), String> {
+fn send_attention_toast(_app: &AppHandle, _task_id: &str, _title: &str, _body: &str) -> Result<(), String> {
     Ok(())
 }
 
