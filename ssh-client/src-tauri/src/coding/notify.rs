@@ -62,11 +62,33 @@ pub(crate) fn maybe_notify_attention(app: &AppHandle, task_id: &str, status: &st
     if !is_attention_status(status) {
         return;
     }
+    debug_log(&format!("attention: task={task_id} status={status}"));
 
     let app = app.clone();
     let task_id = task_id.to_string();
     let status = status.to_string();
     std::thread::spawn(move || notify_attention_blocking(&app, &task_id, &status));
+}
+
+/// 诊断日志：release 构建无控制台，eprintln 不可见——通知链路的关键决策
+/// 落 `~/.ai-ssh/coding/notify-debug.log`，每行一条，现场排障用。
+pub(crate) fn debug_log(line: &str) {
+    use std::io::Write;
+    let Some(dir) = crate::coding::storage::coding_dir().ok() else {
+        return;
+    };
+    let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("notify-debug.log"))
+    else {
+        return;
+    };
+    let _ = writeln!(
+        file,
+        "{} {line}",
+        chrono::Local::now().format("%m-%d %H:%M:%S")
+    );
 }
 
 fn notify_attention_blocking(app: &AppHandle, task_id: &str, status: &str) {
@@ -76,12 +98,16 @@ fn notify_attention_blocking(app: &AppHandle, task_id: &str, status: &str) {
         .get_webview_window("main")
         .is_some_and(|w| w.is_focused().unwrap_or(false));
     if !should_notify(status, settings.desktop_notifications_enabled, focused) {
+        debug_log(&format!(
+            "skip: status={status} enabled={} focused={focused}",
+            settings.desktop_notifications_enabled
+        ));
         return;
     }
 
     // 任务按 id 遍历项目任务文件查询；查不到（已删除/持久化缺失）则不通知。
     let Some((project_name, task)) = find_task_context(task_id) else {
-        eprintln!("[coding-notify] task not found, skip toast: {task_id}");
+        debug_log(&format!("skip: task not found {task_id}"));
         return;
     };
 
@@ -89,9 +115,13 @@ fn notify_attention_blocking(app: &AppHandle, task_id: &str, status: &str) {
     let agent = if task.agent == "codex" { "Codex" } else { "Claude" };
     let word = attention_status_word(status, &settings.language);
     let body = format!("{project_name} · {agent} · {word}");
+    debug_log(&format!(
+        "send: task={task_id} status={status} focused={focused} title={title}"
+    ));
 
-    if let Err(e) = send_attention_toast(task_id, &title, &body) {
-        eprintln!("[coding-notify] toast failed: {e}");
+    match send_attention_toast(task_id, &title, &body) {
+        Ok(()) => debug_log("toast: ok"),
+        Err(e) => debug_log(&format!("toast: FAILED {e}")),
     }
 }
 
@@ -125,17 +155,54 @@ fn task_display_title(task: &crate::coding::storage::Task) -> String {
 
 #[cfg(windows)]
 fn send_attention_toast(task_id: &str, title: &str, body: &str) -> Result<(), String> {
-    use winrt_toast_reborn::{Toast, ToastManager};
+    // 走系统模板（GetTemplateContent）而非手拼 XML：探针差分实测
+    // （260817 阶段 4），手拼 ToastGeneric 文档被 shell 静默拒收
+    // （Show 返回 Ok 但不显示、无 Failed/Dismissed 事件），模板路径稳定弹。
+    use windows::{
+        core::{HSTRING, Interface},
+        Data::Xml::Dom::IXmlNode,
+        UI::Notifications::{ToastNotification, ToastNotificationManager, ToastTemplateType},
+    };
 
-    let manager = ToastManager::new(APP_USER_MODEL_ID);
-    let mut toast = Toast::new();
-    toast
-        .text1(title)
-        .text2(body)
-        .launch(format!("{TASK_ARG_PREFIX}{task_id}"))
-        .tag(task_id)
-        .group(TOAST_GROUP);
-    manager.show(&toast).map_err(|e| e.to_string())
+    let doc = ToastNotificationManager::GetTemplateContent(ToastTemplateType::ToastText02)
+        .map_err(|e| format!("template: {e}"))?;
+    let texts = doc
+        .GetElementsByTagName(&HSTRING::from("text"))
+        .map_err(|e| format!("texts: {e}"))?;
+    let fill = |idx: u32, text: &str| -> Result<(), String> {
+        let node = texts.Item(idx).map_err(|e| format!("item: {e}"))?;
+        let text_node = doc
+            .CreateTextNode(&HSTRING::from(text))
+            .map_err(|e| format!("text node: {e}"))?;
+        node.AppendChild(&text_node.cast::<IXmlNode>().map_err(|e| format!("cast: {e}"))?)
+            .map_err(|e| format!("append: {e}"))?;
+        Ok(())
+    };
+    fill(0, title)?;
+    fill(1, body)?;
+
+    // launch 属性挂在 toast 根元素上（点击回跳路由，见 TASK_ARG_PREFIX）
+    let root = doc
+        .DocumentElement()
+        .map_err(|e| format!("root: {e}"))?;
+    root.SetAttribute(&HSTRING::from("launch"), &HSTRING::from(format!("{TASK_ARG_PREFIX}{task_id}")))
+        .map_err(|e| format!("launch: {e}"))?;
+
+    let notification = ToastNotification::CreateToastNotification(&doc)
+        .map_err(|e| format!("create: {e}"))?;
+    // tag/group：同任务新通知替换通知中心旧条目
+    notification
+        .SetTag(&HSTRING::from(task_id))
+        .map_err(|e| format!("tag: {e}"))?;
+    notification
+        .SetGroup(&HSTRING::from(TOAST_GROUP))
+        .map_err(|e| format!("group: {e}"))?;
+
+    let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_USER_MODEL_ID))
+        .map_err(|e| format!("notifier: {e}"))?;
+    notifier
+        .Show(&notification)
+        .map_err(|e| format!("show: {e}"))
 }
 
 /// 非 Windows：应用事实上只发 Windows 包，编译期保住可检查性即可。
