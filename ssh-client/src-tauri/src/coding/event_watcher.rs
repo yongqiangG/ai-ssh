@@ -278,10 +278,10 @@ fn emit_active_status(app: &AppHandle, ev: &HookEvent, status: &str) {
         }
         last.insert(ev.task_id.clone(), status.to_string());
     }
-    let _ = app.emit(
-        "coding:task-status",
-        serde_json::json!({ "task_id": ev.task_id, "status": status }),
-    );
+    // 统一走 session::emit_task_status 单点收口——待确认桌面通知挂在那里
+    // （coding/notify.rs），此处不得直接 app.emit 旁路（否则 hook 路径的
+    // input_required/awaiting_review 永远不触发通知）。
+    crate::coding::session::emit_task_status(app, &ev.task_id, status);
 }
 
 /// 任务终态后清理对应目录(由 finalize_task_exit 调用)。
