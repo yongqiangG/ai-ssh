@@ -12,7 +12,7 @@
 - `app_settings.rs`：`AppSettings` 加 `desktop_notifications_enabled`（默认 true）+ `language`（"en"|"zh"，默认跟随后端写入）+ 保存命令
 - `emit_task_status` 挂点：命中 `{input_required, awaiting_review}` && 开关开 && `!is_focused()` 时，从 storage 按 task_id 查 Task（name/agent/project_id→项目名）拼内容发送；失败只 log 不打断 emit
 - 状态词映射：`attention_status_word(status, lang)` 纯函数（input_required→Needs confirmation/需要确认；awaiting_review→Awaiting review/已完成待验收）
-- tag=task_id 替换同任务旧 toast；winrt-toast-reborn 若未暴露 tag/group API 则降级不设并记 pool
+- tag=task_id 替换同任务旧 toast；winrt-toast-reborn 0.3.8 已核实暴露 `tag`/`group`/`launch` API，无需降级
 **验收标准**：`cargo check`/`cargo test` 通过；判定函数与状态词映射有单测覆盖（含开关关/前台/非目标状态不弹）。
 **测试用例**：should_notify 四条件组合矩阵；状态词 en/zh 映射；launch 参数构造仅含 task_id。
 **验证**：`cargo test` 76/76 绿（新增 notify 4 测：判定矩阵/状态词映射/launch 参数解析/task_display_title 与前端 taskTitle 同规则）。`cargo check` 通过。toast 发送本体属 OS 交互，走阶段 4 打包实测。遗留：无。
@@ -54,4 +54,4 @@
 **验收标准**：清单全过；AUMID 关联确认有效或兜底方案落定。
 **测试用例**：即手动清单 ①-⑧。
 **验证**：
-**状态**：未开始
+**状态**：进行中（identifier 已切 `com.johnny.ai-ssh`，NSIS 打包进行中）
