@@ -122,6 +122,47 @@ export function GeneralPanel({
 
   const copyOnSelectOn = copyOnSelect === true;
 
+  // 待确认桌面通知开关:与 copyOnSelect 同款自包含模式(面板内加载/保存),
+  // Rust 侧判定时实时读(coding/notify.rs)。默认 true,未读到真实值前渲染为
+  // 开启态,不会闪「关闭」。
+  const [desktopNotifications, setDesktopNotifications] = useState<boolean | null>(null);
+  const [desktopNotificationsBusy, setDesktopNotificationsBusy] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    invoke<AppSettings>("coding_load_app_settings")
+      .then((loaded) => {
+        if (!cancelled) setDesktopNotifications(loaded.desktop_notifications_enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setDesktopNotifications(true);
+      })
+      .finally(() => {
+        if (!cancelled) setDesktopNotificationsBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleDesktopNotificationsToggle = async () => {
+    if (desktopNotificationsBusy || desktopNotifications === null) return;
+    const enabled = !desktopNotifications;
+    setDesktopNotifications(enabled);
+    setDesktopNotificationsBusy(true);
+    try {
+      const next = await invoke<AppSettings>("coding_save_desktop_notifications", { enabled });
+      setDesktopNotifications(next.desktop_notifications_enabled);
+      window.dispatchEvent(new Event(APP_SETTINGS_CHANGED_EVENT));
+    } catch {
+      setDesktopNotifications(!enabled);
+    } finally {
+      setDesktopNotificationsBusy(false);
+    }
+  };
+
+  const desktopNotificationsOn = desktopNotifications !== false;
+
   const conptyOn = sideloadedConpty === true;
   const conptyDisabled = !isConptyEditable || conptyBusy;
   const conptyHint = isConptyEditable
@@ -251,6 +292,29 @@ export function GeneralPanel({
           </span>
         </button>
         <span style={s.settingFieldHint}>{t("appSettings.attentionBadgeHint")}</span>
+      </div>
+
+      <div style={s.settingFieldSpaced}>
+        <label style={s.settingFieldLabel}>{t("appSettings.attentionBadgeDesktop")}</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={desktopNotificationsOn}
+          aria-label={t("appSettings.attentionBadgeDesktop")}
+          disabled={desktopNotificationsBusy}
+          data-checked={desktopNotificationsOn}
+          data-disabled={desktopNotificationsBusy}
+          onClick={() => void handleDesktopNotificationsToggle()}
+          className="app-settings-toggle"
+        >
+          <span className="app-settings-toggle-label">
+            {t("appSettings.attentionBadgeDesktopToggle")}
+          </span>
+          <span className="app-settings-toggle-track">
+            <span className="app-settings-toggle-knob" />
+          </span>
+        </button>
+        <span style={s.settingFieldHint}>{t("appSettings.attentionBadgeDesktopHint")}</span>
       </div>
 
       <div style={s.settingFieldSpaced}>

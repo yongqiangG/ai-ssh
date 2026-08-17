@@ -41,8 +41,8 @@
 - i18n 词条：开关标题/描述（en/zh）
 **验收标准**：开关切换落盘且 Rust 侧判定读到新值；语言切换后状态词映射跟随；前端测试绿。
 **测试用例**：开关默认开；语言同步写入调用；词条 en/zh 齐全。
-**验证**：
-**状态**：未开始
+**验证**：vitest 228/228 绿（新增词条齐整测试 2 例）；`npm run build`（tsc+vite）通过。语言同步经 I18nProvider 的 language effect（启动+切换各一次 invoke，非 Tauri 测试环境静默失败）；开关复用 copyOnSelect 自包含模式（面板内加载/保存 + CHANGED 事件广播），前端 AppSettings 类型/DEFAULT_APP_SETTINGS 同步补 desktop_notifications_enabled/language。遗留：无。
+**状态**：已完成
 
 ## 阶段 4：identifier 切换 + 打包验证
 

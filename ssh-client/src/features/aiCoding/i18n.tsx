@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 export type AppLanguage = "en" | "zh";
 
@@ -61,6 +62,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.copyOnSelectToggle": "Copy terminal selection to clipboard automatically",
     "appSettings.copyOnSelectHint":
       "When on, text selected in a terminal is copied to the clipboard as soon as you release the mouse — no Cmd/Ctrl+C needed. Note: every selection overwrites the clipboard.",
+    "appSettings.attentionBadgeDesktop": "Desktop Notifications",
+    "appSettings.attentionBadgeDesktopToggle": "Show a desktop toast when a task needs confirmation",
+    "appSettings.attentionBadgeDesktopHint":
+      "When on, a Windows toast pops up while the app is in the background or minimized and a task enters Needs-confirmation or Awaiting-review. Click the toast to jump to that task's terminal.",
     "appSettings.sideloadedConpty": "Bundled ConPTY (Windows)",
     "appSettings.sideloadedConptyToggle": "Use the newer bundled ConPTY",
     "appSettings.sideloadedConptyHint":
@@ -451,6 +456,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.copyOnSelectToggle": "终端选中文本后自动复制到剪贴板",
     "appSettings.copyOnSelectHint":
       "开启后,在终端中框选文本、松开鼠标即复制到剪贴板,无需再按 Cmd/Ctrl+C。注意:每次框选都会覆盖剪贴板内容。",
+    "appSettings.attentionBadgeDesktop": "桌面通知",
+    "appSettings.attentionBadgeDesktopToggle": "任务待确认时弹出 Windows 桌面通知",
+    "appSettings.attentionBadgeDesktopHint":
+      "开启后,应用在后台或最小化时,任务进入「需要确认/已完成待验收」会弹桌面通知;点击通知跳转到对应任务的终端。",
     "appSettings.sideloadedConpty": "内置 ConPTY(Windows)",
     "appSettings.sideloadedConptyToggle": "使用内置的新版 ConPTY",
     "appSettings.sideloadedConptyHint":
@@ -807,6 +816,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+    // 语言同步给 Rust 侧（toast 状态词跟随界面语言，
+    // docs/actions/260817 阶段 3）。启动/切换各触发一次；测试等非 Tauri
+    // 环境下 invoke 会失败，静默即可。
+    invoke("coding_save_app_language", { language }).catch(() => {});
   }, [language]);
 
   const t = useCallback(

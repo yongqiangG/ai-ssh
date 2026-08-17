@@ -56,6 +56,10 @@ export interface AppSettings {
   terminal_copy_on_select: boolean;
   /** Windows：优先使用随包侧载的新版 ConPTY（重启后生效），其余平台无效果 */
   use_sideloaded_conpty: boolean;
+  /** AI Coding 待确认桌面通知总开关（Rust 侧判定实时读，见 coding/notify.rs） */
+  desktop_notifications_enabled: boolean;
+  /** 界面语言（"en"|"zh"），I18nProvider 同步写入——Rust 拼 toast 状态词用 */
+  language: string;
   claude_model_catalog: AgentModelCatalog;
   codex_model_catalog: AgentModelCatalog;
 }
@@ -73,6 +77,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   terminal_scrollback: DEFAULT_TERMINAL_SCROLLBACK,
   terminal_copy_on_select: false,
   use_sideloaded_conpty: true,
+  desktop_notifications_enabled: true,
+  language: "en",
   claude_model_catalog: EMPTY_AGENT_MODEL_CATALOG,
   codex_model_catalog: EMPTY_AGENT_MODEL_CATALOG,
 };
