@@ -51,6 +51,8 @@ fn default_shift_enter_newline() -> bool {
 /// 3. 【真风险】任务切换快照恢复：SerializeAddon 对 ?1049 备用屏内容的恢复质量
 ///    未实测（托底先例：Codex 全屏 TUI 在本应用配合侧载 ConPTY 正常工作）；
 /// 4. 【真风险】CJK 复制乱码：历史副作用记录（版本不明），需在新版本复测。
+/// 连带收益（同根因伴生，零额外开发）：「Jump to bottom」跳底按钮——新 TUI 虚拟
+/// 滚动的自绘 UI，依赖滚轮感知（?1003）与点击转发，classic 下不可能出现。
 fn default_claude_force_default_tui() -> bool {
     true
 }
