@@ -359,6 +359,7 @@ pub fn run() {
                 let _ = window.set_focus();
             }
             if let Some(task_id) = coding::notify::parse_task_launch_arg(&args) {
+                coding::notify::debug_log(&format!("click: navigate task={task_id}"));
                 let _ = app.emit("coding:navigate", serde_json::json!({ "task_id": task_id }));
             }
         }))
