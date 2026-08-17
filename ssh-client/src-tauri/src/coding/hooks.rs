@@ -157,9 +157,9 @@ fn hook_command(script: &str) -> String {
 /// - `force_default_tui=true`:写入 `"tui": "default"` 标量字段——**有意覆盖**用户
 ///   ~/.claude/settings.json 中的 tui 字段,强制走 classic 渲染。这是该 settings
 ///   通道唯一的标量 key,其余字段一律不写。
-///   代价:classic 渲染器不开鼠标上报 → 任务内选项不可鼠标点击(只有 ↑↓+Enter)。
-///   回切路径与验收清单见 app_settings.rs `default_claude_force_default_tui` 备注
-///   (2026-08-17 决议:暂时接受该代价)。
+///   默认 false(2026-08-17 二次决议:切新 TUI,恢复选项点击/跳底等交互);
+///   本字段仅作单机回退 classic 的兜底开关。决议全量备注见 app_settings.rs
+///   `default_claude_force_default_tui`。
 fn build_claude_settings_value(
     _node_path: &str,
     script: &str,

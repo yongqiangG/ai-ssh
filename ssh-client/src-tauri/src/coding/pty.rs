@@ -501,12 +501,11 @@ fn build_claude_cmd(
     // 仅 macOS 注入：Claude Code v2.1.150+ 默认开 xterm 鼠标上报（mode 1002），
     // 会吞掉 macOS 端 xterm.js 的原生拖动框选；关掉后滚轮回退到 xterm scrollback。
     // Windows 不注入：历史上在 Windows 注入反而让滚轮失效
-    // （anthropics/claude-code#51393）。且当前 force_default_tui=true 使 Claude
-    // 走 classic 渲染器，本就不开任何鼠标上报（2026-08-17 探针实证：新 TUI 才开
-    // 1000/1002/1003/1006+1049 全套），框选/滚轮天然走 xterm 本地路径。
-    // 若未来放开 classic 强制（回切路径见 app_settings.rs
-    // default_claude_force_default_tui 备注），Windows 侧直接拖选会被 Claude 的
-    // 鼠标上报吃掉，需 Shift+拖（终端惯例，WT 同款），勿在此追加注入。
+    // （anthropics/claude-code#51393）。2026-08-17 二次决议切新 TUI 后，Windows
+    // 下 Claude 全套鼠标上报开启（探针实证 1000/1002/1003/1006+1049），直接拖选
+    // 会被 Claude 吃掉，框选需 Shift+拖（终端惯例，WT 同款）；滚轮由 Claude 虚拟
+    // 滚动接管（WT 原生行为）。macOS 维持本注入：保框选、弃点击，是 mac 侧的
+    // 独立取舍，勿随 Windows 决议联动。
     #[cfg(target_os = "macos")]
     c.env("CLAUDE_CODE_DISABLE_MOUSE", "1");
     for arg in permission_args {

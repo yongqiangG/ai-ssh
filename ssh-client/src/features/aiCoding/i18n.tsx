@@ -111,7 +111,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.claudeForceDefaultTui": "Force Default TUI Mode",
     "appSettings.claudeForceDefaultTuiToggleLabel": "Always launch with tui=default",
     "appSettings.claudeForceDefaultTuiHint":
-      'Inject --settings with tui="default" so Claude uses the classic main-screen renderer instead of fullscreen. Recommended to avoid fullscreen side-effects in some terminals (CJK clipboard corruption, mouse-wheel hijacking). Requires Claude Code v2.1.110+.',
+      'Inject --settings with tui="default" so Claude uses the classic main-screen renderer instead of the new fullscreen TUI (which enables clickable options, jump-to-bottom, and virtual scroll). Only enable this to fall back to classic when the new TUI misbehaves. Takes effect on next task launch. Requires Claude Code v2.1.110+.',
     "appSettings.syntaxHighlightUnavailable":
       "Syntax highlighting is unavailable. Showing plain text instead.",
     "appSettings.configFileNotFound": "Config file not found: {path}",
@@ -503,7 +503,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.claudeForceDefaultTui": "强制 Default TUI 模式",
     "appSettings.claudeForceDefaultTuiToggleLabel": "始终以 tui=default 启动",
     "appSettings.claudeForceDefaultTuiHint":
-      '通过 --settings 注入 tui="default"，强制 Claude 走 classic 主屏渲染，避开 fullscreen 在部分终端的副作用（CJK 复制乱码、滚轮被劫持等）。需要 Claude Code v2.1.110+。',
+      '通过 --settings 注入 tui="default"，让 Claude 回退 classic 主屏渲染（默认关闭：新 TUI 提供选项点击、跳底按钮、虚拟滚动等交互）。仅在新 TUI 异常时作为兜底开启；对新启动的任务生效。需要 Claude Code v2.1.110+。',
     "appSettings.syntaxHighlightUnavailable": "语法高亮暂不可用，正在显示纯文本。",
     "appSettings.configFileNotFound": "未找到配置文件：{path}",
     "appSettings.sendMessage": "发送消息",

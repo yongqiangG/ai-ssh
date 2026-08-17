@@ -31,34 +31,27 @@ fn default_shift_enter_newline() -> bool {
     true
 }
 
-/// 是否默认强制 Claude 走 classic 渲染器（经 `--settings` 注入 `"tui": "default"`）。
+/// 是否强制 Claude 走 classic 渲染器（经 `--settings` 注入 `"tui": "default"`）。
 ///
-/// 【2026-08-17 决议：维持 true，暂时放弃「任务内选项鼠标点击」体验】
+/// 【2026-08-17 二次决议：默认改 false，切新 TUI，跟上迭代特性】
 ///
-/// 实证（ConPTY 探针，Claude Code 2.1.233，TERM=xterm-256color）：
-/// - 新 TUI（不注入 settings，等价 WT 裸跑）：进入主界面即开全套鼠标上报
-///   `?1000h ?1002h ?1003h ?1006h`(SGR 编码) + `?1049h` 备用屏。终端把点击/
-///   滚轮编码回传，Claude 才有「点击选项」UI——WT 里可点击即此机制。
-/// - classic（tui:default，本应用现状）：全程不开任何鼠标模式 → xterm.js
-///   永远不会转发点击 → 用户只有 ↑↓+Enter。**app 内选项不可点击的根因即本默认值**。
-/// - 附：WT_SESSION 不影响鼠标开关（探针 wtsession 模式与 plain 序列一致，仅多
-///   ?2026 同步输出）；无需伪装 Windows Terminal 身份来换点击。
+/// 一次决议（同日早）曾维持 true 暂弃「选项点击」，晚间用户拍板切换。依据：
+/// - 实证（ConPTY 探针，Claude 2.1.233）：新 TUI 进主界面即开 1000/1002/1003/
+///   1006(SGR)+1049 全套鼠标上报；classic 全程不开。选项点击 / Jump to bottom
+///   跳底按钮 / 滚轮虚拟滚动三项均系于此开关。
+/// - 维持 classic 的两个历史动机经考古（nezha PR #322，无第一手复现记录）不可靠：
+///   「滚轮被劫持」实为 WT 原生行为（虚拟滚动接管）；「CJK 复制乱码」无版本/终端
+///   记录，交由验收复测。
+/// - classic 属 legacy 模式存在被上游移除风险，维持现状并非零维护。
 ///
-/// 若未来要引入点击，回切路径 = 本函数改 false（或设置界面开关单机生效），
-/// 验收清单：
-/// 1. 滚轮被 Claude 虚拟滚动接管——这是 WT 原生行为，属预期而非缺陷；
-/// 2. 拖选需按住 Shift（应用开鼠标上报后的终端惯例，同 WT）；smart copy 不受影响；
-/// 3. 【真风险】任务切换快照恢复：SerializeAddon 对 ?1049 备用屏内容的恢复质量
-///    未实测（托底先例：Codex 全屏 TUI 在本应用配合侧载 ConPTY 正常工作）；
-/// 4. 【真风险】CJK 复制乱码：历史副作用记录，需在新版本复测。考古（2026-08-17）：
-///    该坑源自 nezha PR #322（2026-06-19），仅一句话描述、无 issue 链接/版本/复现
-///    步骤；「滚轮被劫持」按今日实证大概率是对 WT 原生虚拟滚动的误判。另注：
-///    classic 属 legacy 模式存在被上游移除的可能——维持现状并非零维护，
-///    每次 Claude 大版本升级后本清单应重跑冒烟。
-/// 连带收益（同根因伴生，零额外开发）：「Jump to bottom」跳底按钮——新 TUI 虚拟
-/// 滚动的自绘 UI，依赖滚轮感知（?1003）与点击转发，classic 下不可能出现。
+/// 维护约定：每次 Claude 大版本升级后按下列清单冒烟——
+/// 1. 滚轮被 Claude 虚拟滚动接管（预期行为，非缺陷）；
+/// 2. 拖选需 Shift+拖（终端惯例，同 WT），smart copy 不受影响；
+/// 3. 任务切换快照恢复：SerializeAddon 对 ?1049 备用屏内容的恢复质量；
+/// 4. CJK 复制粘贴完整性（历史副作用复测）。
+/// 出问题时单机兜底 = 设置界面把本开关打开，回退 classic。
 fn default_claude_force_default_tui() -> bool {
-    true
+    false
 }
 
 fn default_terminal_scrollback() -> u32 {
@@ -154,8 +147,16 @@ pub struct AppSettings {
     /// 强制 Claude TUI 走 default（classic 主屏渲染）模式：通过 `--settings` 注入
     /// `{"tui":"default"}` 覆盖用户 ~/.claude/settings.json 中的 tui 字段，
     /// 避免 fullscreen 渲染下的部分终端副作用（如 CJK 复制乱码、滚轮被劫持等）。
+    /// 强制 Claude TUI 走 default（classic 主屏渲染）。默认 false（新 TUI），
+    /// 决议全量备注见 default_claude_force_default_tui()。
     #[serde(default = "default_claude_force_default_tui")]
     pub claude_force_default_tui: bool,
+    /// 一次性迁移标记：v1 默认 force_default_tui=true（classic）；2026-08-17 二次
+    /// 决议翻转默认。存量 settings.json 里持久化的 true 无法与「用户显式开启」
+    /// 区分，按决议在 load 时做一次性 true→false 迁移并落此标记；此后该字段
+    /// 完全由用户新选择/默认值决定，不再被迁移触碰。
+    #[serde(default)]
+    pub tui_default_migrated: bool,
     #[serde(default = "default_terminal_scrollback")]
     pub terminal_scrollback: u32,
     /// 终端框选松手后自动把选区复制到剪贴板（copy-on-select）。默认关闭：
@@ -189,6 +190,9 @@ impl Default for AppSettings {
             send_shortcut: default_send_shortcut(),
             terminal_shift_enter_newline: default_shift_enter_newline(),
             claude_force_default_tui: default_claude_force_default_tui(),
+            // Default impl 供 parse 失败等兜底：迁移标记视为已完成，避免兜底值
+            // 再触发一次 tui 迁移写盘。
+            tui_default_migrated: true,
             terminal_scrollback: default_terminal_scrollback(),
             terminal_copy_on_select: false,
             use_sideloaded_conpty: default_use_sideloaded_conpty(),
@@ -556,6 +560,7 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         send_shortcut: normalize_send_shortcut(settings.send_shortcut),
         terminal_shift_enter_newline: settings.terminal_shift_enter_newline,
         claude_force_default_tui: settings.claude_force_default_tui,
+        tui_default_migrated: settings.tui_default_migrated,
         terminal_scrollback: clamp_terminal_scrollback(settings.terminal_scrollback),
         terminal_copy_on_select: settings.terminal_copy_on_select,
         use_sideloaded_conpty: settings.use_sideloaded_conpty,
@@ -579,6 +584,8 @@ fn load_settings_unlocked() -> AppSettings {
             send_shortcut: default_send_shortcut(),
             terminal_shift_enter_newline: default_shift_enter_newline(),
             claude_force_default_tui: default_claude_force_default_tui(),
+            // 全新安装直接落新默认，无存量可迁移。
+            tui_default_migrated: true,
             terminal_scrollback: default_terminal_scrollback(),
             terminal_copy_on_select: false,
             use_sideloaded_conpty: default_use_sideloaded_conpty(),
@@ -600,14 +607,30 @@ fn load_settings_unlocked() -> AppSettings {
         Ok(r) => r,
         Err(_) => return AppSettings::default(),
     };
-    let settings: AppSettings = serde_json::from_str(&raw).unwrap_or_default();
+    let parsed: AppSettings = serde_json::from_str(&raw).unwrap_or_default();
+    let did_migrate = !parsed.tui_default_migrated;
+    let settings = apply_tui_migration(parsed);
     let normalized = normalize_settings(settings.clone());
-    if normalized != settings {
+    // 迁移本身不改变 normalized 与 settings 的差异（迁移后字段原样通过 normalize），
+    // 必须用 did_migrate 强制落盘标记——否则标记永不持久化，用户此后显式打开
+    // classic 的选择会在每次 load 时被迁移再次清掉。
+    if did_migrate || normalized != settings {
         if let Ok(raw) = serde_json::to_string_pretty(&normalized) {
             let _ = atomic_write(&path, &raw);
         }
     }
     normalized
+}
+
+/// 一次性迁移（2026-08-17 二次决议）：v1 默认 force_default_tui=true（classic）
+/// 的存量值翻成 false（新 TUI）。标记落盘后永不再触发；migrated=true 时原样
+/// 返回，用户此后的显式选择不受影响。
+fn apply_tui_migration(mut settings: AppSettings) -> AppSettings {
+    if !settings.tui_default_migrated {
+        settings.tui_default_migrated = true;
+        settings.claude_force_default_tui = false;
+    }
+    settings
 }
 
 pub fn load_settings_internal() -> AppSettings {
@@ -1142,6 +1165,48 @@ pub async fn coding_get_system_fonts() -> Vec<String> {
     })
     .await
     .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tui_migration_tests {
+    use super::*;
+
+    fn legacy_settings(force: bool) -> AppSettings {
+        AppSettings {
+            claude_force_default_tui: force,
+            tui_default_migrated: false,
+            ..AppSettings::default()
+        }
+    }
+
+    #[test]
+    fn migrates_legacy_true_to_false_and_marks() {
+        let migrated = apply_tui_migration(legacy_settings(true));
+        assert!(!migrated.claude_force_default_tui);
+        assert!(migrated.tui_default_migrated);
+    }
+
+    #[test]
+    fn migration_is_idempotent_after_marker() {
+        // 二次 load（标记已落盘）：用户显式选择的 true 不再被迁移触碰
+        let again = apply_tui_migration(AppSettings {
+            claude_force_default_tui: true,
+            tui_default_migrated: true,
+            ..AppSettings::default()
+        });
+        assert!(again.claude_force_default_tui);
+        assert!(again.tui_default_migrated);
+    }
+
+    #[test]
+    fn fresh_settings_json_without_marker_field_gets_migrated_via_serde_default() {
+        // v1 存量文件没有 tui_default_migrated 字段：serde default=false → 迁移触发
+        let raw = r#"{"claude_force_default_tui": true}"#;
+        let parsed: AppSettings = serde_json::from_str(raw).unwrap();
+        assert!(!parsed.tui_default_migrated);
+        let migrated = apply_tui_migration(parsed);
+        assert!(!migrated.claude_force_default_tui);
+    }
 }
 
 #[cfg(test)]

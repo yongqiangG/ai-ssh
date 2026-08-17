@@ -51,6 +51,8 @@ export interface AppSettings {
   send_shortcut: SendShortcut;
   terminal_shift_enter_newline: boolean;
   claude_force_default_tui: boolean;
+  /** 后端一次性迁移标记（v1 默认 classic → 2026-08-17 切新 TUI），前端只读不写 */
+  tui_default_migrated?: boolean;
   terminal_scrollback: number;
   /** 终端框选松手后自动把选区复制到剪贴板（copy-on-select） */
   terminal_copy_on_select: boolean;
@@ -73,7 +75,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   codex_path: "",
   send_shortcut: DEFAULT_SEND_SHORTCUT,
   terminal_shift_enter_newline: DEFAULT_SHIFT_ENTER_NEWLINE,
-  claude_force_default_tui: true,
+  claude_force_default_tui: false,
   terminal_scrollback: DEFAULT_TERMINAL_SCROLLBACK,
   terminal_copy_on_select: false,
   use_sideloaded_conpty: true,
