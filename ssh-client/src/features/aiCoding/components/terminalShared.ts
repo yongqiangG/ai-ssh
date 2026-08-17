@@ -603,11 +603,14 @@ export function attachTerminalScrollbarAutoHide(term: Terminal, container: HTMLE
  * 外层 display 切换不触发 document.visibilitychange，而 WebGL canvas 在
  * layout tree 移除期间可能进入坏状态（xterm.js #6014 一族，项目级切换靠
  * isActive effect 修复，面板级切换没有该信号）。这里监听面板可见性事件，
- * 切回后补一次 fit + atlas 刷新。返回退订函数。
+ * 切回后补一次 fit + atlas 刷新；shouldFocus 为真时把焦点还给终端
+ * （display:none 会静默夺走 textarea 焦点，不恢复则切回后必须手点）。
+ * 返回退订函数。
  */
 export function attachPanelVisibilityRefresh(
   term: Terminal,
   refit: () => void,
+  shouldFocus: () => boolean = () => false,
 ): () => void {
   const handler = (event: Event) => {
     if (!readPanelVisibilityDetail(event)) return;
@@ -616,6 +619,7 @@ export function attachPanelVisibilityRefresh(
       if (!term.element) return;
       refit();
       refreshTerminalDisplay(term);
+      if (shouldFocus()) term.focus();
     });
   };
   window.addEventListener(AI_CODING_PANEL_VISIBILITY_EVENT, handler);

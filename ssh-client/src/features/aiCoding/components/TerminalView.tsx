@@ -75,6 +75,11 @@ export function TerminalView({
   const onClipboardImageRef = useRef(onClipboardImage);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const shiftEnterNewlineRef = useRef<boolean>(DEFAULT_SHIFT_ENTER_NEWLINE);
+  // 面板保活切回时的焦点恢复判断：init effect（[] 依赖）闭包捕获不了最新
+  // isActive，经 ref 读。多保活项目的当前任务终端会竞争 focus，最终落在
+  // 最后注册的实例——多项目场景点一下即可纠正，单项目无感。
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
   onReadyRef.current = onReady;
   onSnapshotRef.current = onSnapshot;
   onClipboardImageRef.current = onClipboardImage;
@@ -207,10 +212,14 @@ export function TerminalView({
 
     // 面板保活切回（display:none → 可见）不触发 visibilitychange，经
     // AiCodingPanel 广播的事件补一次 fit + atlas 刷新（见 terminalShared 注释）。
-    const disposePanelVisibilityRefresh = attachPanelVisibilityRefresh(term, () => {
-      const s = safeFit(fitAddon, term, container);
-      if (s) notifyResize(s.cols, s.rows);
-    });
+    const disposePanelVisibilityRefresh = attachPanelVisibilityRefresh(
+      term,
+      () => {
+        const s = safeFit(fitAddon, term, container);
+        if (s) notifyResize(s.cols, s.rows);
+      },
+      () => isActiveRef.current,
+    );
 
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver(() => {

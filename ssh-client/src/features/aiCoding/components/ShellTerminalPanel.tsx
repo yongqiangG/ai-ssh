@@ -220,7 +220,11 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
 
       // 面板保活切回（display:none → 可见）不触发 visibilitychange，经
       // AiCodingPanel 广播的事件补一次 fit + atlas 刷新（同 TerminalView）。
-      const disposePanelVisibilityRefresh = attachPanelVisibilityRefresh(term, fit);
+      const disposePanelVisibilityRefresh = attachPanelVisibilityRefresh(
+        term,
+        fit,
+        () => isActiveRef.current,
+      );
 
       let unlisten: (() => void) | null = null;
       listen<ShellOutputEvent>("coding:shell-output", (event) => {

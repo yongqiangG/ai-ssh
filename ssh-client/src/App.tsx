@@ -81,13 +81,16 @@ export default function App() {
   return (
     <div className={styles.app}>
       {/* AI Coding 整窗接管层：仅保留 ActivityBar 作为回到 SSH 运维视图的入口；
-          非激活时 display:none 冻结（内部本就按多项目 display:none 保活设计）。 */}
+          非激活时 display:none 冻结（内部本就按多项目 display:none 保活设计）。
+          ActivityBar 只在激活时渲染：其 indicator 用 framer-motion layoutId，
+          双实例共存（隐藏层 + SSH 侧栏）会共享布局动画导致指示条错位；它是
+          无状态展示组件，按需挂卸零损失。 */}
       {aiCodingMounted && (
         <div
           className={styles.workspace}
           style={centerView === "aiCoding" ? undefined : { display: "none" }}
         >
-          <ActivityBar />
+          {centerView === "aiCoding" && <ActivityBar />}
           <AiCodingPanel active={centerView === "aiCoding"} />
         </div>
       )}
