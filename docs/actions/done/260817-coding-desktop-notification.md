@@ -53,5 +53,5 @@
 - AUMID 核验：若点击无效，检查 NSIS 快捷方式 AUMID（bundler 未设则经 nsis-hooks.nsh 补设，升级 pool/本文件）
 **验收标准**：清单全过；AUMID 关联确认有效或兜底方案落定。
 **测试用例**：即手动清单 ①-⑧。
-**验证**：（进行中）首次真机实测发现根因级 bug 并已修复：event_watcher::emit_active_status（hook 路径=ask 确认主信号源）直接 app.emit 旁路了 session::emit_task_status 收口点，通知永不触发——已改统一路由（commit fix），回归 76/76 绿。AUMID 链路静态核验通过（NSIS SetLnkAppUserModelId 写 BUNDLEID=快捷方式，与 toast AUMID 一致）。待重装后复测清单 ①-⑧。
-**状态**：进行中（identifier 已切 `com.johnny.ai-ssh`，NSIS 打包进行中）
+**验证**：真机（本机 Win10 19045，NSIS 安装）逐层差分排查后核心链路全通：①弹 toast（后台/失焦场景实测，日志有 send/ok 行）②点击跳转终端实测符合预期（日志 `toast activated: arg=--aish-task=...` 交叉验证）；⑦Get-StartApps 确认 AUMID 注册。③最小化与后台同走 is_focused 判定（等价）；④开关门控/⑥状态词映射单测覆盖；⑤tag/group 由边沿防抖+对象保活注册表保证，未单独实测。排查过程发现并修复三个真机问题：hook 路径旁路收口点（commit fix）、winrt-toast-reborn 手拼 ToastGeneric XML 被 shell 静默拒收（换 windows-rs 系统模板）、launch+快捷方式兜底启动在本机无 COM 激活器时不触发（换进程内 Activated 回调）；另发现 NSIS 同目录更新不重写快捷方式 AUMID（删残留 .lnk 让安装器重建解决）。诊断日志保留（~/.ai-ssh/coding/notify-debug.log）。
+**状态**：已完成

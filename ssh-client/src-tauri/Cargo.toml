@@ -54,14 +54,8 @@ font-kit = "=0.14.3"
 [target.'cfg(windows)'.dependencies]
 win32job = "2"
 # AI Coding pending-confirmation desktop notification (Windows toast; click callback uses launch
-# parameter + single-instance approach, see docs/situations/260817-coding-desktop-notification.md)
-# AI Coding pending-confirmation desktop notification (Windows toast; click callback uses launch
 # parameter + single-instance approach, see docs/situations/260817-coding-desktop-notification.md).
 # Goes directly through windows-rs system templates—winrt-toast-reborn's hand-built ToastGeneric
 # XML is silently rejected by the shell (probe D vs A/E differential testing, 260817).
 windows = { version = "0.61", features = ["UI_Notifications", "Data_Xml_Dom"] }
-
-# Notification troubleshooting probe (temporary, delete after verification)
-[dev-dependencies]
-windows = { version = "0.61", features = ["UI_Notifications", "Data_Xml_Dom", "Win32_System_Com"] }
 
