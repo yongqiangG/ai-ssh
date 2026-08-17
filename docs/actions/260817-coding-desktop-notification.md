@@ -53,5 +53,5 @@
 - AUMID 核验：若点击无效，检查 NSIS 快捷方式 AUMID（bundler 未设则经 nsis-hooks.nsh 补设，升级 pool/本文件）
 **验收标准**：清单全过；AUMID 关联确认有效或兜底方案落定。
 **测试用例**：即手动清单 ①-⑧。
-**验证**：
+**验证**：（进行中）首次真机实测发现根因级 bug 并已修复：event_watcher::emit_active_status（hook 路径=ask 确认主信号源）直接 app.emit 旁路了 session::emit_task_status 收口点，通知永不触发——已改统一路由（commit fix），回归 76/76 绿。AUMID 链路静态核验通过（NSIS SetLnkAppUserModelId 写 BUNDLEID=快捷方式，与 toast AUMID 一致）。待重装后复测清单 ①-⑧。
 **状态**：进行中（identifier 已切 `com.johnny.ai-ssh`，NSIS 打包进行中）
