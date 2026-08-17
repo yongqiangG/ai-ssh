@@ -119,7 +119,7 @@ fn notify_attention_blocking(app: &AppHandle, task_id: &str, status: &str) {
         "send: task={task_id} status={status} focused={focused} title={title}"
     ));
 
-    match send_attention_toast(task_id, &title, &body) {
+    match send_attention_toast(app, task_id, &title, &body) {
         Ok(()) => debug_log("toast: ok"),
         Err(e) => debug_log(&format!("toast: FAILED {e}")),
     }
@@ -154,15 +154,34 @@ fn task_display_title(task: &crate::coding::storage::Task) -> String {
 }
 
 #[cfg(windows)]
-fn send_attention_toast(task_id: &str, title: &str, body: &str) -> Result<(), String> {
+fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str) -> Result<(), String> {
     // 走系统模板（GetTemplateContent）而非手拼 XML：探针差分实测
     // （260817 阶段 4），手拼 ToastGeneric 文档被 shell 静默拒收
     // （Show 返回 Ok 但不显示、无 Failed/Dismissed 事件），模板路径稳定弹。
+    //
+    // 点击回跳走进程内 Activated 事件：launch 属性 + 快捷方式兜底启动在
+    // 本机 Win10 19045（无 COM 激活器注册）不触发——点击不拉起应用。
+    // Activated 回调在应用存活期间于进程内触发（探针 v4 实测），
+    // 恰好匹配「只支持热点击」的决议；冷点击（应用已关）无行为，符合设计。
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+
+    use parking_lot::Mutex;
+    use tauri::Emitter;
     use windows::{
         core::{HSTRING, Interface},
         Data::Xml::Dom::IXmlNode,
-        UI::Notifications::{ToastNotification, ToastNotificationManager, ToastTemplateType},
+        Foundation::TypedEventHandler,
+        UI::Notifications::{
+            ToastActivatedEventArgs, ToastNotification, ToastNotificationManager,
+            ToastTemplateType,
+        },
     };
+
+    /// 保活注册表：Activated 事件接线随 ToastNotification 对象销毁而断。
+    /// 同任务新 toast 替换旧条目（与 tag/group 语义一致）。
+    static LIVE_TOASTS: OnceLock<Mutex<HashMap<String, ToastNotification>>> = OnceLock::new();
+    let live_toasts = LIVE_TOASTS.get_or_init(|| Mutex::new(HashMap::new()));
 
     let doc = ToastNotificationManager::GetTemplateContent(ToastTemplateType::ToastText02)
         .map_err(|e| format!("template: {e}"))?;
@@ -181,7 +200,7 @@ fn send_attention_toast(task_id: &str, title: &str, body: &str) -> Result<(), St
     fill(0, title)?;
     fill(1, body)?;
 
-    // launch 属性挂在 toast 根元素上（点击回跳路由，见 TASK_ARG_PREFIX）
+    // launch 属性挂在 toast 根元素上——Activated 回调经 Arguments() 取回
     let root = doc
         .DocumentElement()
         .map_err(|e| format!("root: {e}"))?;
@@ -198,11 +217,48 @@ fn send_attention_toast(task_id: &str, title: &str, body: &str) -> Result<(), St
         .SetGroup(&HSTRING::from(TOAST_GROUP))
         .map_err(|e| format!("group: {e}"))?;
 
+    // 点击回调：拉窗口 + emit coding:navigate（与单实例回调同一前端链路）
+    let app = app.clone();
+    let handler = TypedEventHandler::<ToastNotification, windows::core::IInspectable>::new(
+        move |_sender, args| {
+            let arg = args
+                .as_ref()
+                .and_then(|a| a.cast::<ToastActivatedEventArgs>().ok())
+                .and_then(|e| e.Arguments().ok())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            debug_log(&format!("toast activated: arg={arg}"));
+            if let Some(nav_task_id) = parse_task_launch_arg([arg]) {
+                focus_main_window(&app);
+                let _ = app.emit(
+                    "coding:navigate",
+                    serde_json::json!({ "task_id": nav_task_id }),
+                );
+            }
+            Ok(())
+        },
+    );
+    notification
+        .Activated(&handler)
+        .map_err(|e| format!("activated: {e}"))?;
+
+    live_toasts.lock().insert(task_id.to_string(), notification.clone());
+
     let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_USER_MODEL_ID))
         .map_err(|e| format!("notifier: {e}"))?;
     notifier
         .Show(&notification)
         .map_err(|e| format!("show: {e}"))
+}
+
+/// 与单实例回调同款拉窗逻辑（lib.rs）：点击 toast 后窗口必须到前台。
+#[cfg(windows)]
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 /// 非 Windows：应用事实上只发 Windows 包，编译期保住可检查性即可。
