@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -75,7 +75,7 @@ fn finalize_task_exit(
     app: &AppHandle,
     task_id: &str,
     project_path: &str,
-    is_codex: bool,
+    _is_codex: bool,
     exit_ok: bool,
     exit_code: Option<u32>,
 ) {
@@ -86,7 +86,6 @@ fn finalize_task_exit(
         (cancelled.remove(task_id), manually_completed.remove(task_id))
     };
 
-    let had_agent_session;
     {
         let tm = app.state::<TaskManager>();
         tm.remove_pty_handles(task_id);
@@ -94,16 +93,6 @@ fn finalize_task_exit(
         let codex_path = codex_info.map(|info| info.session_path);
         let claude_info = tm.claude_sessions.lock().remove(task_id);
         let claude_path = claude_info.as_ref().map(|info| info.session_path.clone());
-        had_agent_session = if is_codex {
-            codex_path.is_some()
-        } else {
-            // lazy attach 注入的占位条目不算"曾真正建立过会话"，
-            // 否则 Claude 异常退出会被误标为 done。
-            claude_info
-                .as_ref()
-                .map(|info| !info.is_placeholder)
-                .unwrap_or(false)
-        };
         let mut claimed = tm.claimed_session_paths.lock();
         if let Some(path) = codex_path {
             claimed.remove(&path);
@@ -118,7 +107,12 @@ fn finalize_task_exit(
         return;
     }
 
-    let status = if exit_ok || had_agent_session { "done" } else { "failed" };
+    // 2026-08-17 决议（终端体验 grill a+b）：只有干净退出（exit code 0，含用户
+    // /exit、Ctrl+C 双击）才标 done；非零退出（崩溃/OOM/被杀）一律 failed +
+    // 退出码。此前「注册过会话即 done」会把异常退出误标成任务完成（用户侧
+    // 表现为：终端突然切成会话记录视图 + 绿色完成态，死因无从查看）。
+    // 取消/手动完成路径已被上方 marker 拦截，不受本判定影响。
+    let status = if exit_ok { "done" } else { "failed" };
     let payload = if status == "failed" {
         let reason = match exit_code {
             Some(code) => format!("Process exited with code {}", code),
@@ -134,6 +128,27 @@ fn finalize_task_exit(
     crate::coding::event_watcher::cleanup_task_events(task_id);
 }
 
+/// 解析 "data:image/<sub>;base64,<data>"，返回 (字节, 扩展名)。
+fn decode_image_data_url(data_url: &str) -> Result<(Vec<u8>, &'static str), String> {
+    let comma = data_url.find(',').ok_or("invalid image data URL")?;
+    let header = &data_url[..comma];
+    let b64 = &data_url[comma + 1..];
+    let ext = if header.contains("jpeg") || header.contains("jpg") {
+        "jpg"
+    } else if header.contains("gif") {
+        "gif"
+    } else if header.contains("webp") {
+        "webp"
+    } else {
+        "png"
+    };
+    use base64::Engine;
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .map_err(|e| e.to_string())?;
+    Ok((data, ext))
+}
+
 fn save_task_images(
     project_path: &str,
     task_id: &str,
@@ -146,29 +161,29 @@ fn save_task_images(
     fs::create_dir_all(&attachments_dir).map_err(|e| e.to_string())?;
     let mut paths = Vec::new();
     for (i, data_url) in images.iter().enumerate() {
-        // 解析 "data:image/png;base64,<data>" 格式
-        let comma = data_url.find(',').ok_or("invalid image data URL")?;
-        let header = &data_url[..comma];
-        let b64 = &data_url[comma + 1..];
-        let ext = if header.contains("jpeg") || header.contains("jpg") {
-            "jpg"
-        } else if header.contains("gif") {
-            "gif"
-        } else if header.contains("webp") {
-            "webp"
-        } else {
-            "png"
-        };
-        use base64::Engine;
-        let data = base64::engine::general_purpose::STANDARD
-            .decode(b64)
-            .map_err(|e| e.to_string())?;
+        let (data, ext) = decode_image_data_url(data_url)?;
         let filename = format!("{}.{}", i, ext);
         let file_path = attachments_dir.join(&filename);
         fs::write(&file_path, &data).map_err(|e| e.to_string())?;
         paths.push(file_path.to_string_lossy().into_owned());
     }
     Ok(paths)
+}
+
+/// 任务运行中 Ctrl+V 贴图的落盘（2026-08-17 决议：贴图 B 方案）。
+/// 文件名带毫秒时间戳——save_task_images 的 `{i}.{ext}` 命名在「连贴两张再
+/// 一起发送」场景会让第二张覆盖第一张（路径相同），这里必须唯一。
+fn save_paste_image(project_path: &str, task_id: &str, data_url: &str) -> Result<String, String> {
+    let (data, ext) = decode_image_data_url(data_url)?;
+    let attachments_dir = task_attachments_dir(project_path, task_id);
+    fs::create_dir_all(&attachments_dir).map_err(|e| e.to_string())?;
+    let millis = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let file_path = attachments_dir.join(format!("paste_{}.{}", millis, ext));
+    fs::write(&file_path, &data).map_err(|e| e.to_string())?;
+    Ok(file_path.to_string_lossy().into_owned())
 }
 
 fn save_task_texts(
@@ -485,8 +500,13 @@ fn build_claude_cmd(
     let mut c = CommandBuilder::new(agent_bin);
     // 仅 macOS 注入：Claude Code v2.1.150+ 默认开 xterm 鼠标上报（mode 1002），
     // 会吞掉 macOS 端 xterm.js 的原生拖动框选；关掉后滚轮回退到 xterm scrollback。
-    // Windows 上 xterm.js + Claude 默认就能框选+滚轮（v0.4.0 已验证），加这个反而
-    // 让滚轮失效（见 anthropics/claude-code#51393），所以只对 macOS 启用。
+    // Windows 不注入：历史上在 Windows 注入反而让滚轮失效
+    // （anthropics/claude-code#51393）。且当前 force_default_tui=true 使 Claude
+    // 走 classic 渲染器，本就不开任何鼠标上报（2026-08-17 探针实证：新 TUI 才开
+    // 1000/1002/1003/1006+1049 全套），框选/滚轮天然走 xterm 本地路径。
+    // 若未来放开 classic 强制（回切路径见 app_settings.rs
+    // default_claude_force_default_tui 备注），Windows 侧直接拖选会被 Claude 的
+    // 鼠标上报吃掉，需 Shift+拖（终端惯例，WT 同款），勿在此追加注入。
     #[cfg(target_os = "macos")]
     c.env("CLAUDE_CODE_DISABLE_MOUSE", "1");
     for arg in permission_args {
@@ -752,6 +772,25 @@ mod fork_command_tests {
             MAX_MODEL_ID_BYTES,
         )
         .is_err());
+    }
+
+    #[test]
+    fn decodes_image_data_url_bytes_and_extension() {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(vec![1u8, 2, 3]);
+        let url = format!("data:image/png;base64,{}", b64);
+        let (data, ext) = decode_image_data_url(&url).unwrap();
+        assert_eq!(data, vec![1, 2, 3]);
+        assert_eq!(ext, "png");
+
+        let jpg = format!("data:image/jpeg;base64,{}", b64);
+        assert_eq!(decode_image_data_url(&jpg).unwrap().1, "jpg");
+    }
+
+    #[test]
+    fn rejects_malformed_image_data_url() {
+        assert!(decode_image_data_url("not-a-data-url").is_err());
+        assert!(decode_image_data_url("data:image/png;base64,%%%").is_err());
     }
 }
 
@@ -1392,6 +1431,23 @@ pub async fn coding_send_input(
         writer.flush().map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+/// 任务运行中终端 Ctrl+V「无文本有图」时由前端调用：图片落盘为任务附件，
+/// 返回绝对路径，前端以 `[Attached images]\n<path>` 惯例插回输入行
+/// （与 coding_run_task 的附件注入同构，Claude/Codex 认格式后主动读图）。
+#[tauri::command]
+pub async fn coding_save_paste_image(
+    project_path: String,
+    task_id: String,
+    data_url: String,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        validate_task_project_path(&project_path)?;
+        save_paste_image(&project_path, &task_id, &data_url)
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
 }
 
 #[tauri::command]

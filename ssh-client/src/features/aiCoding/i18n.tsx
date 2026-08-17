@@ -354,6 +354,8 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "running.markDone": "Mark completed",
     "running.resumeUnavailable": "This task has no session ID, so it cannot be resumed.",
     "running.detachedTitle": "Terminal connection lost",
+    "running.failedTerminalTitle": "Process exited unexpectedly",
+    "running.pasteImageFailed": "Failed to save pasted image: {error}",
     "running.detachedNoSession":
       "This task is still running, but no session ID was saved. You can cancel it, but reconnect is unavailable.",
     "running.interruptedTitle": "This task exited unexpectedly",
@@ -730,6 +732,8 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "running.markDone": "标记已完成",
     "running.resumeUnavailable": "这个任务没有保存会话 ID，无法恢复。",
     "running.detachedTitle": "终端连接已断开",
+    "running.failedTerminalTitle": "进程异常退出",
+    "running.pasteImageFailed": "保存粘贴的图片失败：{error}",
     "running.detachedNoSession":
       "这个任务仍在后台运行，但没有保存会话 ID，无法重新连接；你可以取消任务。",
     "running.interruptedTitle": "检测到当前任务被异常退出",

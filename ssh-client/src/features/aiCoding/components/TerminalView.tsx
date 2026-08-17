@@ -36,6 +36,8 @@ interface TerminalViewProps {
     writeFn: ((data: string, callback?: () => void) => void) | null,
   ) => number;
   onReady?: (generation: number) => void;
+  /** Ctrl+V 剪贴板「无文本有图」回调（任务终端专属；Shell 面板不传即保持纯文本粘贴）。 */
+  onClipboardImage?: (dataUrl: string) => Promise<string | null>;
   themeVariant: ThemeVariant;
   terminalFontSize: TerminalFontSize;
   terminalScrollback: TerminalScrollback;
@@ -51,6 +53,7 @@ export function TerminalView({
   onResize,
   onRegisterTerminal,
   onReady,
+  onClipboardImage,
   themeVariant,
   terminalFontSize,
   terminalScrollback,
@@ -68,10 +71,12 @@ export function TerminalView({
   const onRegisterRef = useRef(onRegisterTerminal);
   const onReadyRef = useRef(onReady);
   const onSnapshotRef = useRef(onSnapshot);
+  const onClipboardImageRef = useRef(onClipboardImage);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const shiftEnterNewlineRef = useRef<boolean>(DEFAULT_SHIFT_ENTER_NEWLINE);
   onReadyRef.current = onReady;
   onSnapshotRef.current = onSnapshot;
+  onClipboardImageRef.current = onClipboardImage;
 
   // Keep refs current on every render
   onInputRef.current = onInput;
@@ -172,6 +177,8 @@ export function TerminalView({
     const disposeSmartCopy = attachSmartCopy(term, {
       matchesNewline: (e) => matchesTerminalNewline(e, shiftEnterNewlineRef.current),
       onNewline: () => onInputRef.current(TERMINAL_NEWLINE_SEQUENCE),
+      onClipboardImage: (dataUrl) =>
+        onClipboardImageRef.current?.(dataUrl) ?? Promise.resolve(null),
     });
     // 必须挂在 attachMacWebKitTerminalGuard 之后:guard 的 pointerup(恢复
     // textarea + refocus)先按注册顺序执行,复制动作发生在防线状态复原之后。

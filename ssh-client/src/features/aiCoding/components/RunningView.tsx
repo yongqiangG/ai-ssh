@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type {
@@ -123,6 +123,30 @@ export function RunningView({
   const sessionPath = task.claudeSessionPath ?? task.codexSessionPath;
   const resumeSessionId = task.agent === "codex" ? task.codexSessionId : task.claudeSessionId;
   const restoreState = getRestoreState?.() ?? {};
+  // failed 且本 app 会话内还有终端缓冲（PTY 末屏）时保留终端视图定位死因；
+  // app 重启后缓冲为空则回落 SessionView（2026-08-17 决议 b）。
+  const isFailedWithTerminal =
+    task.status === "failed" &&
+    Boolean(restoreState.initialData || restoreState.initialSnapshot);
+
+  // Ctrl+V 无文本有图：落盘为任务附件，路径以 [Attached images] 块插回输入行。
+  // 与 coding_run_task 的附件注入同构，Claude/Codex 认格式后主动读图。
+  const handleClipboardImage = useCallback(
+    async (dataUrl: string): Promise<string | null> => {
+      try {
+        const path = await invoke<string>("coding_save_paste_image", {
+          projectPath,
+          taskId: task.id,
+          dataUrl,
+        });
+        return `[Attached images]\n${path}`;
+      } catch (err) {
+        showToast(t("running.pasteImageFailed", { error: String(err) }), "error");
+        return null;
+      }
+    },
+    [projectPath, task.id, showToast, t],
+  );
 
   const [metricsState, setMetricsState] = useState<{
     sessionPath: string;
@@ -548,6 +572,56 @@ export function RunningView({
             </div>
           )}
         </div>
+      ) : isFailedWithTerminal ? (
+        <div style={s.interruptedSessionWrap}>
+          <div style={s.interruptedBanner}>
+            <div style={{ ...s.interruptedBannerIcon, color: "var(--danger)" }}>
+              <AlertTriangle size={14} strokeWidth={2.1} />
+            </div>
+            <div style={s.interruptedBannerBody}>
+              <div style={s.interruptedBannerTitle}>
+                {t("running.failedTerminalTitle")}
+              </div>
+              {task.failureReason && (
+                <span style={s.interruptedBannerText}>{task.failureReason}</span>
+              )}
+            </div>
+            <div style={s.interruptedBannerActions}>
+              <button
+                type="button"
+                title={!resumeSessionId ? t("running.resumeUnavailable") : undefined}
+                style={{
+                  ...s.interruptedPrimaryBtn,
+                  opacity: resumeSessionId ? 1 : 0.45,
+                  cursor: resumeSessionId ? "pointer" : "not-allowed",
+                }}
+                disabled={!resumeSessionId}
+                onClick={onResume}
+              >
+                <RotateCcw size={12} strokeWidth={2.1} />
+                <span>{t("running.resume")}</span>
+              </button>
+            </div>
+          </div>
+          <div style={s.terminalContainer}>
+            <TerminalView
+              key={`${task.id}-${runCount}`}
+              onInput={onInput}
+              onResize={onResize}
+              onRegisterTerminal={onRegisterTerminal}
+              onReady={onTerminalReady}
+              onSnapshot={onSnapshot}
+              onClipboardImage={handleClipboardImage}
+              themeVariant={themeVariant}
+              terminalFontSize={terminalFontSize}
+              terminalScrollback={terminalScrollback}
+              monoFontFamily={monoFontFamily}
+              isActive={visible}
+              initialData={restoreState.initialData}
+              initialSnapshot={restoreState.initialSnapshot}
+            />
+          </div>
+        </div>
       ) : isActive || !sessionPath ? (
         <div style={s.terminalContainer}>
           <TerminalView
@@ -557,6 +631,7 @@ export function RunningView({
             onRegisterTerminal={onRegisterTerminal}
             onReady={onTerminalReady}
             onSnapshot={onSnapshot}
+            onClipboardImage={handleClipboardImage}
             themeVariant={themeVariant}
             terminalFontSize={terminalFontSize}
             terminalScrollback={terminalScrollback}

@@ -487,7 +487,10 @@ function App() {
       (e) => {
         const { task_id, status, failure_reason } = e.payload;
         updateTaskStatus(task_id, status, undefined, failure_reason);
-        if (!isActiveTaskStatus(status)) {
+        // failed 保留终端缓冲（2026-08-17 决议 b）：RunningView 保留 PTY 末屏供
+        // 定位死因；其余非 active 状态（done/cancelled）照旧清缓冲。app 重启后
+        // 无内存缓冲，RunningView 自行回落 SessionView。
+        if (!isActiveTaskStatus(status) && status !== "failed") {
           tm.removeTaskBuffers([task_id]);
         }
       },

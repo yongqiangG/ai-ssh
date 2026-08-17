@@ -430,6 +430,7 @@ pub fn run() {
             coding::pty::coding_get_active_task_ids,
             coding::pty::coding_reset_task_process,
             coding::pty::coding_send_input,
+            coding::pty::coding_save_paste_image,
             coding::pty::coding_resize_pty,
             coding::pty::coding_open_shell,
             coding::pty::coding_kill_shell,

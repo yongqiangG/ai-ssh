@@ -238,6 +238,37 @@ export interface TerminalKeyOptions {
   matchesNewline?: (e: KeyboardEvent) => boolean;
   /** Called (instead of the default submit) when that combo is pressed. */
   onNewline?: () => void;
+  /**
+   * Ctrl+V 剪贴板「无文本有图」时调用（任务终端专属，本地 Shell 不传）。
+   * 入参为 image data URL，返回值是要插入输入行的文本（附件路径块），
+   * 返回 null 表示放弃（保存失败等，由 handler 自行 toast）。
+   */
+  onClipboardImage?: (dataUrl: string) => Promise<string | null>;
+}
+
+/** 读剪贴板里的第一张图为 data URL；无图 / 无权限 / API 不可用时返回 null。 */
+async function readClipboardImageAsDataUrl(): Promise<string | null> {
+  if (typeof navigator === "undefined" || !navigator.clipboard || !("read" in navigator.clipboard)) {
+    return null;
+  }
+  try {
+    const items: ClipboardItem[] = await navigator.clipboard.read();
+    for (const item of items) {
+      const type = item.types.find((t) => t.startsWith("image/"));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      return dataUrl;
+    }
+  } catch {
+    // 剪贴板无图 / WebView 拒绝 clipboard.read：与无图同路径，静默返回
+  }
+  return null;
 }
 
 /**
@@ -279,8 +310,22 @@ export function attachSmartCopy(
       e.preventDefault();
       navigator.clipboard
         .readText()
-        .then((text) => {
-          if (text) terminal.paste(text);
+        .then(async (text) => {
+          if (text) {
+            terminal.paste(text);
+            return;
+          }
+          // 无文本 → 尝试图片：落盘为任务附件，路径以 [Attached images] 块
+          // 插回输入行（bracketed paste，不触发提交），随 Enter 一起发出。
+          if (!keyOptions?.onClipboardImage) return;
+          const dataUrl = await readClipboardImageAsDataUrl();
+          if (!dataUrl) return;
+          try {
+            const insert = await keyOptions.onClipboardImage(dataUrl);
+            if (insert) terminal.paste(insert);
+          } catch {
+            // 保存失败的 toast 由 handler 负责，这里静默
+          }
         })
         .catch(() => {});
       return false;
