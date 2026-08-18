@@ -1,0 +1,144 @@
+/* 应用内待确认横幅（260818）：右上角全局悬浮卡片，深底 + 状态色霓虹描边
+   呼吸脉动。令牌用全局 --vsc-*（themes.css 注明与 aiCoding 令牌零冲突，
+   两个视图世界均可用），回退值与 index.css 一致。 */
+
+.host {
+  position: fixed;
+  top: 44px; /* SSH 视图 Header(35px) 之下；aiCoding 视图无 Header 同样成立 */
+  right: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.card {
+  pointer-events: auto;
+  position: relative;
+  padding: 10px 30px 10px 12px;
+  border-radius: 8px;
+  background: rgba(11, 13, 23, 0.94); /* --vsc-sidebar-bg 提亮不透明度 */
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--vsc-border-strong, rgba(140, 160, 255, 0.22));
+  cursor: pointer;
+  text-align: left;
+  /* 左侧状态色能量条 */
+  --banner-color: var(--vsc-accent, #00e5ff);
+  box-shadow:
+    inset 3px 0 0 0 var(--banner-color),
+    0 4px 16px rgba(0, 0, 0, 0.45);
+  animation: bannerGlow 2.4s ease-in-out infinite;
+}
+
+.card:hover,
+.card:focus-visible {
+  outline: none;
+  background: rgba(16, 19, 31, 0.97);
+}
+
+/* 状态变体：琥珀 = 需要动手确认；青绿 = 一轮跑完待验收 */
+.inputRequired {
+  --banner-color: var(--vsc-yellow, #ffb020);
+  --banner-glow: rgba(255, 176, 32, 0.24);
+  --banner-glow-strong: rgba(255, 176, 32, 0.55);
+}
+
+.awaitingReview {
+  --banner-color: var(--vsc-green, #3dffa8);
+  --banner-glow: rgba(61, 255, 168, 0.2);
+  --banner-glow-strong: rgba(61, 255, 168, 0.5);
+}
+
+/* 呼吸脉动：描边辉光强弱往复（keyframes 与消费方同模块） */
+@keyframes bannerGlow {
+  0%,
+  100% {
+    box-shadow:
+      inset 3px 0 0 0 var(--banner-color),
+      0 0 8px var(--banner-glow),
+      0 4px 16px rgba(0, 0, 0, 0.45);
+    border-color: var(--banner-color);
+  }
+  50% {
+    box-shadow:
+      inset 3px 0 0 0 var(--banner-color),
+      0 0 20px var(--banner-glow-strong),
+      0 4px 16px rgba(0, 0, 0, 0.45);
+    border-color: var(--banner-glow-strong);
+  }
+}
+
+.statusChip {
+  display: inline-block;
+  margin-bottom: 5px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--banner-color);
+  border: 1px solid var(--banner-color);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vsc-fg-strong, #f0f3ff);
+  line-height: 1.35;
+  /* 标题最长两行，防长 prompt 首行撑爆 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--vsc-fg-muted, #8a93b2);
+}
+
+.closeBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vsc-fg-faint, #6a7394);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  color: var(--vsc-fg-strong, #f0f3ff);
+  background: var(--vsc-list-hover, rgba(158, 170, 255, 0.06));
+}
+
+/* 溢出行：第 4 条起折叠为计数提示（角标留底，不丢信号） */
+.overflow {
+  pointer-events: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--vsc-fg-muted, #8a93b2);
+  text-align: center;
+  border-radius: 6px;
+  background: rgba(11, 13, 23, 0.85);
+  border: 1px dashed var(--vsc-border, rgba(140, 160, 255, 0.1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import ActivityBar from "./ActivityBar";
 import { useLayoutStore } from "../stores/layoutStore";
+import { useAttentionStore } from "../features/aiCoding/attention";
 
 beforeEach(() => {
   localStorage.clear();
@@ -14,6 +15,12 @@ beforeEach(() => {
     activeSidebarView: "servers",
     centerView: "terminal",
     attentionPulse: null,
+  });
+  useAttentionStore.setState({
+    banners: [],
+    pendingCount: 0,
+    pendingBumpedAt: 0,
+    attentionBadgeEnabled: true,
   });
 });
 
@@ -50,5 +57,37 @@ describe("ActivityBar AI Coding 入口", () => {
     expect(
       screen.getByRole("button", { name: "终端" }).getAttribute("aria-pressed")
     ).toBe("false");
+  });
+});
+
+describe("ActivityBar AI Coding 待确认角标（260818）", () => {
+  it("有待确认任务且开关开 → 显示计数角标", () => {
+    act(() => {
+      useAttentionStore.setState({ pendingCount: 3, pendingBumpedAt: 1 });
+    });
+    render(<ActivityBar />);
+
+    const codingBtn = screen.getByRole("button", { name: "AI Coding" });
+    expect(codingBtn.textContent).toContain("3");
+  });
+
+  it("开关关或计数为零 → 不显示角标；计数回升恢复显示", () => {
+    act(() => {
+      useAttentionStore.setState({ pendingCount: 3, attentionBadgeEnabled: false });
+    });
+    render(<ActivityBar />);
+    expect(screen.getByRole("button", { name: "AI Coding" }).textContent).not.toContain("3");
+
+    // 同一渲染实例内切换：计数归零
+    act(() => {
+      useAttentionStore.setState({ pendingCount: 0, attentionBadgeEnabled: true });
+    });
+    expect(screen.getByRole("button", { name: "AI Coding" }).textContent).not.toMatch(/\d/);
+
+    // 计数回升（新待确认到达）
+    act(() => {
+      useAttentionStore.setState({ pendingCount: 2, pendingBumpedAt: 5 });
+    });
+    expect(screen.getByRole("button", { name: "AI Coding" }).textContent).toContain("2");
   });
 });

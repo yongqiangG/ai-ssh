@@ -11,6 +11,8 @@ import SftpPanel from "./views/SftpPanel";
 import EmptyState from "./components/EmptyState";
 import AiCodingPanel from "./features/aiCoding/AiCodingPanel";
 import { setPendingCodingNavigation } from "./features/aiCoding/pendingNavigation";
+import { AttentionBanners } from "./features/aiCoding/components/AttentionBanners";
+import { I18nProvider } from "./features/aiCoding/i18n";
 import { useBackendStore } from "./stores/backendStore";
 import { useChatStore } from "./stores/chatStore";
 import { useConnectionStore } from "./stores/connectionStore";
@@ -146,6 +148,11 @@ export default function App() {
           </div>
         </>
       )}
+      {/* 应用内待确认横幅：全局层（两个视图世界之外），自带 I18nProvider
+          （宿主在 AiCodingPanel 的 provider 作用域外） */}
+      <I18nProvider>
+        <AttentionBanners />
+      </I18nProvider>
     </div>
   );
 }

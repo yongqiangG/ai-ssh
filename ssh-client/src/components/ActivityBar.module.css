@@ -70,3 +70,23 @@
   box-shadow: 1px 0 8px var(--glow-volt);
   border-radius: 0 1px 1px 0;
 }
+
+/* AI Coding 待确认角标：琥珀计数丸，新事件到达由 motion 播放大脉冲 */
+.attentionBadge {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--vsc-yellow);
+  color: #1a1205;
+  font-family: var(--display-font);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 8px rgba(255, 176, 32, 0.55);
+  pointer-events: none;
+}

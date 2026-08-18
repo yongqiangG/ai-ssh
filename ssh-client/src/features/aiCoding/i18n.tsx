@@ -48,10 +48,15 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       "Controls how far back regular tasks appear in the task list. Starred, todo, and attention-needed tasks are always shown.",
     "appSettings.taskDisplayRecentDays": "Recent {days} days",
     "appSettings.taskDisplayAll": "All tasks",
-    "appSettings.attentionBadge": "Attention Badge",
-    "appSettings.attentionBadgeToggle": "Show pending-confirmation count",
+    "appSettings.attentionBadge": "Attention Alerts",
+    "appSettings.attentionBadgeToggle": "Show pending-confirmation alerts (badges + in-app banner)",
     "appSettings.attentionBadgeHint":
-      "Show a yellow count badge on the project rail for tasks awaiting your confirmation. When off, a yellow dot is shown instead.",
+      "When on, a count badge appears on the AI Coding entry, and an in-app banner pops up when a background task needs your confirmation while you are elsewhere in the app. When off, only a yellow dot is shown on the project rail.",
+    "attentionBanner.needsConfirmation": "Needs confirmation",
+    "attentionBanner.awaitingReview": "Awaiting review",
+    "attentionBanner.morePending": "+{count} more pending",
+    "attentionBanner.jumpAria": "jump to task terminal",
+    "attentionBanner.dismissAria": "Dismiss banner",
     "appSettings.terminalScrollback": "Terminal Scrollback",
     "appSettings.terminalScrollbackUnit": "lines",
     "appSettings.terminalScrollbackHint":
@@ -65,7 +70,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.attentionBadgeDesktop": "Desktop Notifications",
     "appSettings.attentionBadgeDesktopToggle": "Show a desktop toast when a task needs confirmation",
     "appSettings.attentionBadgeDesktopHint":
-      "When on, a Windows toast pops up while the app is in the background or minimized and a task enters Needs-confirmation or Awaiting-review. Click the toast to jump to that task's terminal.",
+      "When on, a Windows toast with a sound cue pops up while the app is in the background or minimized and a task enters Needs-confirmation or Awaiting-review. Click the toast to jump to that task's terminal.",
     "appSettings.sideloadedConpty": "Bundled ConPTY (Windows)",
     "appSettings.sideloadedConptyToggle": "Use the newer bundled ConPTY",
     "appSettings.sideloadedConptyHint":
@@ -444,10 +449,15 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       "控制任务列表中普通任务的展示时间范围。收藏、待办和需要注意的任务始终显示。",
     "appSettings.taskDisplayRecentDays": "最近 {days} 天",
     "appSettings.taskDisplayAll": "所有任务",
-    "appSettings.attentionBadge": "待确认角标",
-    "appSettings.attentionBadgeToggle": "显示待确认任务数量",
+    "appSettings.attentionBadge": "待确认提醒",
+    "appSettings.attentionBadgeToggle": "显示待确认任务提醒（角标 + 应用内横幅）",
     "appSettings.attentionBadgeHint":
-      "在项目栏为等待你确认的任务显示黄色数量角标。关闭后则显示黄色小圆点。",
+      "开启后：AI Coding 入口显示待确认数量角标；前台使用其他视图（如 SFTP）时后台任务待确认会弹出应用内横幅，点击直达任务终端。关闭后项目栏仅显示黄色小圆点。",
+    "attentionBanner.needsConfirmation": "需要确认",
+    "attentionBanner.awaitingReview": "已完成待验收",
+    "attentionBanner.morePending": "还有 {count} 个待确认",
+    "attentionBanner.jumpAria": "跳转到任务终端",
+    "attentionBanner.dismissAria": "关闭横幅",
     "appSettings.terminalScrollback": "终端滚动缓冲",
     "appSettings.terminalScrollbackUnit": "行",
     "appSettings.terminalScrollbackHint":
@@ -461,7 +471,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.attentionBadgeDesktop": "桌面通知",
     "appSettings.attentionBadgeDesktopToggle": "任务待确认时弹出 Windows 桌面通知",
     "appSettings.attentionBadgeDesktopHint":
-      "开启后,应用在后台或最小化时,任务进入「需要确认/已完成待验收」会弹桌面通知;点击通知跳转到对应任务的终端。",
+      "开启后,应用在后台或最小化时,任务进入「需要确认/已完成待验收」会弹桌面通知并播放提示音;点击通知跳转到对应任务的终端。",
     "appSettings.sideloadedConpty": "内置 ConPTY(Windows)",
     "appSettings.sideloadedConptyToggle": "使用内置的新版 ConPTY",
     "appSettings.sideloadedConptyHint":

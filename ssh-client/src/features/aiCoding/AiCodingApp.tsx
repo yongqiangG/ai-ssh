@@ -27,6 +27,13 @@ import {
   peekPendingCodingNavigation,
   subscribePendingCodingNavigation,
 } from "./pendingNavigation";
+import {
+  isAttentionStatus,
+  attentionTaskTitle,
+  shouldShowAttentionBanner,
+  useAttentionStore,
+} from "./attention";
+import { useLayoutStore } from "../../stores/layoutStore";
 import type { FontFamily } from "./types";
 import { quoteFontName } from "./utils/fonts";
 import { WelcomePage } from "./components/WelcomePage";
@@ -233,11 +240,6 @@ function getInitialTaskDisplayWindow(): TaskDisplayWindow {
   return stored == null ? DEFAULT_TASK_DISPLAY_WINDOW : normalizeTaskDisplayWindow(stored);
 }
 
-function getInitialAttentionBadge(): boolean {
-  // 默认开启:项目栏显示待确认任务数量角标;关闭后回退为黄色小圆点
-  return localStorage.getItem("ai-ssh:aiCoding:attentionBadge") !== "0";
-}
-
 function getInitialFontFamily(key: string, fallback: FontFamily): FontFamily {
   const stored = localStorage.getItem(key);
   if (!stored) return fallback;
@@ -263,7 +265,10 @@ function App() {
   const [taskDisplayWindow, setTaskDisplayWindow] = useState<TaskDisplayWindow>(
     getInitialTaskDisplayWindow,
   );
-  const [attentionBadge, setAttentionBadge] = useState<boolean>(getInitialAttentionBadge);
+  // 应用内提醒开关（260818 迁入 attention store）：横幅 + 双角标共用，
+  // 持久化由 store 负责；此处仅为保持 children props 形状不变
+  const attentionBadge = useAttentionStore((s) => s.attentionBadgeEnabled);
+  const setAttentionBadge = useAttentionStore((s) => s.setAttentionBadgeEnabled);
   const [terminalScrollback, setTerminalScrollbackState] = useState<TerminalScrollback>(
     DEFAULT_TERMINAL_SCROLLBACK,
   );
@@ -285,6 +290,24 @@ function App() {
   const [mountedProjectIds, setMountedProjectIds] = useState<string[]>([]);
   const [taskRunCounts, setTaskRunCounts] = useState<Record<string, number>>({});
   const [showKanban, setShowKanban] = useState(false);
+
+  // coding:task-status 监听只订阅一次（换依赖重订阅会在 unlisten promise 交接
+  // 间隙丢事件），而应用内横幅判定需要读取最新 tasks/视图状态——ref 镜像 +
+  // 每次提交后同步。读侧 getState()/ref 均为即时值，闭包不参与。
+  const latestRef = useRef({ tasks, projects, activeProject, projectViews, showKanban });
+  useEffect(() => {
+    latestRef.current = { tasks, projects, activeProject, projectViews, showKanban };
+  });
+
+  // 待确认任务总数（与 project-rail attentionCount 同口径）→ ActivityBar 角标。
+  // 事件到达 / 启动加载 / 删除任务统一走 tasks 派生，无需逐点维护。
+  const pendingCount = useMemo(
+    () => tasks.filter((t) => isAttentionStatus(t.status)).length,
+    [tasks],
+  );
+  useEffect(() => {
+    useAttentionStore.getState().setPendingCount(pendingCount);
+  }, [pendingCount]);
 
   const tm = useTerminalManager();
   const pendingResumeStartsRef = useRef<Record<string, () => void>>({});
@@ -376,10 +399,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem("ai-ssh:aiCoding:taskDisplayWindow", String(taskDisplayWindow));
   }, [taskDisplayWindow]);
-
-  useEffect(() => {
-    localStorage.setItem("ai-ssh:aiCoding:attentionBadge", attentionBadge ? "1" : "0");
-  }, [attentionBadge]);
 
   useEffect(() => {
     const value = uiFontFamily.trim() || DEFAULT_UI_FONT;
@@ -508,6 +527,7 @@ function App() {
         if (!isActiveTaskStatus(status) && status !== "failed") {
           tm.removeTaskBuffers([task_id]);
         }
+        maybePushAttentionBanner(task_id, status);
       },
     );
     const p2 = listen<{ task_id: string; session_id: string; session_path: string }>(
@@ -1084,6 +1104,39 @@ function App() {
     },
     [showToast, formatSaveProjectsError],
   );
+
+  // 应用内待确认横幅（260818 决议）：窗口聚焦 && 待确认任务当前不可见
+  // （终端级粒度，判定纯函数见 attention.ts）时推送全局横幅。失焦场景由
+  // Rust OS toast 负责（notify.rs 判定含 !is_focused），两路互斥。
+  function maybePushAttentionBanner(taskId: string, status: TaskStatus) {
+    if (!isAttentionStatus(status)) return;
+    const { tasks, projects, activeProject, projectViews, showKanban } = latestRef.current;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const view = activeProject ? projectViews[activeProject.id] : undefined;
+    if (
+      !shouldShowAttentionBanner({
+        status,
+        taskId,
+        enabled: useAttentionStore.getState().attentionBadgeEnabled,
+        windowFocused: document.hasFocus(),
+        panelActive: useLayoutStore.getState().centerView === "aiCoding",
+        activeProjectId: activeProject?.id ?? null,
+        selectedTaskId: view?.selectedTaskId ?? null,
+        isNewTask: view?.isNewTask ?? true,
+        kanbanOpen: showKanban,
+      })
+    ) {
+      return;
+    }
+    useAttentionStore.getState().pushAttentionBanner({
+      taskId,
+      status,
+      title: attentionTaskTitle(task),
+      projectName: projects.find((p) => p.id === task.projectId)?.name ?? "",
+      agentName: task.agent === "codex" ? "Codex" : "Claude",
+    });
+  }
 
   function updateTaskStatus(
     taskId: string,

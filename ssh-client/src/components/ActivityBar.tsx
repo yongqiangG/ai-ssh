@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import Icon, { type IconName } from "./Icon";
 import BackendSettingsModal from "./BackendSettingsModal";
 import { useLayoutStore, type SidebarView } from "../stores/layoutStore";
+import { useAttentionStore } from "../features/aiCoding/attention";
 import styles from "./ActivityBar.module.css";
 
 interface NavItem {
@@ -26,6 +27,10 @@ export default function ActivityBar() {
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const centerView = useLayoutStore((s) => s.centerView);
   const setCenterView = useLayoutStore((s) => s.setCenterView);
+  // AI Coding 待确认角标：全局计数 + 应用内提醒开关（attention store）
+  const pendingCount = useAttentionStore((s) => s.pendingCount);
+  const pendingBumpedAt = useAttentionStore((s) => s.pendingBumpedAt);
+  const attentionBadgeOn = useAttentionStore((s) => s.attentionBadgeEnabled);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -75,10 +80,24 @@ export default function ActivityBar() {
                 type="button"
                 className={`${styles.btn} ${isActive ? styles.active : ""}`}
                 title={item.label}
+                // 角标文字会劫持内容派生的可访问名（读屏器只念"3"）——显式锚定
+                aria-label={item.label}
                 aria-pressed={isActive}
                 onClick={() => onItemClick(item.id)}
               >
                 <Icon name={item.icon} size={22} />
+                {item.id === "aiCoding" && attentionBadgeOn && pendingCount > 0 && (
+                  // 计数变化时以 pendingBumpedAt 为 key 重挂，播一次放大脉冲
+                  <motion.span
+                    key={pendingBumpedAt}
+                    className={styles.attentionBadge}
+                    initial={{ scale: 0.4 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 18 }}
+                  >
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </motion.span>
+                )}
                 {isActive && (
                   <motion.span
                     layoutId="activity-indicator"

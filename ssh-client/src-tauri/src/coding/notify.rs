@@ -1,8 +1,9 @@
 //! AI Coding 待确认桌面通知（Windows toast）。
 //!
 //! 决策全在 Rust 侧收口（docs/situations/260817-coding-desktop-notification.md）：
-//! `emit_task_status` 命中待确认状态 && 开关开 && 窗口失焦时发 toast。前台不弹，
-//! 靠应用内角标。
+//! `emit_task_status` 命中待确认状态 && 开关开 && 窗口失焦时发 toast。前台不弹
+//! OS toast——前台且待确认任务「当前不可见」的场景由前端应用内横幅负责
+//! （features/aiCoding/attention.ts，260818 决议），两路判定天然互斥。
 //!
 //! 发送：windows-rs 系统模板（GetTemplateContent）——手拼 ToastGeneric XML 会被
 //! shell 静默拒收（Show Ok 但不渲染，真机实测见 docs/actions/done/260817 阶段4）。
@@ -27,6 +28,11 @@ const APP_USER_MODEL_ID: &str = "com.johnny.ai-ssh";
 /// 同任务新通知替换通知中心旧条目（tag=task_id + 固定 group）。
 #[cfg(windows)]
 const TOAST_GROUP: &str = "aish-attention";
+
+/// toast 音效（260818 决议）：IM 双音比默认 Notification.Default 更有存在感。
+/// src 只能取系统预置 ms-winsoundevent 白名单值——乱写会让整条 toast 不弹。
+#[cfg(windows)]
+const TOAST_AUDIO_SRC: &str = "ms-winsoundevent:Notification.IM";
 
 /// 仅待确认状态通知：input_required=工具审批/问询（agent 卡住）；
 /// awaiting_review=Stop 一轮结束待验收。done/failed 无时效，不通知。
@@ -218,6 +224,18 @@ fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str)
         .map_err(|e| format!("root: {e}"))?;
     root.SetAttribute(&HSTRING::from("launch"), &HSTRING::from(format!("{TASK_ARG_PREFIX}{task_id}")))
         .map_err(|e| format!("launch: {e}"))?;
+
+    // 音效：模板 DOM 追加 <audio> 子元素（与 launch 属性同类改写，不走手拼
+    // XML 雷区）。注意用户侧 Windows 通知设置关闭横幅声音/专注助手会吞掉
+    // 声音——系统管制，属预期行为。
+    let audio = doc
+        .CreateElement(&HSTRING::from("audio"))
+        .map_err(|e| format!("audio: {e}"))?;
+    audio
+        .SetAttribute(&HSTRING::from("src"), &HSTRING::from(TOAST_AUDIO_SRC))
+        .map_err(|e| format!("audio src: {e}"))?;
+    root.AppendChild(&audio.cast::<IXmlNode>().map_err(|e| format!("audio cast: {e}"))?)
+        .map_err(|e| format!("audio append: {e}"))?;
 
     let notification = ToastNotification::CreateToastNotification(&doc)
         .map_err(|e| format!("create: {e}"))?;

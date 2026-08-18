@@ -4,10 +4,16 @@ import { I18nProvider, useI18n, type AppLanguage } from "../i18n";
 
 // toast 桌面通知设置的词条必须 en/zh 双语齐整——Rust 侧状态词另有映射，
 // 这里只守设置面板自身的 UI 文案（docs/actions/260817 阶段 3）。
+// attentionBanner.* 是应用内横幅（260818）的词条，同受双语齐整约束。
 const DESKTOP_NOTIFICATION_KEYS = [
   "appSettings.attentionBadgeDesktop",
   "appSettings.attentionBadgeDesktopToggle",
   "appSettings.attentionBadgeDesktopHint",
+  "attentionBanner.needsConfirmation",
+  "attentionBanner.awaitingReview",
+  "attentionBanner.morePending",
+  "attentionBanner.jumpAria",
+  "attentionBanner.dismissAria",
 ] as const;
 
 describe("桌面通知设置词条", () => {
