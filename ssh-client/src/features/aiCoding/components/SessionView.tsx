@@ -250,6 +250,13 @@ export function SessionView({ sessionPath }: { sessionPath: string }) {
       });
   }, [sessionPath]);
 
+  // 打开已结束任务先看结论：消息读回、同步渲染完成后瞬移到最后一条。
+  // 仅随加载触发——保活期内切走再切回不重载，滚动位置即用户意图，不重置。
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
   return (
     <div
       ref={scrollRef}
