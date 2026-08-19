@@ -1,0 +1,168 @@
+/* 终端光标生物——aiCoding 统一吉祥物(260819 grill 决议,替代 claude/codex GIF):
+ * 身体 --text-primary、眼睛/神采 --accent,主题令牌的一等公民,换主题零维护;
+ * 不编码 agent 身份(agent 归属仍由 claude/chatgpt svg 承担)。
+ * idle:眨眼 + 光标呼吸;wave:手臂挥动 + 缩回前闭眼道别,
+ *   与外层 App.css rail-mascot-wave 位移同为 3.6s 且同挂载,时序天然同步。
+ * reduce 下一刀切全静帧——动画全是人格装饰,信息通道(角标/横幅/状态色)不在此。 */
+
+.root {
+  display: block;
+  overflow: visible;
+}
+
+/* 整体姿态层:eager 前倾/放大,reacting 一次性弹跳 */
+.lean {
+  transition: transform 220ms ease;
+}
+.leanEager {
+  transform: translateY(1.5px) rotate(-2deg) scale(1.02);
+}
+.leanReacting {
+  animation: mascot-react-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 光标呼吸:轻微缩放,2.4s 节律 */
+.body {
+  fill: var(--text-primary);
+}
+.bodyIdle {
+  transform-box: fill-box;
+  transform-origin: 50% 90%;
+  animation: mascot-breathe 2.4s ease-in-out infinite;
+}
+
+/* 眼睛:外层组管缩放(eager 放大 / reacting 眯起),内层组管眨眼,
+ * 两层分开避免 animation 与 transform 互相覆盖 */
+.eye {
+  fill: var(--accent);
+}
+.glint {
+  fill: #ffffff;
+}
+.eyesIdle {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: mascot-blink 4.2s ease-in-out infinite;
+}
+.eyesEager {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: scale(1.32);
+}
+.eyesReacting {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: scaleY(0.2);
+}
+.eyesWave {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: mascot-eyes-wave 3.6s ease-in-out both;
+}
+
+.smile {
+  fill: none;
+  stroke: var(--bg-panel);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* 手臂:右肩为轴,平时垂放,招手时抬起挥 3 下 */
+.arm {
+  fill: var(--text-primary);
+  transform-box: fill-box;
+  transform-origin: 0% 20%;
+  transform: rotate(16deg);
+}
+.armWave {
+  fill: var(--text-primary);
+  transform-box: fill-box;
+  transform-origin: 0% 20%;
+  animation: mascot-arm-wave 3.6s ease-in-out both;
+}
+
+@keyframes mascot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes mascot-blink {
+  0%,
+  91%,
+  100% {
+    transform: scaleY(1);
+  }
+  94%,
+  96% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes mascot-react-bounce {
+  0% {
+    transform: scale(1, 1);
+  }
+  35% {
+    transform: scale(1.12, 0.8);
+  }
+  70% {
+    transform: scale(0.94, 1.12);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+@keyframes mascot-arm-wave {
+  0%,
+  16% {
+    transform: rotate(16deg);
+  }
+  26% {
+    transform: rotate(-38deg);
+  }
+  36% {
+    transform: rotate(10deg);
+  }
+  46% {
+    transform: rotate(-38deg);
+  }
+  56% {
+    transform: rotate(10deg);
+  }
+  66% {
+    transform: rotate(-38deg);
+  }
+  76% {
+    transform: rotate(12deg);
+  }
+  100% {
+    transform: rotate(16deg);
+  }
+}
+
+@keyframes mascot-eyes-wave {
+  0%,
+  78% {
+    transform: scaleY(1);
+  }
+  84%,
+  100% {
+    transform: scaleY(0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bodyIdle,
+  .eyesIdle,
+  .leanReacting,
+  .armWave,
+  .eyesWave {
+    animation: none;
+  }
+}

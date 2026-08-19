@@ -235,13 +235,12 @@ export const panels = {
     // 必须高于 railAvatarStacked(zIndex:1),否则被抬层的头像盖住
     zIndex: 2,
   },
-  // 招手小人:绝对定位在头像右下,z-index 低于头像,缩回时被头像遮住
+  // 招手生物:绝对定位在头像右下,z-index 低于头像,缩回时被头像遮住;
+  // 尺寸由 CursorMascot 的 size prop 决定,这里只管定位
   railMascot: {
     position: "absolute" as const,
     left: 14,
     bottom: -3,
-    height: 40,
-    width: "auto" as const,
     zIndex: 0,
     pointerEvents: "none" as const,
   },

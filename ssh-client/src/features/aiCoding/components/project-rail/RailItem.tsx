@@ -4,7 +4,7 @@ import type { Project } from "../../types";
 import { ProjectAvatar } from "../ProjectAvatar";
 import s from "../../styles";
 import { RAIL_ITEM_SIZE } from "../../styles/rail-drag";
-import claudeWaveGif from "../../assets/gif/claude-wave.gif";
+import { CursorMascot } from "../CursorMascot";
 import type { ProjectStatus } from "./activity";
 
 // 项目状态指示:启用角标且存在待确认任务时显示数量角标,否则回退为小圆点。
@@ -113,10 +113,10 @@ export const RailItem = memo(function RailItem({
       }}
     >
       {waving && (
-        <img
+        <CursorMascot
           key={waveNonce}
-          src={claudeWaveGif}
-          alt=""
+          size={40}
+          variant="wave"
           className="rail-mascot-wave"
           style={s.railMascot}
         />

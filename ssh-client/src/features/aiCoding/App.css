@@ -227,9 +227,9 @@
   animation: spin 1s linear infinite;
 }
 
-/* 待确认任务新增时,小人从头像背后探出头招手再缩回去 */
-/* 只做 translate3d + opacity(都走合成层,不触发重排/重绘);中段保持静止,
-   纯由 gif 自己播挥手,避免 CSS 位移与 gif 逐帧重绘互相打架导致的顿挫。 */
+/* 待确认任务新增时,光标生物从头像背后探出头招手再缩回去 */
+/* 外层只管 translate3d + opacity(合成层,不触发重排/重绘);手臂挥动与缩回前
+   闭眼道别由 CursorMascot 内部同周期(3.6s)动画完成,与外层同时挂载故时序同步。 */
 @keyframes rail-mascot-wave {
   0% {
     transform: translate3d(-18px, 0, 0);

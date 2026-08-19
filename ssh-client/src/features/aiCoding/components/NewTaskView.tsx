@@ -29,8 +29,7 @@ import {
   normalizeSendShortcut,
   type SendShortcut,
 } from "../shortcuts";
-import claudeGif from "../assets/gif/claude.gif";
-import codexGif from "../assets/gif/codex.gif";
+import { CursorMascot, type MascotState } from "./CursorMascot";
 import s from "../styles";
 
 interface PastedImage {
@@ -118,6 +117,16 @@ export function NewTaskView({
   const [sendShortcut, setSendShortcut] = useState<SendShortcut>(DEFAULT_SEND_SHORTCUT);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [permCatalogs, setPermCatalogs] = useState<PermAgentCatalog[] | null>(null);
+
+  // 吉祥物瞬时反应:切 agent 时弹一下作视觉反馈(生物注意到操作,而非变身该
+  // agent);挂载时也触发一次,权当打开页面的打招呼。
+  const [mascotReacting, setMascotReacting] = useState(false);
+  useEffect(() => {
+    setMascotReacting(true);
+    const id = setTimeout(() => setMascotReacting(false), 650);
+    return () => clearTimeout(id);
+  }, [agent]);
+  const mascotState: MascotState = mascotReacting ? "reacting" : isEmpty ? "relaxed" : "eager";
 
   const { editorRef, isComposingRef, handle: editorHandle } = usePromptEditor();
   const editorContentRef = useRef<PromptEditorContent>({
@@ -466,7 +475,7 @@ export function NewTaskView({
     <div style={s.newTaskOuter}>
       {/* Header */}
       <div style={s.newTaskHeader}>
-        <img src={agent === "claude" ? claudeGif : codexGif} alt="" style={s.newTaskClaudeGif} />
+        <CursorMascot size={112} state={mascotState} style={s.newTaskClaudeGif} />
         <span style={s.newTaskTitle}>{t("newTask.title")}</span>
       </div>
 
