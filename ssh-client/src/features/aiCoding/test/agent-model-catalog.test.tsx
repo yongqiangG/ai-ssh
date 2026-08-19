@@ -59,6 +59,12 @@ describe("AgentModelCatalogSection", () => {
     renderSection("codex");
 
     const initButton = await screen.findByRole("button", { name: "Initialize once" });
+    // 存量竞态修复:按钮在首次设置加载完成前就渲染(disabled 态),原生 click
+    // 对 disabled 按钮是空操作——必须等到加载落定、按钮启用后再点,
+    // 否则 handleInitialize 永不执行,按钮永不消失,waitFor 必然超时。
+    await waitFor(() =>
+      expect((initButton as HTMLButtonElement).disabled).toBe(false),
+    );
     initButton.click();
 
     await waitFor(() =>
