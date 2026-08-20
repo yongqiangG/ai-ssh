@@ -1044,6 +1044,12 @@ function App() {
       return next;
     });
     setMountedProjectIds((prev) => prev.filter((id) => id !== projectId));
+    // 260820 评审 P2-5：同步删数据目录（tasks.json + corrupt 备份），否则
+    // 索引已删、目录永久残留。失败只 toast——索引已移除，重试无入口，残留
+    // 目录下次删除同 id 项目时会被再试一次（幂等）。
+    invoke("coding_delete_project_data", { projectId }).catch((e: unknown) => {
+      showToast(t("toast.deleteProjectDataFailed", { error: String(e) }), "warning");
+    });
     clearProjectView(projectId);
     setActiveProject((prev) => {
       if (prev?.id === projectId) {

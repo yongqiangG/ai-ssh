@@ -147,6 +147,50 @@ pub fn coding_save_project_tasks(project_id: String, tasks: Vec<Task>) -> Result
     atomic_write(&tasks_path(&project_id)?, &raw)
 }
 
+/// 删除项目时同步删除其数据目录（tasks.json + 可能残留的 corrupt 备份）。
+/// 260820 评审 P2-5：此前只删 projects.json 索引，目录永久残留。agent 会话
+/// jsonl 在 ~/.claude / ~/.codex 原位、本就不归本目录管，不受影响。
+/// 目录不存在视为成功（重复删除幂等）。
+#[tauri::command]
+pub fn coding_delete_project_data(project_id: String) -> Result<(), String> {
+    remove_dir_if_exists(&project_dir(&project_id)?)
+}
+
+/// `coding_delete_project_data` 的内核（测试可注入任意目录）。
+fn remove_dir_if_exists(dir: &Path) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    fs::remove_dir_all(dir).map_err(|e| format!("failed to remove {}: {}", dir.display(), e))
+}
+
+// ── 启动期残留清理 ────────────────────────────────────────────────────────────
+
+/// 启动时清理崩溃孤儿附件（260820 评审 P2-6）：app 被强杀时 finalize 不会
+/// 执行，`<project>/.ai-coding/attachments/<taskId>/` 永久残留。启动此刻
+/// 无任何任务在跑，各项目 attachments 目录下的内容必然全是孤儿，整目录
+/// 清空是安全的（与 event_watcher 启动清空 events 根同语义）；目录由
+/// `coding_init_project_config` 在项目打开时重建。
+/// 返回成功删除的目录数（仅供测试/诊断）。
+pub(crate) fn cleanup_orphan_attachments() -> usize {
+    let Ok(projects) = coding_load_projects() else {
+        return 0;
+    };
+    let paths: Vec<String> = projects.into_iter().map(|p| p.path).collect();
+    cleanup_orphan_attachments_for_paths(&paths)
+}
+
+fn cleanup_orphan_attachments_for_paths(project_paths: &[String]) -> usize {
+    let mut removed = 0;
+    for path in project_paths {
+        let attachments = Path::new(path).join(".ai-coding").join("attachments");
+        if attachments.is_dir() && fs::remove_dir_all(&attachments).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
 // ── Atomic write (write to tmp then rename) ───────────────────────────────────
 
 /// 原子写入：先写入唯一临时文件，fsync 落盘后再 rename 到目标路径。
@@ -180,4 +224,55 @@ pub fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
         let _ = fs::remove_file(&tmp);
         e.to_string()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("nezha-storage-{}-{}", tag, uuid::Uuid::new_v4()))
+    }
+
+    /// 删项目数据目录：存在 → 删除成功；不存在 → 幂等 Ok
+    #[test]
+    fn remove_dir_if_exists_deletes_and_is_idempotent() {
+        let dir = temp_dir("del");
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        fs::write(dir.join("tasks.json"), "[]").unwrap();
+        fs::write(dir.join("sub").join("tasks.json.corrupt-123"), "x").unwrap();
+
+        remove_dir_if_exists(&dir).unwrap();
+        assert!(!dir.exists());
+        // 不存在时再删：Ok（幂等）
+        remove_dir_if_exists(&dir).unwrap();
+    }
+
+    /// 孤儿附件启动清理：只清各项目的 attachments 目录，不动项目内其他内容，
+    /// 项目路径不存在时跳过
+    #[test]
+    fn cleanup_orphan_attachments_removes_only_attachments() {
+        let proj1 = temp_dir("p1");
+        let proj2 = temp_dir("p2");
+        fs::create_dir_all(proj1.join(".ai-coding").join("attachments").join("t1")).unwrap();
+        fs::create_dir_all(proj1.join(".ai-coding")).unwrap();
+        fs::write(proj1.join(".ai-coding").join("config.toml"), "x").unwrap();
+        fs::create_dir_all(proj2.join(".ai-coding").join("attachments")).unwrap();
+
+        let removed = cleanup_orphan_attachments_for_paths(&[
+            proj1.to_string_lossy().into_owned(),
+            proj2.to_string_lossy().into_owned(),
+            // 不存在的项目路径：跳过不 panic
+            temp_dir("missing").to_string_lossy().into_owned(),
+        ]);
+
+        assert_eq!(removed, 2);
+        assert!(!proj1.join(".ai-coding").join("attachments").exists());
+        // config.toml 保留（只清 attachments，不清整个 .ai-coding）
+        assert!(proj1.join(".ai-coding").join("config.toml").exists());
+        assert!(!proj2.join(".ai-coding").join("attachments").exists());
+
+        let _ = fs::remove_dir_all(&proj1);
+        let _ = fs::remove_dir_all(&proj2);
+    }
 }

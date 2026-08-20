@@ -103,6 +103,27 @@ pub(crate) fn debug_log(line: &str) {
     );
 }
 
+/// 启动时截断 debug 日志（260820 评审 P2-7）。该日志无轮转、无上限，若不
+/// 截断会随每次待确认事件无限追加。保留当次会话的日志即可满足排障需求
+/// （Win10 toast 排障先例都是现场看当次记录）；无文件时静默跳过。
+pub(crate) fn truncate_debug_log() {
+    let Some(dir) = crate::coding::storage::coding_dir().ok() else {
+        return;
+    };
+    truncate_log_file(&dir.join("notify-debug.log"));
+}
+
+/// `truncate_debug_log` 的内核（测试可注入任意路径）：把已存在的文件截断为
+/// 空文件；不存在则跳过。
+fn truncate_log_file(path: &std::path::Path) {
+    if !path.exists() {
+        return;
+    }
+    if let Ok(file) = std::fs::File::create(path) {
+        drop(file);
+    }
+}
+
 fn notify_attention_blocking(app: &AppHandle, task_id: &str, status: &str) {
     let settings = crate::coding::app_settings::load_settings_internal();
     // is_focused 出错时按失焦处理（宁可多弹，不可漏弹）。
@@ -313,6 +334,26 @@ fn send_attention_toast(_app: &AppHandle, _task_id: &str, _title: &str, _body: &
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 日志截断（P2-7）：已有内容的文件被清空；不存在的文件不创建
+    #[test]
+    fn truncate_log_file_empties_existing_and_skips_missing() {
+        let dir = std::env::temp_dir().join(format!("nezha-notify-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("notify-debug.log");
+        std::fs::write(&log, "line1
+line2
+").unwrap();
+
+        truncate_log_file(&log);
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "");
+
+        let missing = dir.join("no-such.log");
+        truncate_log_file(&missing);
+        assert!(!missing.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn should_notify_requires_attention_status_toggle_and_unfocused() {

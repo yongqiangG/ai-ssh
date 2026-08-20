@@ -74,6 +74,29 @@ impl TaskManager {
         children.remove(id);
     }
 
+    /// 仅当 `child_handles` 里的条目仍是 `expected`（同代句柄，Arc 指针相等）
+    /// 时才移除该 id 的 PTY 表项。shell 同 id 重开场景（ShellTerminalInstance
+    /// 的 effect 依赖 projectPath，切换 shell 项目路径会以同 shellId 重开）：
+    /// 旧 reader 的 on_finish 兜底在换代后仍会触发，无条件删除会错杀新 shell
+    /// 的句柄（新 master 被 drop → 新 reader 立即 EOF → 新 shell 秒死）。
+    /// 260820 评审 P3-b。
+    pub(crate) fn remove_pty_handles_if_same(
+        &self,
+        id: &str,
+        expected: &Arc<std::sync::Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
+    ) {
+        let is_same = {
+            let children = self.child_handles.lock();
+            children
+                .get(id)
+                .map(|cur| Arc::ptr_eq(cur, expected))
+                .unwrap_or(false)
+        };
+        if is_same {
+            self.remove_pty_handles(id);
+        }
+    }
+
     /// 退出前终止所有仍在运行的任务/Shell 子进程。
     /// 先 clone 出 Arc 再逐个 kill,避免持有 `child_handles` 锁期间做阻塞调用。
     /// 主窗口关闭即应用退出,必须在退出路径调用,否则正在跑的 claude/codex

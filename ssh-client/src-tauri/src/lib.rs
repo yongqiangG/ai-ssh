@@ -384,6 +384,11 @@ pub fn run() {
                 let _ = coding::hooks::regenerate_claude_settings();
             });
             // hook 事件文件 watcher
+            // 启动期残留清理（260820 评审 P2-6/P2-7）：此刻无任务在跑，
+            // 崩溃孤儿附件可整目录清空（同 event_watcher 清 events 根的语义）；
+            // notify 诊断日志截断保留当次会话。
+            coding::storage::cleanup_orphan_attachments();
+            coding::notify::truncate_debug_log();
             coding::event_watcher::start(app.handle().clone());
             // 文件树 fs 事件监听（coding_watch_dir/coding_unwatch_dir 的托管状态与防抖线程）
             coding::fs_watcher::init(app);
@@ -461,6 +466,7 @@ pub fn run() {
             coding::storage::coding_save_projects,
             coding::storage::coding_load_project_tasks,
             coding::storage::coding_save_project_tasks,
+            coding::storage::coding_delete_project_data,
             coding::app_settings::coding_load_app_settings,
             coding::app_settings::coding_save_app_settings,
             coding::app_settings::coding_save_agent_paths,

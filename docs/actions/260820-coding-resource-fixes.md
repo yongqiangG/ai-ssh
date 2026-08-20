@@ -37,8 +37,8 @@
 2. 附件清理：临时项目含 attachments/孤儿 → 清理函数 → 目录消失。
 3. session 上限：临时文件 > 阈值（阈值可注入）→ Err 且不读内容。
 4. shell 代次：表内同 id 换新 Arc 后，旧 on_finish 判定不删除；Arc 未变 → 删除。
-**验证**：（完成时填）
-**状态**：未开始
+**验证**：`cargo test --lib coding::` 96/96 绿（阶段 2 新增 6 个）；`npx tsc --noEmit` 干净；前端 vitest 256/256 绿。设计偏差与补充：① P2-5/P2-6/P2-7/P3-a 全部抽了「内核函数 + 薄命令壳」结构（remove_dir_if_exists / cleanup_orphan_attachments_for_paths / truncate_log_file / read_session_messages_with_limit），测试注入临时路径不触真实 `~/.ai-ssh`；② P3-b 补充了同 id 重开的真实触发场景核实：`ShellTerminalInstance` 的 init effect 依赖含 `projectPath`，切换 shell 项目路径会以同 shellId 重开（非理论场景）；③ P3-a 顺带把整读从 async fn 挪进 `spawn_blocking`（原实现直接阻塞 tokio worker，对齐 metrics 命令的既有写法）。无遗留。
+**状态**：已完成
 
 ## 阶段 3：前端拖拽兜底 + 全量验证
 

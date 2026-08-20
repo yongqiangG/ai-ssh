@@ -729,15 +729,43 @@ pub(crate) enum SessionContent {
     },
 }
 
-#[tauri::command]
-pub async fn coding_read_session_messages(session_path: String) -> Result<Vec<SessionMessage>, String> {
-    let content = std::fs::read_to_string(&session_path).map_err(|e| e.to_string())?;
+/// 会话查看器允许整读的最大文件尺寸。summary 限 50MB（`MAX_SESSION_BYTES_FOR_SUMMARY`）、
+/// 导出限 200MB，唯独查看器此前不限——百 MB 级长会话打开瞬间 content+lines+解析消息
+/// 三份峰值内存（260820 评审 P3-a）。对齐 summary 的 50MB。
+const MAX_SESSION_BYTES_FOR_VIEW: u64 = 50 * 1024 * 1024;
+
+/// 会话查看器的整读实现（`coding_read_session_messages` 的内核，测试可注入
+/// 限额）。超限时拒绝而不整读，避免大文件一次性载入三份内存。
+fn read_session_messages_with_limit(
+    session_path: &str,
+    max_bytes: u64,
+) -> Result<Vec<SessionMessage>, String> {
+    let size = std::fs::metadata(session_path)
+        .map_err(|e| e.to_string())?
+        .len();
+    if size > max_bytes {
+        return Err(format!(
+            "Session file too large to open ({} MB > {} MB limit). Use export instead.",
+            size / 1024 / 1024,
+            max_bytes / 1024 / 1024
+        ));
+    }
+    let content = std::fs::read_to_string(session_path).map_err(|e| e.to_string())?;
     let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
     if is_codex_format(&lines) {
         Ok(parse_codex_session(&lines))
     } else {
         Ok(parse_claude_session(&lines))
     }
+}
+
+#[tauri::command]
+pub async fn coding_read_session_messages(session_path: String) -> Result<Vec<SessionMessage>, String> {
+    tokio::task::spawn_blocking(move || {
+        read_session_messages_with_limit(&session_path, MAX_SESSION_BYTES_FOR_VIEW)
+    })
+    .await
+    .map_err(|e| format!("read_session_messages join error: {}", e))?
 }
 
 fn is_codex_format(lines: &[&str]) -> bool {
@@ -1980,6 +2008,41 @@ fn format_timestamp_ms(ms: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod session_view_limit {
+        use super::super::read_session_messages_with_limit;
+
+        fn temp_session(tag: &str) -> std::path::PathBuf {
+            std::env::temp_dir()
+                .join(format!("nezha-session-view-{}-{}", tag, uuid::Uuid::new_v4()))
+                .with_extension("jsonl")
+        }
+
+        /// 超过限额：拒绝且不读内容（P3-a）
+        #[test]
+        fn oversized_session_is_rejected_without_reading() {
+            let path = temp_session("big");
+            std::fs::write(&path, "{}
+{}
+").unwrap();
+            let err = read_session_messages_with_limit(path.to_str().unwrap(), 3)
+                .err()
+                .expect("oversized session must be rejected");
+            assert!(err.contains("too large"), "unexpected error: {err}");
+            let _ = std::fs::remove_file(&path);
+        }
+
+        /// 限额内：正常解析
+        #[test]
+        fn session_within_limit_parses() {
+            let path = temp_session("ok");
+            std::fs::write(&path, "{}
+").unwrap();
+            let msgs = read_session_messages_with_limit(path.to_str().unwrap(), 1024).unwrap();
+            assert!(msgs.is_empty());
+            let _ = std::fs::remove_file(&path);
+        }
+    }
 
     mod child_death_guard {
         use super::super::{ChildDeathGuard, WATCH_CHILD_DEATH_GRACE};

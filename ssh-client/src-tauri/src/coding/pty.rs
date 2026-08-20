@@ -269,7 +269,7 @@ fn register_pty_handles(
     master: Box<dyn portable_pty::MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn portable_pty::Child + Send + Sync>,
-) -> Result<(), String> {
+) -> Result<Arc<std::sync::Mutex<Box<dyn portable_pty::Child + Send + Sync>>>, String> {
     task_manager
         .pty_masters
         .lock()
@@ -278,11 +278,12 @@ fn register_pty_handles(
         .pty_writers
         .lock()
         .insert(id.to_string(), writer);
+    let child_arc = Arc::new(std::sync::Mutex::new(child));
     task_manager
         .child_handles
         .lock()
-        .insert(id.to_string(), Arc::new(std::sync::Mutex::new(child)));
-    Ok(())
+        .insert(id.to_string(), child_arc.clone());
+    Ok(child_arc)
 }
 
 #[derive(Clone, Copy)]
@@ -1566,14 +1567,15 @@ pub async fn coding_open_shell(
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-    register_pty_handles(&task_manager, &shell_id, pair.master, writer, child)?;
+    let child_arc = register_pty_handles(&task_manager, &shell_id, pair.master, writer, child)?;
 
-    // Shell 退出后清理 TaskManager 中的残留句柄
+    // Shell 退出后清理 TaskManager 中的残留句柄。仅当表内条目仍是本代句柄时
+    // 才删——同 id 重开后旧 reader 的 on_finish 不能错杀新 shell（P3-b）。
     let app_cleanup = app.clone();
     let sid_cleanup = shell_id.clone();
     let on_finish = Box::new(move || {
         let tm = app_cleanup.state::<TaskManager>();
-        tm.remove_pty_handles(&sid_cleanup);
+        tm.remove_pty_handles_if_same(&sid_cleanup, &child_arc);
     });
 
     spawn_pty_reader(
@@ -1613,6 +1615,70 @@ pub async fn coding_kill_shell(
 mod tests {
     use super::*;
     use crate::coding::session::{ClaudeSessionInfo, CodexSessionInfo};
+
+    /// 测试用假 Child：remove_pty_handles_if_same 只比对 Arc 指针，
+    /// 不触碰进程语义。
+    #[derive(Debug)]
+    struct FakeChild;
+
+    impl portable_pty::Child for FakeChild {
+        fn try_wait(&mut self) -> std::io::Result<Option<portable_pty::ExitStatus>> {
+            Ok(None)
+        }
+        fn wait(&mut self) -> std::io::Result<portable_pty::ExitStatus> {
+            unreachable!("FakeChild never exits")
+        }
+        fn process_id(&self) -> Option<u32> {
+            Some(4242)
+        }
+        #[cfg(windows)]
+        fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle> {
+            None
+        }
+    }
+
+    impl portable_pty::ChildKiller for FakeChild {
+        fn kill(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+        fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> {
+            Box::new(FakeChild)
+        }
+    }
+
+    type ChildArc = Arc<std::sync::Mutex<Box<dyn portable_pty::Child + Send + Sync>>>;
+
+    fn fake_child_arc() -> ChildArc {
+        Arc::new(std::sync::Mutex::new(Box::new(FakeChild)))
+    }
+
+    /// shell 同 id 换代（P3-b）：旧代 on_finish 不删新代句柄，新代自己的
+    /// on_finish 正常删除。
+    #[test]
+    fn remove_pty_handles_if_same_respects_generation() {
+        let tm = TaskManager::new();
+
+        // 同代：删除
+        let gen1 = fake_child_arc();
+        tm.child_handles.lock().insert("s1".into(), gen1.clone());
+        tm.remove_pty_handles_if_same("s1", &gen1);
+        assert!(tm.child_handles.lock().get("s1").is_none());
+
+        // 换代：表内已是 gen2，gen1 的 on_finish 触发 → 不删（新 shell 存活）
+        let gen1b = fake_child_arc();
+        let gen2 = fake_child_arc();
+        tm.child_handles.lock().insert("s2".into(), gen2.clone());
+        tm.remove_pty_handles_if_same("s2", &gen1b);
+        assert!(tm.child_handles.lock().get("s2").is_some());
+
+        // 新代自己退出 → 删除
+        tm.remove_pty_handles_if_same("s2", &gen2);
+        assert!(tm.child_handles.lock().get("s2").is_none());
+
+        // 条目不存在：no-op 不 panic
+        let orphan = fake_child_arc();
+        tm.remove_pty_handles_if_same("nobody", &orphan);
+    }
 
     /// reset 清理集（P1-4）：clear_task_registration 后 sessions 两表与
     /// claimed 路径全部释放，同路径可被重新声明。
