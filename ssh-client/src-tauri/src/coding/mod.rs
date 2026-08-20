@@ -79,21 +79,24 @@ impl TaskManager {
     /// 的 effect 依赖 projectPath，切换 shell 项目路径会以同 shellId 重开）：
     /// 旧 reader 的 on_finish 兜底在换代后仍会触发，无条件删除会错杀新 shell
     /// 的句柄（新 master 被 drop → 新 reader 立即 EOF → 新 shell 秒死）。
-    /// 260820 评审 P3-b。
+    /// 「比对 + 删除」在单一临界段内完成（锁序同 remove_pty_handles），
+    /// 与 register_pty_handles 的三表同段插入互斥（260820 评审 P3-b）。
     pub(crate) fn remove_pty_handles_if_same(
         &self,
         id: &str,
         expected: &Arc<std::sync::Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
     ) {
-        let is_same = {
-            let children = self.child_handles.lock();
-            children
-                .get(id)
-                .map(|cur| Arc::ptr_eq(cur, expected))
-                .unwrap_or(false)
-        };
+        let mut masters = self.pty_masters.lock();
+        let mut writers = self.pty_writers.lock();
+        let mut children = self.child_handles.lock();
+        let is_same = children
+            .get(id)
+            .map(|cur| Arc::ptr_eq(cur, expected))
+            .unwrap_or(false);
         if is_same {
-            self.remove_pty_handles(id);
+            masters.remove(id);
+            writers.remove(id);
+            children.remove(id);
         }
     }
 

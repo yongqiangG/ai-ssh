@@ -270,19 +270,16 @@ fn register_pty_handles(
     writer: Box<dyn Write + Send>,
     child: Box<dyn portable_pty::Child + Send + Sync>,
 ) -> Result<Arc<std::sync::Mutex<Box<dyn portable_pty::Child + Send + Sync>>>, String> {
-    task_manager
-        .pty_masters
-        .lock()
-        .insert(id.to_string(), master);
-    task_manager
-        .pty_writers
-        .lock()
-        .insert(id.to_string(), writer);
+    // 三表同临界段插入（锁序 masters→writers→children，与 remove_pty_handles
+    // 一致）：与 remove_pty_handles_if_same 的「比对代次+删除」互斥，杜绝
+    // 注册过程被对端从中间劈开（P3-b 的完整性闭环）。
     let child_arc = Arc::new(std::sync::Mutex::new(child));
-    task_manager
-        .child_handles
-        .lock()
-        .insert(id.to_string(), child_arc.clone());
+    let mut masters = task_manager.pty_masters.lock();
+    let mut writers = task_manager.pty_writers.lock();
+    let mut children = task_manager.child_handles.lock();
+    masters.insert(id.to_string(), master);
+    writers.insert(id.to_string(), writer);
+    children.insert(id.to_string(), child_arc.clone());
     Ok(child_arc)
 }
 

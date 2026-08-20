@@ -369,6 +369,11 @@ pub async fn coding_read_session_metrics(session_path: String) -> Result<Session
 mod tests {
     use super::*;
 
+    /// METRICS_CACHE 是进程级全局，cargo 默认并行跑测试——eviction 用例的
+    /// cache.clear() 若插在其他用例的两次调用之间会打 flaky（如 mtime 快路径
+    /// 依赖跨调用缓存命中）。所有用例串行持锁。
+    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn temp_session_path(tag: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
             "nezha-analytics-{}-{}",
@@ -396,6 +401,7 @@ mod tests {
     /// 增量 == 全量：分两次追加喂入的结果与一次性全量解析一致
     #[test]
     fn incremental_matches_full_parse() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_session_path("incr");
         let first = format!("{}\n{}\n", claude_line(1, 10), claude_line(2, 20));
         fs::write(&path, &first).unwrap();
@@ -435,6 +441,7 @@ mod tests {
     /// mtime 未变 → 快路径：内容变了但 mtime 相同也必须返回缓存结果
     #[test]
     fn mtime_fast_path_serves_cache_without_reparse() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_session_path("fastpath");
         fs::write(&path, format!("{}\n", claude_line(5, 50))).unwrap();
         touch_mtime(&path);
@@ -456,6 +463,7 @@ mod tests {
     /// 文件被截断重写（size < offset）→ 回退全量重解析
     #[test]
     fn truncated_file_falls_back_to_full_parse() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_session_path("trunc");
         fs::write(&path, format!("{}\n{}\n{}\n", claude_line(1, 10), claude_line(2, 20), claude_line(3, 30))).unwrap();
         touch_mtime(&path);
@@ -474,6 +482,7 @@ mod tests {
     /// torn line（文件尾部半行）不消费：下次行写完整后才解析一次
     #[test]
     fn torn_line_is_reassembled_not_double_counted() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_session_path("torn");
         let line = claude_line(9, 90);
         // 先写半行（截在任意字节处，不含换行）
@@ -495,6 +504,7 @@ mod tests {
     /// Codex 行：token_info 取最后一条，tool_calls 累加
     #[test]
     fn codex_incremental_tracks_last_token_info() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_session_path("codex");
         fs::write(
             &path,
@@ -532,6 +542,7 @@ mod tests {
     /// 缓存条目数超上限整体清空（不 panic、后续可重建）
     #[test]
     fn cache_evicts_when_full() {
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let paths: Vec<_> = (0..METRICS_CACHE_MAX_ENTRIES + 1)
             .map(|i| {
                 let p = temp_session_path("evict");

@@ -3,6 +3,10 @@
 > 背景：docs/situations/260820-coding-resource-review.md
 > 状态栏可能滞后于 git；据本文件行动前先对账校准，再动手
 
+## 复审补丁（交付后二次评审，随最后 commit）
+
+对三个交付 commit 做对抗性复审后发现并修复三处：① P3-b 代次守卫的 check 与 remove 原为两个临界段，同 id 重新注册可插入其间（TOCTOU）——`register_pty_handles` 与 `remove_pty_handles_if_same` 均改为同锁序（masters→writers→children）三锁单临界段，注册与代次删除互斥；② analytics 测试共享全局 METRICS_CACHE 而 cargo 默认并行——eviction 的 `cache.clear()` 可能插进 mtime 快路径用例的两次调用之间造成 flaky，加 TEST_LOCK 全用例串行；③ 注释笔误 U+FFRD→U+FFFD。复审同时核了锁序全图（三锁路径均同序，无死锁面）与 Utf8Chunker/feed 终止性（每轮 start 严格前进）。
+
 ## 阶段 1：Rust P1 修复
 
 **目标**：毒字节、metrics O(N²)、竞态线程永活、reset 漏清四项性能/稳定性缺陷全部修复且带测试。
