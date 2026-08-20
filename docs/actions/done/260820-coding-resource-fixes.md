@@ -49,5 +49,5 @@
 **测试用例**：
 1. 单元测试（若可行）：pointerup 在 document 派发 → 监听移除；unmount → 监听移除。
 2. 手动：拖拽中拖出窗外松开 → 回到窗口后无需点击即可正常交互（无残留拖拽态）。
-**验证**：（完成时填）
-**状态**：未开始
+**验证**：新增 test/project-panels-drag.test.tsx 5 个用例（pointerup/pointercancel/blur/卸载/buttons=0 回窗各一路终止断言）全绿；全量回归：前端 vitest 261/261、`npx tsc --noEmit` 干净、Rust `cargo test --lib` 104/104。实现比设计多两处自觉加固：① 起点基值捕获（delta 是绝对偏移，加实时 ref 在同帧多次 move 会重复叠加——原实现即此语义，重构时一度引入又修回）；② `ev.buttons === 0` 回窗检测，窗外释放后指针回窗即终止，不需补一次点击。手动用例（窗外拖拽）未执行，属 jsdom 无法覆盖的 OS 级行为，接受单元级覆盖。无遗留。
+**状态**：已完成
