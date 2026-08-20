@@ -343,8 +343,8 @@ fn spawn_pty_reader(
     tokio::task::spawn_blocking(move || {
         let mut reader = reader;
         let mut buf = [0u8; PTY_READ_BUFFER_SIZE];
-        // 保存上次读取中不完整的 UTF-8 字节序列
-        let mut leftover: Vec<u8> = Vec::new();
+        // 跨读的 UTF-8 截断序列与非法字节处理见 Utf8Chunker 文档
+        let mut chunker = Utf8Chunker::new();
         let (emit_tx, emit_worker) = match emit_mode {
             PtyEmitMode::Immediate => (None, None),
             PtyEmitMode::Batched {
@@ -397,19 +397,8 @@ fn spawn_pty_reader(
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let mut combined = std::mem::take(&mut leftover);
-                    combined.extend_from_slice(&buf[..n]);
-
-                    let valid_len = match std::str::from_utf8(&combined) {
-                        Ok(_) => combined.len(),
-                        Err(e) => e.valid_up_to(),
-                    };
-
-                    if valid_len > 0 {
-                        // SAFETY：已确认 valid_len 之前的字节为有效 UTF-8
-                        let data = unsafe {
-                            std::str::from_utf8_unchecked(&combined[..valid_len]).to_owned()
-                        };
+                    let data = chunker.feed(&buf[..n]);
+                    if !data.is_empty() {
                         // session_tx 需要独立副本；data 本身留给 emit 路径 move，避免多余堆分配
                         if let Some(ref tx) = session_tx {
                             let _ = tx.send(data.clone());
@@ -423,10 +412,6 @@ fn spawn_pty_reader(
                             send_pty_chunk(&app, &id, &sink, data);
                         }
                     }
-
-                    if valid_len < combined.len() {
-                        leftover = combined[valid_len..].to_vec();
-                    }
                 }
             }
         }
@@ -439,6 +424,66 @@ fn spawn_pty_reader(
             f();
         }
     });
+}
+
+/// PTY 字节流 → UTF-8 分片器。
+///
+/// 两条路径：
+/// - **跨读截断**：多字节序列被 read 边界切开时（`error_len == None`，尾部不完整），
+///   留待下次拼接——`pending` 恒 ≤ 3 字节，与旧实现的 leftover 语义一致。
+/// - **毒字节**：头部/中间出现确定性非法字节（`error_len == Some`，如本地 shell
+///   `cat` 二进制文件的 0xFF/孤立续字节）时立即丢弃该字节并继续。旧实现
+///   （valid_up_to 为 0 就整体存回 leftover）遇毒字节会把后续全部输出无界积压
+///   进内存且前端输出永久冻结；这是 260820 评审 P1-1。
+///
+/// 被丢弃的非法字节不出现在终端（终端领域跳过/替换二选一，跳过可避免 U+FFRD
+/// 替换符混进 agent 会话记录）。
+struct Utf8Chunker {
+    pending: Vec<u8>,
+}
+
+impl Utf8Chunker {
+    fn new() -> Self {
+        Self { pending: Vec::new() }
+    }
+
+    /// 喂入一段新读到的字节，取出当前全部可安全转发的有效 UTF-8（可为空）。
+    /// 单趟扫描，非法字节逐个跳过，不整体积压。
+    fn feed(&mut self, chunk: &[u8]) -> String {
+        let mut buf = std::mem::take(&mut self.pending);
+        buf.extend_from_slice(chunk);
+        let mut out = String::new();
+        let mut start = 0usize;
+        loop {
+            match std::str::from_utf8(&buf[start..]) {
+                Ok(s) => {
+                    out.push_str(s);
+                    start = buf.len();
+                    break;
+                }
+                Err(e) => {
+                    let valid = e.valid_up_to();
+                    if valid > 0 {
+                        // SAFETY：from_utf8 已验证 start..start+valid 为有效 UTF-8
+                        out.push_str(unsafe {
+                            std::str::from_utf8_unchecked(&buf[start..start + valid])
+                        });
+                    }
+                    match e.error_len() {
+                        // 确定性非法字节：跳过它，继续处理其后的内容
+                        Some(k) => start += valid + k,
+                        // 尾部截断：留待下次 read 拼接
+                        None => {
+                            start += valid;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        self.pending = buf[start..].to_vec();
+        out
+    }
 }
 
 /// 在后台线程中轮询子进程退出状态，退出后调用 finalize_task_exit。
@@ -1148,6 +1193,13 @@ pub async fn coding_reset_task_process(
         let _ = arc.lock().unwrap().kill();
     }
 
+    // 260820 评审 P1-4：reset 是唯一没对齐 finalize 清理集的杀进程路径。
+    // kill 后 child_handles 已无本任务，exit monitor 直接离场、finalize 永远
+    // 不会跑——session 表/claimed 路径/LAST_STATUS/events 目录若不在此清理，
+    // 会滞留到进程重启（claimed 残留还可能挡住同路径会话的重新声明）。
+    task_manager.clear_task_registration(&task_id);
+    crate::coding::event_watcher::cleanup_task_events(&task_id);
+
     Ok(())
 }
 
@@ -1555,4 +1607,112 @@ pub async fn coding_kill_shell(
     }
     task_manager.remove_pty_handles(&shell_id);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::coding::session::{ClaudeSessionInfo, CodexSessionInfo};
+
+    /// reset 清理集（P1-4）：clear_task_registration 后 sessions 两表与
+    /// claimed 路径全部释放，同路径可被重新声明。
+    #[test]
+    fn clear_task_registration_releases_sessions_and_claims() {
+        let tm = TaskManager::new();
+        tm.codex_sessions.lock().insert(
+            "t1".into(),
+            CodexSessionInfo { session_id: "c1".into(), session_path: "/a/codex.jsonl".into() },
+        );
+        tm.claude_sessions.lock().insert(
+            "t2".into(),
+            ClaudeSessionInfo { session_id: "s2".into(), session_path: "/b/claude.jsonl".into(), is_placeholder: false },
+        );
+        tm.claimed_session_paths
+            .lock()
+            .insert("/a/codex.jsonl".into());
+        tm.claimed_session_paths
+            .lock()
+            .insert("/b/claude.jsonl".into());
+
+        tm.clear_task_registration("t1");
+        assert!(tm.codex_sessions.lock().get("t1").is_none());
+        assert!(!tm.claimed_session_paths.lock().contains("/a/codex.jsonl"));
+        // 其他任务的声明不受影响
+        assert!(tm.claimed_session_paths.lock().contains("/b/claude.jsonl"));
+
+        tm.clear_task_registration("t2");
+        assert!(tm.claude_sessions.lock().get("t2").is_none());
+        assert!(!tm.claimed_session_paths.lock().contains("/b/claude.jsonl"));
+
+        // 不存在的任务：no-op 不 panic
+        tm.clear_task_registration("nobody");
+    }
+
+    mod utf8_chunker {
+        use super::super::Utf8Chunker;
+
+        /// 合法文本原样通过，无积压
+        #[test]
+        fn passes_valid_text_through() {
+            let mut c = Utf8Chunker::new();
+            assert_eq!(c.feed(b"hello"), "hello");
+            assert_eq!(c.feed(b" world"), " world");
+        }
+
+        /// 跨读截断的多字节序列（emoji 被切成两半）在第二次 feed 拼回完整字符
+        #[test]
+        fn rejoins_multibyte_split_across_reads() {
+            let mut c = Utf8Chunker::new();
+            // "a" + U+1F98A（🦊，4 字节）前 2 字节
+            assert_eq!(c.feed(&[b'a', 0xF0, 0x9F]), "a");
+            // 补后 2 字节，拼回完整 emoji
+            assert_eq!(c.feed(&[0xA6, 0x8A, b'b']), "\u{1F98A}b");
+        }
+
+        /// 毒字节头部：确定性非法字节被丢弃，后续输出不冻结（P1-1 回归）
+        #[test]
+        fn drops_leading_poison_byte_and_keeps_flowing() {
+            let mut c = Utf8Chunker::new();
+            // 0xFF 是确定性非法首字节；旧实现在此之后 valid_up_to 恒 0，
+            // 后续所有输出都会积压进 leftover 且永不 emit
+            assert_eq!(c.feed(&[0xFF, b'a', b'b']), "ab");
+            assert_eq!(c.feed(&[b'c']), "c");
+        }
+
+        /// 有效内容中间夹非法字节：两端有效内容都保留，坏字节被跳过
+        #[test]
+        fn skips_invalid_byte_between_valid_parts() {
+            let mut c = Utf8Chunker::new();
+            // "ok" + 0x80（孤立续字节，确定性非法）+ "fine"
+            assert_eq!(c.feed(&[b'o', b'k', 0x80, b'f', b'i', b'n', b'e']), "okfine");
+        }
+
+        /// 连续多个非法字节一次读入：全部跳过
+        #[test]
+        fn skips_run_of_invalid_bytes() {
+            let mut c = Utf8Chunker::new();
+            assert_eq!(c.feed(&[0xFE, 0xFF, 0x80, b'x']), "x");
+        }
+
+        /// lead 字节后跟非续字节：判定为确定性非法（error_len=Some），立即跳过
+        /// lead 字节、其后内容照常输出——不会把 lead 当「截断」存到下轮，更不会卡住
+        #[test]
+        fn lead_byte_with_wrong_continuation_is_skipped_immediately() {
+            let mut c = Utf8Chunker::new();
+            // 0xF0 是 4 字节 lead，但下一个字节 0x62('b') 不是合法续字节：
+            // from_utf8 报 valid_up_to=1、error_len=Some(1)（0xF0 非法）
+            assert_eq!(c.feed(&[b'a', 0xF0, b'b']), "ab");
+            assert_eq!(c.feed(&[b'c']), "c");
+        }
+
+        /// 空 feed 不产生输出、不影响积压状态
+        #[test]
+        fn empty_chunk_is_noop() {
+            let mut c = Utf8Chunker::new();
+            assert_eq!(c.feed(b""), "");
+            assert_eq!(c.feed(&[0xF0, 0x9F]), "");
+            assert_eq!(c.feed(b""), "");
+            assert_eq!(c.feed(&[0xA6, 0x8A]), "\u{1F98A}");
+        }
+    }
 }

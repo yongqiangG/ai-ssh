@@ -92,4 +92,27 @@ impl TaskManager {
     pub(crate) fn live_session_count(&self) -> usize {
         self.child_handles.lock().len()
     }
+
+    /// 清除任务的 session 注册（sessions 两表 + claimed 路径声明）。
+    /// 供 `coding_reset_task_process` 对齐 finalize 的清理集——kill 后
+    /// exit monitor 不再收割本任务，finalize 不会执行（260820 评审 P1-4）。
+    pub(crate) fn clear_task_registration(&self, task_id: &str) {
+        let codex_path = self
+            .codex_sessions
+            .lock()
+            .remove(task_id)
+            .map(|i| i.session_path);
+        let claude_path = self
+            .claude_sessions
+            .lock()
+            .remove(task_id)
+            .map(|i| i.session_path);
+        let mut claimed = self.claimed_session_paths.lock();
+        if let Some(p) = codex_path {
+            claimed.remove(&p);
+        }
+        if let Some(p) = claude_path {
+            claimed.remove(&p);
+        }
+    }
 }

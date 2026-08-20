@@ -71,6 +71,68 @@ pub(crate) fn is_task_active(app: &AppHandle, task_id: &str) -> bool {
     has_claude_session
 }
 
+// ── watch 线程孤儿兜底（260820 评审 P1-3）─────────────────────────────────────
+// register/finalize 竞态：register_and_watch_session 等 session 文件落盘最长 5s，
+// exit monitor 只等 500ms 就执行 finalize 清表；短命任务命中窗口时 watch 线程
+// 在 finalize 之后才被孵化，被自己注入的 session entry 自锁（is_task_active
+// 恒真）永不退出（线程 + notify watcher + 表项泄漏）。child_handles 是进程
+// 生死的唯一权威信号，持续缺席超过宽限期即判定本线程为孤儿并退出。
+
+/// child 持续缺席的宽限期。需覆盖 reset→resume 的换进程间隙（秒级），
+/// 取 10s 足够保守；正常任务退出路径走 is_task_active 翻假，与此无关。
+const WATCH_CHILD_DEATH_GRACE: Duration = Duration::from_secs(10);
+
+#[derive(Default)]
+struct ChildDeathGuard {
+    gone_since: Option<Instant>,
+}
+
+impl ChildDeathGuard {
+    /// 每轮 watch 循环调用一次。返回 true 表示 child 持续缺席超过宽限期，
+    /// 本线程应作为孤儿退出。
+    fn should_exit(&mut self, child_alive: bool, now: Instant) -> bool {
+        if child_alive {
+            self.gone_since = None;
+            return false;
+        }
+        match self.gone_since {
+            None => {
+                self.gone_since = Some(now);
+                false
+            }
+            Some(t) => now.duration_since(t) >= WATCH_CHILD_DEATH_GRACE,
+        }
+    }
+}
+
+/// watch 线程孤儿退出时清理自己的 session entry：仅当表内条目仍是本线程
+/// 注册的那个（session_path 匹配）才移除，避免误删同 task_id 重新注册后的
+/// 新一代条目。返回被移除条目的 session_path（供 caller 释放 claimed）。
+fn remove_own_session_entry(app: &AppHandle, task_id: &str, session_path: &Path, is_codex: bool) {
+    let tm = app.state::<TaskManager>();
+    let my_path = session_path.to_string_lossy().into_owned();
+    let removed_path = if is_codex {
+        let mut sessions = tm.codex_sessions.lock();
+        match sessions.get(task_id) {
+            Some(info) if info.session_path == my_path => {
+                sessions.remove(task_id).map(|i| i.session_path)
+            }
+            _ => None,
+        }
+    } else {
+        let mut sessions = tm.claude_sessions.lock();
+        match sessions.get(task_id) {
+            Some(info) if info.session_path == my_path => {
+                sessions.remove(task_id).map(|i| i.session_path)
+            }
+            _ => None,
+        }
+    };
+    if let Some(p) = removed_path {
+        tm.claimed_session_paths.lock().remove(&p);
+    }
+}
+
 fn claim_session_path(app: &AppHandle, path: &str) -> bool {
     let tm = app.state::<TaskManager>();
     let mut claimed = tm.claimed_session_paths.lock();
@@ -187,8 +249,21 @@ fn watch_codex_session(
     let mut waiting_for_user = false;
     let mut pending_confirmation_calls = HashSet::new();
     let mut awaiting_user_reply = false;
+    // 孤儿兜底：见 ChildDeathGuard 文档（register/finalize 竞态）
+    let mut child_guard = ChildDeathGuard::default();
 
     while is_task_active(&app, &task_id) {
+        {
+            let child_alive = app
+                .state::<TaskManager>()
+                .child_handles
+                .lock()
+                .contains_key(&task_id);
+            if child_guard.should_exit(child_alive, Instant::now()) {
+                remove_own_session_entry(&app, &task_id, &session_path, true);
+                break;
+            }
+        }
         if let Ok(lines) = read_session_lines_since(&session_path, &mut offset, &mut partial) {
             for line in lines {
                 process_codex_session_line(
@@ -553,8 +628,21 @@ fn watch_claude_session(app: AppHandle, task_id: String, session_path: PathBuf) 
     let mut offset = 0u64;
     let mut partial = String::new();
     let mut waiting_for_user = false;
+    // 孤儿兜底：见 ChildDeathGuard 文档（register/finalize 竞态）
+    let mut child_guard = ChildDeathGuard::default();
 
     while is_task_active(&app, &task_id) {
+        {
+            let child_alive = app
+                .state::<TaskManager>()
+                .child_handles
+                .lock()
+                .contains_key(&task_id);
+            if child_guard.should_exit(child_alive, Instant::now()) {
+                remove_own_session_entry(&app, &task_id, &session_path, false);
+                break;
+            }
+        }
         if let Ok(lines) = read_session_lines_since(&session_path, &mut offset, &mut partial) {
             for line in lines {
                 process_claude_session_line(&app, &task_id, &line, &mut waiting_for_user);
@@ -1892,6 +1980,53 @@ fn format_timestamp_ms(ms: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod child_death_guard {
+        use super::super::{ChildDeathGuard, WATCH_CHILD_DEATH_GRACE};
+        use std::time::{Duration, Instant};
+
+        fn far_future() -> Instant {
+            Instant::now() + Duration::from_secs(3600)
+        }
+
+        /// child 活着 → 永不退出
+        #[test]
+        fn alive_never_exits() {
+            let mut g = ChildDeathGuard::default();
+            let t0 = Instant::now();
+            for _ in 0..100 {
+                assert!(!g.should_exit(true, t0));
+            }
+        }
+
+        /// child 死亡持续超过宽限期 → 退出
+        #[test]
+        fn sustained_absence_exits() {
+            let mut g = ChildDeathGuard::default();
+            let t0 = Instant::now();
+            // 第一轮：开始计时
+            assert!(!g.should_exit(false, t0));
+            // 宽限期内：不退出
+            assert!(!g.should_exit(false, t0 + WATCH_CHILD_DEATH_GRACE - Duration::from_millis(1)));
+            // 超过宽限期：退出
+            assert!(g.should_exit(false, t0 + WATCH_CHILD_DEATH_GRACE));
+        }
+
+        /// child 复活 → 计时清零，重新计宽限
+        #[test]
+        fn revival_resets_streak() {
+            let mut g = ChildDeathGuard::default();
+            let t0 = Instant::now();
+            assert!(!g.should_exit(false, t0));
+            // 复活（覆盖 reset→resume 换进程间隙场景）
+            assert!(!g.should_exit(true, t0 + Duration::from_secs(2)));
+            // 重新死亡：从复活时刻重新计时，旧的不算
+            let t1 = far_future();
+            assert!(!g.should_exit(false, t1));
+            assert!(!g.should_exit(false, t1 + WATCH_CHILD_DEATH_GRACE - Duration::from_millis(1)));
+            assert!(g.should_exit(false, t1 + WATCH_CHILD_DEATH_GRACE));
+        }
+    }
 
     #[test]
     fn extract_claude_status_session_id_from_status_output() {
