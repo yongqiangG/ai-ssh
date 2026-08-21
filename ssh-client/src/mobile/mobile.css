@@ -1,0 +1,252 @@
+/* 手机伴侣（docs/actions/260821 阶段 1）——独立于桌面设计系统，
+   不依赖 CSS Modules/chakra 体系；深色基调与桌面「静夜」主题同族。 */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #0b0e14;
+  color: #e6e9f0;
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── 顶栏 ── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top));
+  background: rgba(11, 14, 20, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #1c2130;
+}
+
+.topbar .title {
+  font-size: 17px;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.back {
+  color: #7ab8ff;
+  font-size: 15px;
+}
+
+.health-offline {
+  font-size: 12px;
+  color: #ff8f6b;
+  border: 1px solid #ff8f6b44;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+/* ── 列表与卡片 ── */
+.list {
+  list-style: none;
+  margin: 12px 12px 24px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  background: #121722;
+  border: 1px solid #1e2434;
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.card:active {
+  background: #1a2130;
+}
+
+.card-task {
+  cursor: default;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.card-sub {
+  font-size: 12px;
+  color: #8b93a7;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  word-break: break-all;
+}
+
+.task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.task-time {
+  font-size: 12px;
+  color: #6b7386;
+}
+
+.task-fail {
+  font-size: 12px;
+  color: #ff8f6b;
+}
+
+/* ── 状态徽标 ── */
+.status {
+  font-size: 12px;
+  border-radius: 10px;
+  padding: 2px 9px;
+  border: 1px solid transparent;
+}
+
+.st-running {
+  color: #67e8f9;
+  background: #67e8f91a;
+  border-color: #67e8f944;
+}
+
+.st-attention {
+  color: #fbbf24;
+  background: #fbbf241a;
+  border-color: #fbbf2444;
+}
+
+.st-done {
+  color: #86efac;
+  background: #86efac1a;
+  border-color: #86efac44;
+}
+
+.st-failed {
+  color: #fca5a5;
+  background: #fca5a51a;
+  border-color: #fca5a544;
+}
+
+.st-muted {
+  color: #8b93a7;
+  background: #8b93a71a;
+}
+
+/* ── 横幅 / 空态 ── */
+.banner {
+  margin: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.banner-error {
+  background: #fca5a51a;
+  border: 1px solid #fca5a544;
+  color: #fca5a5;
+}
+
+.state {
+  text-align: center;
+  color: #6b7386;
+  padding: 48px 16px;
+  font-size: 14px;
+}
+
+/* ── 首连配置页 ── */
+.setup {
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 72px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.setup h1 {
+  font-size: 20px;
+  margin: 0;
+  text-align: center;
+}
+
+.setup-hint {
+  font-size: 13px;
+  color: #8b93a7;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.setup-hint code {
+  font-family: ui-monospace, Consolas, monospace;
+  color: #67e8f9;
+  font-size: 12px;
+}
+
+.token-input {
+  background: #121722;
+  border: 1px solid #1e2434;
+  border-radius: 10px;
+  color: #e6e9f0;
+  font-size: 15px;
+  font-family: ui-monospace, Consolas, monospace;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.token-input:focus {
+  border-color: #7ab8ff;
+}
+
+.primary {
+  background: #2d7ff9;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.primary:not(:disabled):active {
+  background: #1f6ce0;
+}

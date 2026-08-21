@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::coding::TaskManager;
 
@@ -27,7 +27,7 @@ pub(crate) struct ClaudeSessionInfo {
 // ── 公共辅助函数 ──────────────────────────────────────────────────────────────
 
 pub(crate) fn emit_task_status(app: &AppHandle, task_id: &str, status: &str) {
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": status }),
     );
@@ -1416,7 +1416,7 @@ pub(crate) fn register_and_watch_session(
         );
     }
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-session",
         serde_json::json!({
             "task_id": task_id,
@@ -1526,7 +1526,7 @@ fn spawn_claude_lazy_session_attach(
             );
         }
 
-        let _ = app.emit(
+        let _ = crate::coding::events::publish(&app,
             "coding:task-session",
             serde_json::json!({
                 "task_id": task_id,

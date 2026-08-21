@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 
 use notify::Watcher;
 use parking_lot::Mutex;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 /// 防抖窗口:窗口内同一目录的多次变更合并为一次 `fs-changed`。
 /// 固定窗口而非「静默才发」——持续写入(长构建)时也能以此频率持续送达,不会饿死。
@@ -101,7 +101,7 @@ fn run_debounce_loop(app: AppHandle, rx: mpsc::Receiver<PathBuf>) {
         }
 
         for dir in dirty {
-            let _ = app.emit(
+            let _ = crate::coding::events::publish(&app,
                 "coding:fs-changed",
                 serde_json::json!({ "dir": dir.to_string_lossy() }),
             );

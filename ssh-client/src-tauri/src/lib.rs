@@ -392,6 +392,9 @@ pub fn run() {
             coding::event_watcher::start(app.handle().clone());
             // 文件树 fs 事件监听（coding_watch_dir/coding_unwatch_dir 的托管状态与防抖线程）
             coding::fs_watcher::init(app);
+            // 手机伴侣 web 门面（docs/situations/260821）：enabled 时进程内监听
+            // 18080（默认），供 tailnet 内手机浏览器访问 coding 域数据
+            coding::web::start();
 
             match start_backend(app) {
                 Ok(child) => {

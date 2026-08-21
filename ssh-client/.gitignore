@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# 手机伴侣构建产物（Rust rust-embed 6.8 要求目录存在于编译期；真产物由 beforeBuildCommand 构建，不入库）
+dist-mobile/*
+!dist-mobile/.gitkeep
+# 手机伴侣构建产物（Rust rust-embed 6.8 要求目录存在于编译期；真产物由 beforeBuildCommand 构建，不入库）
+dist-mobile/*
+!dist-mobile/.gitkeep

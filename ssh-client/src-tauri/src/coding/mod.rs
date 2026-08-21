@@ -11,6 +11,7 @@ pub mod app_settings;
 pub mod codex_rpc;
 pub mod config;
 pub mod event_watcher;
+pub mod events;
 pub mod fs;
 pub mod fs_watcher;
 pub mod hooks;
@@ -20,6 +21,7 @@ pub mod pty;
 pub mod session;
 pub mod storage;
 pub mod subprocess;
+pub mod web;
 
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};

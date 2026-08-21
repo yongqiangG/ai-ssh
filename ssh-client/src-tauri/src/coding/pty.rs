@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::coding::session::{spawn_resume_session_watcher, spawn_status_session_watcher};
 use crate::coding::TaskManager;
@@ -122,7 +122,7 @@ fn finalize_task_exit(
     } else {
         serde_json::json!({ "task_id": task_id, "status": status })
     };
-    let _ = app.emit("coding:task-status", payload);
+    let _ = crate::coding::events::publish(&app,"coding:task-status", payload);
 
     let _ = fs::remove_dir_all(task_attachments_dir(project_path, task_id));
     crate::coding::event_watcher::cleanup_task_events(task_id);
@@ -309,7 +309,7 @@ fn send_pty_chunk(app: &AppHandle, id: &str, sink: &OutputSink, data: String) {
             let mut payload = serde_json::Map::new();
             payload.insert((*id_key).to_string(), serde_json::Value::String(id.to_string()));
             payload.insert("data".to_string(), serde_json::Value::String(data));
-            let _ = app.emit(event_name, serde_json::Value::Object(payload));
+            let _ = crate::coding::events::publish(&app,event_name, serde_json::Value::Object(payload));
         }
         OutputSink::Channel(channel) => {
             let _ = channel.send(data);
@@ -971,7 +971,7 @@ pub async fn coding_run_task(
         .unwrap_or((vec![], true))
     };
     if perm_degraded {
-        let _ = app.emit(
+        let _ = crate::coding::events::publish(&app,
             "coding:compat-warning",
             serde_json::json!({ "agent": agent, "permissionMode": permission_mode }),
         );
@@ -1040,7 +1040,7 @@ pub async fn coding_run_task(
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     register_pty_handles(&task_manager, &task_id, pair.master, writer, child)?;
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": "running" }),
     );
@@ -1103,7 +1103,7 @@ pub async fn coding_cancel_task(
     // 释放已声明的会话路径，确保相同提示词的任务可以重新运行
     release_claimed_session_paths(&task_manager, &task_id);
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": "cancelled" }),
     );
@@ -1144,7 +1144,7 @@ pub async fn coding_complete_task(
     // 释放已声明的会话路径，确保相同提示词的任务可以重新运行
     release_claimed_session_paths(&task_manager, &task_id);
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": "done" }),
     );
@@ -1275,7 +1275,7 @@ pub async fn coding_resume_task(
         .unwrap_or((vec![], true))
     };
     if perm_degraded {
-        let _ = app.emit(
+        let _ = crate::coding::events::publish(&app,
             "coding:compat-warning",
             serde_json::json!({ "agent": agent, "permissionMode": permission_mode }),
         );
@@ -1331,7 +1331,7 @@ pub async fn coding_resume_task(
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     register_pty_handles(&task_manager, &task_id, pair.master, writer, child)?;
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": "running" }),
     );
@@ -1422,14 +1422,14 @@ pub async fn coding_fork_task(
         perm_degraded,
     } = spawned;
     if perm_degraded {
-        let _ = app.emit(
+        let _ = crate::coding::events::publish(&app,
             "coding:compat-warning",
             serde_json::json!({ "agent": agent, "permissionMode": permission_mode }),
         );
     }
     register_pty_handles(&task_manager, &task_id, master, writer, child)?;
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-status",
         serde_json::json!({ "task_id": task_id, "status": "running" }),
     );

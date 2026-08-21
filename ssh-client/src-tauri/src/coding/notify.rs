@@ -201,7 +201,6 @@ fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str)
     use std::sync::OnceLock;
 
     use parking_lot::Mutex;
-    use tauri::Emitter;
     use windows::{
         core::{HSTRING, Interface},
         Data::Xml::Dom::IXmlNode,
@@ -281,7 +280,7 @@ fn send_attention_toast(app: &AppHandle, task_id: &str, title: &str, body: &str)
             debug_log(&format!("toast activated: arg={arg}"));
             if let Some(nav_task_id) = parse_task_launch_arg([arg]) {
                 focus_main_window(&app);
-                let _ = app.emit(
+                let _ = crate::coding::events::publish(&app,
                     "coding:navigate",
                     serde_json::json!({ "task_id": nav_task_id }),
                 );

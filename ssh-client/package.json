@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:mobile": "vite build --config vite.mobile.config.ts && node -e \"require('fs').writeFileSync('dist-mobile/.gitkeep','')\"",
     "preview": "vite preview",
     "tauri": "scripts\\tauri.cmd",
     "tauri:raw": "tauri",

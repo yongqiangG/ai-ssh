@@ -30,7 +30,7 @@ use std::time::Duration;
 
 use parking_lot::Mutex;
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::coding::session::{ClaudeSessionInfo, CodexSessionInfo};
 use crate::coding::TaskManager;
@@ -246,7 +246,7 @@ fn handle_session_start(app: &AppHandle, ev: &HookEvent) {
         claimed.insert(session_path.clone());
     }
 
-    let _ = app.emit(
+    let _ = crate::coding::events::publish(&app,
         "coding:task-session",
         serde_json::json!({
             "task_id": ev.task_id,
