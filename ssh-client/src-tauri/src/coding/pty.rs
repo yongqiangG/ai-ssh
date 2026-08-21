@@ -246,9 +246,14 @@ fn setup_env(cmd: &mut CommandBuilder) {
         cmd.env("LC_CTYPE", "en_US.UTF-8");
     }
 
-    // 设置终端类型，使 Claude Code / Codex 输出正确的转义序列
+    // 设置终端类型，使 Claude Code / Codex 输出正确的转义序列。
+    // NO_COLOR 必须显式清除（no-color 规范优先级高于 COLORTERM）：宿主环境
+    // 若带 NO_COLOR=1（如从 Claude Code 会话内启动本应用），子进程 agent
+    // 会无视 COLORTERM 输出纯文本，任务终端全部失去颜色（260821 排查实证）。
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    cmd.env_remove("NO_COLOR");
+    cmd.env_remove("CLAUDE_CODE_CHILD_SESSION");
 }
 
 /// 注入 hook 守卫所需的环境变量。
@@ -304,6 +309,12 @@ enum OutputSink {
 }
 
 fn send_pty_chunk(app: &AppHandle, id: &str, sink: &OutputSink, data: String) {
+    // 手机伴侣旁路（260821 阶段 2）：agent 任务输出落尾窗环形缓冲 + 实时订阅
+    // 扇出（web/stream.rs）。纯旁路——失败静默、不阻塞，下方主路径不变。
+    // shell（Event）不入旁路：Q3 决议手机端范围排除本地 Shell。
+    if matches!(sink, OutputSink::Channel(_)) {
+        crate::coding::web::stream::record(id, &data);
+    }
     match sink {
         OutputSink::Event { event_name, id_key } => {
             let mut payload = serde_json::Map::new();
@@ -1468,18 +1479,28 @@ pub async fn coding_fork_task(
     Ok(())
 }
 
+/// 写 PTY 输入的共享路径：桌面命令 `coding_send_input` 与手机伴侣 WS 输入帧
+/// 同源（260821 阶段 2），避免两处复制写入细节。
+pub(crate) fn write_pty_input(
+    task_manager: &TaskManager,
+    task_id: &str,
+    data: &str,
+) -> Result<(), String> {
+    let mut writers = task_manager.pty_writers.lock();
+    if let Some(writer) = writers.get_mut(task_id) {
+        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        writer.flush().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn coding_send_input(
     task_manager: State<'_, TaskManager>,
     task_id: String,
     data: String,
 ) -> Result<(), String> {
-    let mut writers = task_manager.pty_writers.lock();
-    if let Some(writer) = writers.get_mut(&task_id) {
-        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
-        writer.flush().map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    write_pty_input(&task_manager, &task_id, &data)
 }
 
 /// 任务运行中终端 Ctrl+V「无文本有图」时由前端调用：图片落盘为任务附件，
@@ -1499,10 +1520,11 @@ pub async fn coding_save_paste_image(
     .map_err(|e| format!("Join error: {}", e))?
 }
 
-#[tauri::command]
-pub async fn coding_resize_pty(
-    task_manager: State<'_, TaskManager>,
-    task_id: String,
+/// PTY resize 的共享路径：桌面命令 `coding_resize_pty` 与手机伴侣 WS resize
+/// 帧同源。含畸形尺寸守卫（FitAddon 在 display:none 时可能算出 cols=2）。
+pub(crate) fn resize_pty(
+    task_manager: &TaskManager,
+    task_id: &str,
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
@@ -1513,12 +1535,24 @@ pub async fn coding_resize_pty(
         return Ok(());
     }
     let masters = task_manager.pty_masters.lock();
-    if let Some(master) = masters.get(&task_id) {
+    if let Some(master) = masters.get(task_id) {
         master
             .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn coding_resize_pty(
+    task_manager: State<'_, TaskManager>,
+    task_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    // 手机伴侣断开还原用：留底桌面侧最近一次尺寸（260821 阶段 2）
+    crate::coding::web::stream::note_desktop_size(&task_id, cols, rows);
+    resize_pty(&task_manager, &task_id, cols, rows)
 }
 
 #[tauri::command]

@@ -35,11 +35,14 @@
 
 **目标**：手机实时看终端输出、发按键过 agent 确认；断网重连不丢后续输出。
 
-**设计**：
-- `WS /api/ws/task/:taskId`：建连先推最近 ~256KB 尾窗快照（复用 session 查看器读取逻辑，复用其截断纪律），再实时转发总线 PTY 事件；输入帧 `{type:"input", data:<base64>}` → `TaskManager` 写入路径
-- 手机端不 resize（固定逻辑尺寸，避免与桌面端打架）；连接断开自动重连（指数退避），重连走同样的尾窗回放
-- 待确认横幅：input_required/awaiting_review 状态事件 → 手机顶部通知条（attention 事件源复用）
-- xterm.js 复用桌面同款渲染（mobile 入口独立打包自己的实例）
+**设计**（随实现就地更新）：
+- `coding/web/stream.rs` 输出旁路：`send_pty_chunk` 唯一汇合点加纯借用 tap（仅 Channel 分支=agent 任务，shell 不入旁路）——每 id 尾窗环形缓冲（256KB，全局预算 8MB LRU 逐出）+ 活订阅者 unbounded mpsc 扇出；**快照与订阅注册同一临界段**（消除丢帧窗口）；死订阅者由 record 的 retain 自然清理
+- 输入/resize 共享路径提取：pty.rs 新增 `write_pty_input`/`resize_pty`（桌面命令与 WS 帧同源，含畸形尺寸守卫）；`coding_resize_pty` 顺手留底桌面尺寸 `note_desktop_size`
+- WS `/api/ws/task/{id}?token=`：建连发 snapshot（空也发，手机据此 reset）→ output 实时帧 → status 帧（总线 task-status 过滤本任务）；输入帧 input/resize；**Q10 修订：手机 resize 接管排版**（不 resize 实测 220 列 TUI 压 40 列屏完全散架），最后一个 WS 断开还原桌面留底尺寸（连接计数判零）
+- 手机端：xterm6 + unicode11（CJK 宽度，桌面同款）+ FitAddon；**字体纯系统等宽栈**（latin-only webfont 会让 xterm 按窄字宽算 CJK cell，无雅黑回退的移动浏览器汉字错位——实证）；WS 客户端重连退避 1/2/5/10s、稳定 30s 归零、pendingResize 连接打开自动重发
+- **alt-screen 滚动**（Claude Code `\x1b[?1049h` 无本地 scrollback）：滑动/按钮都翻译成 SGR wheel 鼠标序列（`\x1b[<64/65;x;yM`）走 PTY，TUI 自己滚；滑动步进 32px/事件，「拖内容」方向（下滑看历史）；按钮组 顶/↑/↓/底
+- hash 路由：`#t-<taskId>`/`#p-<projectId>`，恢复 effect 必须声明在写入 effect **之前**（否则首帧清 hash 自擦输入）
+- spawn 环境防御（产品级 bug 顺手修）：`setup_env` 显式 `env_remove` `NO_COLOR`/`CLAUDE_CODE_CHILD_SESSION`——宿主带脏环境（如从 Claude Code 会话拉起 dev）时 agent 输出全白/transcript 异常（260821 排查双实证）
 
 **验收标准**：
 - 手机在任务运行时看到流式输出；发 `y`+回车能通过 agent 确认
@@ -47,11 +50,11 @@
 - 桌面端同任务终端行为不变（双端并发无锁自由交错，Q7 决议）
 
 **测试用例**：
-- Rust：WS 集成测试（tokio 起服务连 WS：尾窗快照→实时流→输入回环）；尾窗截断正确性；双订阅者扇出
-- 前端：mobile 重连状态机单测（mock WS）
+- Rust：stream 尾窗回放/裁剪/多订阅扇出/死订阅清理/预算 LRU 逐出/WS 生命周期还原留底尺寸；WS 帧解析（input/resize/非法忽略）、token 校验、总线过滤（均串行纪律）
+- 前端：TaskWs 重连状态机（mock WebSocket ×5：退避爬升/稳定归零/手动关闭停重连/未连丢弃输入/pendingResize 重发）
 
-**验证**：
-**状态**：未开始
+**验证**：cargo 122 / vitest 266 / build 全绿。真机（蜂窝+tailnet）：中文显示 ✅（WS 帧实证中文 UTF-8 无损，乱码根因=latin webfont 字宽错位，改系统栈后恢复）；PC 颜色 ✅（根因=dev 宿主环境 NO_COLOR/CLAUDE_CODE_CHILD_SESSION 泄漏，spawn env_remove 修复）；排版 resize ✅（220 列 TUI 自适应手机宽）；滑动滚屏/四按钮 ✅（alt-screen wheel 序列翻译）；刷新停留 ✅（hash 恢复）；Playwright 实证：终端渲染行正确、xterm buffer CJK 双宽正确、WS snapshot 21KB 中文原样、错 token 401/对 token 101 握手。**用户待验**：断网 30s 重连尾窗覆盖、桌面尺寸还原（逻辑有单测背书，真机场景未走完）。遗留：手机建的任务在桌面端无实时流（channel 绑定缺失，session 回放可见）→ pool；全屏 TUI 静态观感仍粗糙（自适应 40 列下框线密）→ 接受
+**状态**：已完成
 
 ## 阶段 3：补全——新建任务 + keep-awake 守卫 + 自启开关 + 主屏快捷方式
 

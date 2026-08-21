@@ -27,6 +27,7 @@
 - **Q8 睡眠/常开 → OS 设置 + 程序守卫双保险**：用户手设 Windows 永不睡眠；程序内 keep-awake 守卫（任务计数驱动专职线程持有 `SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)`，清零释放，失败方向安全——最坏=不睡）；新增开机自启开关（tauri-plugin-autostart，默认关，桌面前端唯一白名单 diff）。（防「任务跑一半被睡眠杀死」。）
 - **Q9 管道可替换性 → 通道是配置不是代码**：axum 只认到达 18080 的 HTTP，代码零感知 Tailscale；手机端访问地址为输入项（存 localStorage）；后续可零代码切换 frp/headscale/自建 DERP/Funnel，公网化时 VPS 边缘加 TLS。（本期不堵死任何后路。）
 - **Q10 技术形态 → REST + WS + 独立 vite 入口**：REST 管任务 CRUD，WebSocket 管 PTY 双向流（输入帧 base64 保二进制安全，手机端不 resize 避免与桌面打架）；手机 UI 独立入口不进桌面 bundle；断线重连回放最近 ~256KB 尾窗（复用 session 查看器读取逻辑）。（实现细节，开发中可调。）
+  - **260821 阶段 2 修订**：①手机端 **resize 接管**（不 resize 实测不可用：PTY 按桌面 220 列开、TUI 压进手机 40 列屏完全散架）——WS 建连发 resize 帧，最后一个手机连接断开时还原桌面最近 resize 留底（`coding_resize_pty` 记账）；②输入帧直接 JSON 字符串（既有链路是 String 非 raw 字节，base64 无必要）；③滚动走 SGR wheel 鼠标序列翻译（Claude 跑 alt-screen 无本地 scrollback，滚轮是 TUI 自处理事件）；④spawn 显式清除 NO_COLOR/CLAUDE_CODE_CHILD_SESSION（宿主脏环境泄漏会让 agent 输出全白，产品级修复）。
 
 ## 影响范围
 

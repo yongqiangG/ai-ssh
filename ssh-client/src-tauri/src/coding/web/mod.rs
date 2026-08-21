@@ -13,10 +13,14 @@
 //! `&TaskManager` 拿不到内部 Arc，AppHandle 是 Clone 廉价的进程级句柄，
 //! `app.state::<TaskManager>()` 就地取用（State 对 TaskManager Deref）。
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Request, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, Query, Request, State,
+    },
     http::{header, StatusCode, Uri},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -28,8 +32,12 @@ use parking_lot::Mutex;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tauri::{AppHandle, Manager};
 
 use crate::coding::storage::{self, Project, Task};
+use crate::coding::TaskManager;
+
+pub(crate) mod stream;
 
 // ── 配置（~/.ai-ssh/coding/web.json）────────────────────────────────────────
 
@@ -287,7 +295,7 @@ async fn static_handler(uri: Uri) -> Response {
     }
 }
 
-fn build_router(state: WebState) -> Router {
+fn build_api_router(state: WebState) -> Router {
     let api = Router::new()
         .route("/projects", get(api_projects))
         .route("/projects/{project_id}/tasks", get(api_project_tasks))
@@ -301,9 +309,172 @@ fn build_router(state: WebState) -> Router {
         .with_state(state)
 }
 
+// ── WS：PTY 流 + 状态事件（阶段 2）───────────────────────────────────────────
+//
+// 协议（JSON 文本帧）：
+//   服务端→手机：{"type":"snapshot","data":...}（建连尾窗回放，空也发——
+//                手机端据此 reset 终端）→ {"type":"output","data":...} 实时流
+//                → {"type":"status","task_id":...,"status":...}（总线 task-status）
+//   手机→服务端：{"type":"input","data":...}（写 PTY，桌面/手机双端无锁自由交错，Q7）
+//                {"type":"resize","cols":...,"rows":...}（手机接管排版尺寸；
+//                最后一个 WS 断开时还原桌面最近 resize 留底——260821 修订 Q10）
+// token 走 query 参数（浏览器 WebSocket 设不了自定义 header）。
+
+#[derive(Clone)]
+struct WsState {
+    app: AppHandle,
+    token: Arc<String>,
+}
+
+/// query 里的 token 校验（纯函数可测）。
+fn ws_query_token_ok(params: &HashMap<String, String>, token: &str) -> bool {
+    params.get("token").map(String::as_str) == Some(token)
+}
+
+/// 客户端→服务端消息解析：input 帧返回输入文本，resize 帧返回目标尺寸，
+/// 其余（未知类型/畸形 JSON）忽略。
+enum ClientFrame {
+    Input(String),
+    Resize(u16, u16),
+}
+
+fn parse_client_frame(text: &str) -> Option<ClientFrame> {
+    let v: Value = serde_json::from_str(text).ok()?;
+    match v.get("type")?.as_str()? {
+        "input" => v.get("data")?.as_str().map(|d| ClientFrame::Input(d.to_owned())),
+        "resize" => {
+            let cols = v.get("cols")?.as_u64()?;
+            let rows = v.get("rows")?.as_u64()?;
+            Some(ClientFrame::Resize(cols as u16, rows as u16))
+        }
+        _ => None,
+    }
+}
+
+/// 总线事件 → 本任务 WS status 帧；与任务无关（其他事件名/其他 task_id）→ None。
+fn bus_event_to_ws_msg(ev: &crate::coding::events::BusEvent, task_id: &str) -> Option<String> {
+    if ev.name != "coding:task-status" {
+        return None;
+    }
+    if ev.payload.get("task_id").and_then(Value::as_str) != Some(task_id) {
+        return None;
+    }
+    Some(
+        serde_json::json!({
+            "type": "status",
+            "task_id": task_id,
+            "status": ev.payload.get("status").cloned().unwrap_or(Value::Null),
+        })
+        .to_string(),
+    )
+}
+
+async fn ws_task(
+    State(state): State<WsState>,
+    Path(task_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    if !ws_query_token_ok(&params, &state.token) {
+        return err(
+            StatusCode::UNAUTHORIZED,
+            "0401",
+            "unauthorized: missing or invalid companion token",
+        );
+    }
+    ws.on_upgrade(move |socket| task_ws_loop(socket, state, task_id))
+}
+
+async fn task_ws_loop(mut socket: WebSocket, state: WsState, task_id: String) {
+    // 手机 WS 生命周期登记（最后一个断开时还原桌面尺寸）
+    stream::ws_connected(&task_id);
+    // 快照 + 订阅在同一临界段内注册（stream.rs 保证无丢帧窗口）
+    let (snapshot, mut output_rx) = stream::subscribe_with_snapshot(&task_id);
+    if socket
+        .send(Message::Text(
+            serde_json::json!({ "type": "snapshot", "data": snapshot }).to_string().into(),
+        ))
+        .await
+        .is_err()
+    {
+        // 半开连接：同样走断开登记路径，保持计数一致
+        if let Some((cols, rows)) = stream::ws_disconnected(&task_id) {
+            let tm = state.app.state::<TaskManager>();
+            let _ = crate::coding::pty::resize_pty(&tm, &task_id, cols, rows);
+        }
+        return; // 死订阅者由 stream::record 的 retain 自然清理
+    }
+    let mut bus_rx = crate::coding::events::subscribe();
+    loop {
+        tokio::select! {
+            chunk = output_rx.recv() => {
+                match chunk {
+                    Some(chunk) => {
+                        let msg = serde_json::json!({ "type": "output", "data": chunk }).to_string();
+                        if socket.send(Message::Text(msg.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
+            ev = bus_rx.recv() => {
+                // Lagged 容忍：状态事件幂等快照，丢中间态无害（events.rs 语义）
+                if let Ok(ev) = ev {
+                    if let Some(msg) = bus_event_to_ws_msg(&ev, &task_id) {
+                        if socket.send(Message::Text(msg.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        let tm = state.app.state::<TaskManager>();
+                        match parse_client_frame(text.as_str()) {
+                            Some(ClientFrame::Input(data)) => {
+                                // 写失败（任务未运行）静默：与桌面命令行为一致
+                                let _ = crate::coding::pty::write_pty_input(&tm, &task_id, &data);
+                            }
+                            Some(ClientFrame::Resize(cols, rows)) => {
+                                // 手机接管排版尺寸（260821 修订 Q10：不 resize 实测
+                                // 不可用——220 列 TUI 压进 40 列屏完全散架）
+                                let _ = crate::coding::pty::resize_pty(&tm, &task_id, cols, rows);
+                            }
+                            None => {}
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    // ping 由 axum 自动回 pong；binary 等不支持，忽略
+                    Some(Ok(_)) => {}
+                    Some(Err(_)) => break,
+                }
+            }
+        }
+    }
+    // 最后一个手机连接离开 → PTY 还原桌面最近尺寸（有留底才还原）
+    if let Some((cols, rows)) = stream::ws_disconnected(&task_id) {
+        let tm = state.app.state::<TaskManager>();
+        let _ = crate::coding::pty::resize_pty(&tm, &task_id, cols, rows);
+    }
+}
+
+/// 生产路由：API + WS 合并（WS 独立 state；单测无法构造 AppHandle，只测
+/// `build_api_router` 与 WS 纯函数，全链路靠 dev 实例真机验证）。
+fn build_router(state: WebState, app: AppHandle) -> Router {
+    let ws = Router::new()
+        .route("/api/ws/task/{task_id}", get(ws_task))
+        .with_state(WsState {
+            app,
+            token: state.token.clone(),
+        });
+    build_api_router(state).merge(ws)
+}
+
 // ── 启动入口（lib.rs setup 调用）────────────────────────────────────────────
 
-pub fn start() {
+pub fn start(app: AppHandle) {
     let config = load_or_init_config();
     if !config.enabled {
         eprintln!("[web-companion] disabled by web.json, skipping");
@@ -314,12 +485,13 @@ pub fn start() {
         load_projects: storage::coding_load_projects,
         load_tasks: load_project_tasks_shim,
     };
+    let ws_app = app.clone();
     let port = config.port;
     tauri::async_runtime::spawn(async move {
         match tokio::net::TcpListener::bind(("0.0.0.0", port)).await {
             Ok(listener) => {
                 eprintln!("[web-companion] listening on 0.0.0.0:{port}");
-                if let Err(e) = axum::serve(listener, build_router(state)).await {
+                if let Err(e) = axum::serve(listener, build_router(state, ws_app)).await {
                     eprintln!("[web-companion] server error: {e}");
                 }
             }
@@ -434,7 +606,7 @@ mod tests {
 
     #[tokio::test]
     async fn auth_middleware_rejects_and_accepts() {
-        let app = build_router(test_state());
+        let app = build_api_router(test_state());
 
         // 无 token / 错 token → 401；对 token → 200 + 0000；health 免鉴权
         let resp = app
@@ -472,5 +644,59 @@ mod tests {
         assert!(cfg.token.is_empty());
         let cfg: WebConfig = serde_json::from_str("{\"port\": 19000}").unwrap();
         assert_eq!(cfg.port, 19000);
+    }
+
+    // ── WS 纯函数 ──
+
+    #[test]
+    fn ws_query_token_check() {
+        let mut params = HashMap::new();
+        assert!(!ws_query_token_ok(&params, "secret"));
+        params.insert("token".to_string(), "wrong".to_string());
+        assert!(!ws_query_token_ok(&params, "secret"));
+        params.insert("token".to_string(), "secret".to_string());
+        assert!(ws_query_token_ok(&params, "secret"));
+    }
+
+    #[test]
+    fn ws_client_frame_parsing() {
+        use super::ClientFrame;
+        assert!(matches!(
+            parse_client_frame(r#"{"type":"input","data":"y\n"}"#),
+            Some(ClientFrame::Input(ref d)) if d == "y\n"
+        ));
+        assert!(matches!(
+            parse_client_frame(r#"{"type":"resize","cols":44,"rows":30}"#),
+            Some(ClientFrame::Resize(44, 30))
+        ));
+        // 非法/未知帧全部忽略
+        assert!(parse_client_frame(r#"{"type":"status"}"#).is_none());
+        assert!(parse_client_frame("not json").is_none());
+        assert!(parse_client_frame(r#"{"type":"input"}"#).is_none());
+        assert!(parse_client_frame(r#"{"type":"input","data":42}"#).is_none());
+        assert!(parse_client_frame(r#"{"type":"resize","cols":"x","rows":30}"#).is_none());
+        assert!(parse_client_frame(r#"{"type":"resize","cols":44}"#).is_none());
+    }
+
+    #[test]
+    fn ws_bus_event_filtering() {
+        use crate::coding::events::BusEvent;
+
+        let hit = BusEvent {
+            name: "coding:task-status".into(),
+            payload: serde_json::json!({"task_id": "t1", "status": "input_required"}),
+        };
+        let msg = bus_event_to_ws_msg(&hit, "t1").unwrap();
+        let parsed: Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(parsed["type"], "status");
+        assert_eq!(parsed["status"], "input_required");
+
+        // 其他任务 / 其他事件名 → 过滤
+        assert_eq!(bus_event_to_ws_msg(&hit, "t2"), None);
+        let other = BusEvent {
+            name: "coding:fs-changed".into(),
+            payload: serde_json::json!({"task_id": "t1"}),
+        };
+        assert_eq!(bus_event_to_ws_msg(&other, "t1"), None);
     }
 }

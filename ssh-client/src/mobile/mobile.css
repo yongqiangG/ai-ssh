@@ -250,3 +250,95 @@ button {
 .primary:not(:disabled):active {
   background: #1f6ce0;
 }
+
+/* ── 任务终端视图（阶段 2）── */
+.task-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 0;
+}
+
+.conn {
+  font-size: 12px;
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+
+.conn-ok {
+  color: #86efac;
+  background: #86efac1a;
+}
+
+.conn-mid {
+  color: #fbbf24;
+  background: #fbbf241a;
+}
+
+.conn-off {
+  color: #8b93a7;
+  background: #8b93a71a;
+}
+
+.banner-attention {
+  background: #fbbf241a;
+  border: 1px solid #fbbf2444;
+  color: #fbbf24;
+}
+
+.term-host {
+  flex: 1;
+  margin: 10px 8px 16px;
+  padding: 8px;
+  background: #0d1017;
+  border: 1px solid #1e2434;
+  border-radius: 12px;
+  overflow: hidden;
+  /* 手势由触摸滑动翻译接管（wheel 序列滚 TUI），禁浏览器默认滚动抢手势 */
+  touch-action: none;
+}
+
+.term-host .xterm {
+  height: 100%;
+  padding: 4px;
+}
+
+.term-host .xterm-viewport {
+  /* 终端区域内部滚动，不带动整页（alt-screen 下由手势翻译接管） */
+  overscroll-behavior: contain;
+}
+
+/* 浮动滚动按钮组（右下角） */
+.term-scroll-pad {
+  position: fixed;
+  right: 14px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+}
+
+.scroll-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(24, 30, 44, 0.9);
+  border: 1px solid #2a3247;
+  color: #cdd6f4;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.scroll-btn:active {
+  background: #2d3a51;
+}

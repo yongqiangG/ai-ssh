@@ -34,8 +34,8 @@ tauri-plugin-single-instance = "2"
 portable-pty = "0.8"
 tokio = { version = "1", features = ["sync", "macros", "rt", "time", "process", "io-util", "net"] }
 # ── 手机伴侣 web 门面（docs/situations/260821-mobile-companion.md）──
-# 内嵌 HTTP 服务：桌面进程内 axum 监听 18080，REST 只读 + 后续 WS PTY 流
-axum = "0.8"
+# 内嵌 HTTP 服务：桌面进程内 axum 监听 18080，REST 只读 + WS PTY 流（阶段 2）
+axum = { version = "0.8", features = ["ws"] }
 # 静态资源内嵌：debug 构建从磁盘 dist-mobile/ 实时读（前端迭代免重编），release 打进二进制
 rust-embed = "6.8"
 tower = { version = "0.5", features = ["util"] }

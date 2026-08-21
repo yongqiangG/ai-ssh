@@ -8,8 +8,13 @@ import {
   type Project,
   type Task,
 } from "./api";
+import { TaskView } from "./TaskView";
 
-type View = { kind: "setup"; error?: string } | { kind: "projects" } | { kind: "tasks"; project: Project };
+type View =
+  | { kind: "setup"; error?: string }
+  | { kind: "projects" }
+  | { kind: "tasks"; project: Project }
+  | { kind: "task"; task: Task; project: Project };
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   running: { text: "运行中", cls: "st-running" },
@@ -24,8 +29,9 @@ function statusBadge(status: string) {
   return STATUS_LABEL[status] ?? { text: status, cls: "st-muted" };
 }
 
-function fmtTime(sec: number): string {
-  const d = new Date(sec * 1000);
+function fmtTime(ms: number): string {
+  // Task.createdAt 为毫秒（桌面端 Date.now() 生成）
+  const d = new Date(ms);
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
@@ -72,11 +78,71 @@ export function App() {
     void checkHealth().then(setReachable);
   }, []);
 
+  // ── URL hash 路由（刷新/误退恢复位置）──
+  // 读必须先于写：挂载时先捕获并恢复 hash，写 effect 的首次执行（初始视图
+  // = 项目列表 → 清 hash）才不会把待恢复的输入擦掉。声明顺序即执行顺序。
+  useEffect(() => {
+    const hash = location.hash;
+    if (!getToken() || !hash) return;
+    const restore = async () => {
+      if (hash.startsWith("#t-")) {
+        const taskId = hash.slice(3);
+        try {
+          const task = await apiGet<Task>(`/api/tasks/${encodeURIComponent(taskId)}`);
+          const list = await apiGet<Project[]>("/api/projects");
+          const project = list.find((p) => p.id === task.projectId);
+          if (project) {
+            setProjects(list);
+            setView({ kind: "task", task, project });
+          }
+        } catch {
+          /* 任务已删/离线：留在项目列表 */
+        }
+      } else if (hash.startsWith("#p-")) {
+        const projectId = hash.slice(3);
+        try {
+          const list = await apiGet<Project[]>("/api/projects");
+          const project = list.find((p) => p.id === projectId);
+          if (project) {
+            setProjects(list);
+            setView({ kind: "tasks", project });
+          }
+        } catch {
+          /* 降级项目列表 */
+        }
+      }
+    };
+    void restore();
+    // 仅挂载时恢复一次
+  }, []);
+
+  // 写：视图变化同步 #p-<projectId> / #t-<taskId>
+  useEffect(() => {
+    const hash =
+      view.kind === "tasks"
+        ? `#p-${view.project.id}`
+        : view.kind === "task"
+          ? `#t-${view.task.id}`
+          : "";
+    if (location.hash !== hash) {
+      history.replaceState(null, "", hash || location.pathname);
+    }
+  }, [view]);
+
   if (view.kind === "setup") {
     return (
       <SetupView
         initialError={view.error}
         onDone={() => setView({ kind: "projects" })}
+      />
+    );
+  }
+
+  if (view.kind === "task") {
+    return (
+      <TaskView
+        task={view.task}
+        onBack={() => setView({ kind: "tasks", project: view.project })}
       />
     );
   }
@@ -126,7 +192,10 @@ export function App() {
               const badge = statusBadge(t.status);
               return (
                 <li key={t.id}>
-                  <div className="card card-task">
+                  <button
+                    className="card card-task"
+                    onClick={() => setView({ kind: "task", task: t, project: view.project })}
+                  >
                     <div className="task-head">
                       <span className={`status ${badge.cls}`}>{badge.text}</span>
                       <span className="task-time">{fmtTime(t.createdAt)}</span>
@@ -136,7 +205,7 @@ export function App() {
                       {t.agent} · {t.permissionMode}
                     </span>
                     {t.failureReason && <span className="task-fail">{t.failureReason}</span>}
-                  </div>
+                  </button>
                 </li>
               );
             })}
