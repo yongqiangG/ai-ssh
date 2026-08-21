@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  disable as disableAutostart,
+  enable as enableAutostart,
+  isEnabled as isAutostartEnabled,
+} from "@tauri-apps/plugin-autostart";
 import { Check, ChevronDown, AlertTriangle } from "lucide-react";
 import * as Select from "@radix-ui/react-select";
 import { useI18n, type AppLanguage } from "../../i18n";
@@ -163,6 +168,48 @@ export function GeneralPanel({
 
   const desktopNotificationsOn = desktopNotifications !== false;
 
+  // 开机自启开关（260821 手机伴侣阶段 3）：tauri-plugin-autostart，默认关。
+  // 自包含模式：面板内直接调插件 API，不进 app_settings（插件自己管注册表/
+  // 启动项，无持久化字段）。
+  const [autostart, setAutostart] = useState(false);
+  const [autostartBusy, setAutostartBusy] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    isAutostartEnabled()
+      .then((on) => {
+        if (!cancelled) setAutostart(on);
+      })
+      .catch(() => {
+        /* 插件不可用（非桌面环境）时保持关 */
+      })
+      .finally(() => {
+        if (!cancelled) setAutostartBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleAutostartToggle = async () => {
+    if (autostartBusy) return;
+    const enabled = !autostart;
+    setAutostart(enabled);
+    setAutostartBusy(true);
+    try {
+      if (enabled) {
+        await enableAutostart();
+      } else {
+        await disableAutostart();
+      }
+      setAutostart(await isAutostartEnabled());
+    } catch {
+      setAutostart(!enabled);
+    } finally {
+      setAutostartBusy(false);
+    }
+  };
+
   const conptyOn = sideloadedConpty === true;
   const conptyDisabled = !isConptyEditable || conptyBusy;
   const conptyHint = isConptyEditable
@@ -315,6 +362,29 @@ export function GeneralPanel({
           </span>
         </button>
         <span style={s.settingFieldHint}>{t("appSettings.attentionBadgeDesktopHint")}</span>
+      </div>
+
+      <div style={s.settingFieldSpaced}>
+        <label style={s.settingFieldLabel}>{t("appSettings.autostart")}</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autostart}
+          aria-label={t("appSettings.autostart")}
+          disabled={autostartBusy}
+          data-checked={autostart}
+          data-disabled={autostartBusy}
+          onClick={() => void handleAutostartToggle()}
+          className="app-settings-toggle"
+        >
+          <span className="app-settings-toggle-label">
+            {t("appSettings.autostartToggle")}
+          </span>
+          <span className="app-settings-toggle-track">
+            <span className="app-settings-toggle-knob" />
+          </span>
+        </button>
+        <span style={s.settingFieldHint}>{t("appSettings.autostartHint")}</span>
       </div>
 
       <div style={s.settingFieldSpaced}>

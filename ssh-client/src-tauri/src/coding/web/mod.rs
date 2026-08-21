@@ -39,6 +39,74 @@ use crate::coding::TaskManager;
 
 pub(crate) mod stream;
 
+/// 进程内 AppHandle 单例（start() 注入）。
+/// 注意：axum handler 的泛型单态化代码里只要出现 AppHandle 类型，测试 exe
+/// 即加载失败（STATUS_ENTRYPOINT_NOT_FOUND，260821 阶段 3 二分实证——
+/// Extension extractor 与普通 clone 两种形态都触发）。因此创建任务走
+/// 「纯数据 job → 专用 worker 线程」隔离，handler 内零 AppHandle 痕迹。
+static APP_HANDLE: once_cell::sync::OnceCell<AppHandle> = once_cell::sync::OnceCell::new();
+
+/// 创建任务 job：handler → worker 的纯数据通道。
+struct CreateTaskJob {
+    project_path: String,
+    task: Task,
+    body: CreateTaskBody,
+    reply: tokio::sync::oneshot::Sender<Result<Task, String>>,
+}
+
+static CREATE_QUEUE: once_cell::sync::OnceCell<std::sync::mpsc::Sender<CreateTaskJob>> =
+    once_cell::sync::OnceCell::new();
+
+/// worker 线程：持有 AppHandle 消费 job，进程内直调 coding_run_task。
+/// 不被任何测试路径引用（start() 才 spawn），不进测试 exe。
+fn create_task_worker(app: AppHandle, rx: std::sync::mpsc::Receiver<CreateTaskJob>) {
+    while let Ok(job) = rx.recv() {
+        let CreateTaskJob {
+            project_path,
+            task,
+            body,
+            reply,
+        } = job;
+        let tm = app.state::<TaskManager>();
+        // Channel 丢弃输出（旁路 tap 已全量记录，手机经 WS 消费；桌面实时流
+        // 缺失为已知限制，见 backlog 260821）
+        let sink = tauri::ipc::Channel::new(|_resp: tauri::ipc::InvokeResponseBody| Ok(()));
+        let run = tauri::async_runtime::block_on(crate::coding::pty::coding_run_task(
+            app.clone(),
+            tm,
+            task.id.clone(),
+            project_path,
+            body.prompt.clone(),
+            body.agent.clone(),
+            body.permission_mode.clone(),
+            body.model.clone(),
+            None, // reasoning_effort：用 agent 默认
+            None, // images
+            None, // texts
+            body.cols,
+            body.rows,
+            sink,
+        ));
+        match run {
+            Ok(()) => {
+                // web 创建标记：输出在 send_pty_chunk 同步 publish 成
+                // coding:task-output 事件（桌面终端实时流回退）
+                stream::mark_web_created(&task.id);
+                // 通知桌面：新任务诞生（若该项目已打开则实时入列）
+                crate::coding::events::publish(
+                    &app,
+                    "coding:task-created",
+                    serde_json::to_value(&task).unwrap_or(serde_json::Value::Null),
+                );
+                let _ = reply.send(Ok(task));
+            }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+            }
+        }
+    }
+}
+
 // ── 配置（~/.ai-ssh/coding/web.json）────────────────────────────────────────
 
 fn default_enabled() -> bool {
@@ -252,6 +320,7 @@ fn content_type(path: &str) -> &'static str {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
         Some("json") => "application/json",
+        Some("webmanifest") => "application/manifest+json",
         Some("ico") => "image/x-icon",
         _ => "application/octet-stream",
     }
@@ -295,10 +364,14 @@ async fn static_handler(uri: Uri) -> Response {
     }
 }
 
+/// 基座路由（可测）：auth 组 + health + 静态兜底。
 fn build_api_router(state: WebState) -> Router {
     let api = Router::new()
         .route("/projects", get(api_projects))
-        .route("/projects/{project_id}/tasks", get(api_project_tasks))
+        .route(
+            "/projects/{project_id}/tasks",
+            get(api_project_tasks).post(api_create_task),
+        )
         .route("/tasks/{task_id}", get(api_task))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
@@ -382,7 +455,21 @@ async fn ws_task(
             "unauthorized: missing or invalid companion token",
         );
     }
-    ws.on_upgrade(move |socket| task_ws_loop(socket, state, task_id))
+    // nav=1（首连）才拽 PC 视图跟随：重连不重复导航（260821 阶段 3）
+    let navigate = params.get("nav").map(String::as_str) == Some("1");
+    let nav_state = state.clone();
+    let nav_task = task_id.clone();
+    ws.on_upgrade(move |socket| {
+        if navigate {
+            // 复用 260817 桌面通知跳转通路（App.tsx 常驻监听）
+            crate::coding::events::publish(
+                &nav_state.app,
+                "coding:navigate",
+                serde_json::json!({ "task_id": nav_task }),
+            );
+        }
+        task_ws_loop(socket, state, task_id)
+    })
 }
 
 async fn task_ws_loop(mut socket: WebSocket, state: WsState, task_id: String) {
@@ -460,16 +547,174 @@ async fn task_ws_loop(mut socket: WebSocket, state: WsState, task_id: String) {
     }
 }
 
-/// 生产路由：API + WS 合并（WS 独立 state；单测无法构造 AppHandle，只测
-/// `build_api_router` 与 WS 纯函数，全链路靠 dev 实例真机验证）。
+/// 生产路由：API + WS 合并（WS 独立 state；单测只测 `build_api_router`
+/// 与纯函数，全链路靠 dev 实例真机验证）。
 fn build_router(state: WebState, app: AppHandle) -> Router {
     let ws = Router::new()
         .route("/api/ws/task/{task_id}", get(ws_task))
         .with_state(WsState {
-            app,
+            app: app.clone(),
             token: state.token.clone(),
         });
     build_api_router(state).merge(ws)
+}
+
+// ── 新建任务（阶段 3）────────────────────────────────────────────────────────
+
+fn default_agent() -> String {
+    "claude".to_string()
+}
+
+fn default_permission_mode() -> String {
+    "ask".to_string()
+}
+
+/// POST /api/projects/{id}/tasks 请求体。字段 camelCase 对齐 Task 结构风格。
+#[derive(Deserialize, Clone, Debug)]
+pub struct CreateTaskBody {
+    pub prompt: String,
+    #[serde(default = "default_agent")]
+    pub agent: String,
+    #[serde(rename = "permissionMode", default = "default_permission_mode")]
+    pub permission_mode: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub cols: Option<u16>,
+    #[serde(default)]
+    pub rows: Option<u16>,
+}
+
+/// 生成不撞车的任务 id（桌面风格：毫秒时间戳字符串；同毫秒顺序 +1）。
+fn next_task_id(existing: &[Task], now_ms: u128) -> String {
+    let mut n = now_ms;
+    loop {
+        let id = n.to_string();
+        if !existing.iter().any(|t| t.id == id) {
+            return id;
+        }
+        n += 1;
+    }
+}
+
+/// 构造 Task 记录并落盘（loader 注入，纯函数可测）。复刻桌面 NewTaskView
+/// 流程：immediate 任务初始 status=pending，running 态由 run_task 的
+/// task-status 事件驱动。
+type SaveTasks = fn(&str, Vec<Task>) -> Result<(), String>;
+
+pub fn create_task_in_store(
+    load_tasks: LoadProjectTasks,
+    save_tasks: SaveTasks,
+    project_id: &str,
+    body: &CreateTaskBody,
+    now_ms: u128,
+) -> Result<Task, String> {
+    let mut tasks = load_tasks(project_id)?;
+    let task = Task {
+        id: next_task_id(&tasks, now_ms),
+        project_id: project_id.to_string(),
+        name: if body.prompt.is_empty() {
+            None
+        } else {
+            Some(body.prompt.chars().take(40).collect())
+        },
+        prompt: body.prompt.clone(),
+        agent: body.agent.clone(),
+        permission_mode: body.permission_mode.clone(),
+        model: body.model.clone(),
+        reasoning_effort: None,
+        status: "pending".to_string(),
+        created_at: now_ms as i64,
+        updated_at: Some(now_ms as i64),
+        attention_requested_at: None,
+        claude_session_id: None,
+        claude_session_path: None,
+        codex_session_id: None,
+        codex_session_path: None,
+        starred: None,
+        failure_reason: None,
+    };
+    tasks.insert(0, task.clone());
+    save_tasks(project_id, tasks)?;
+    Ok(task)
+}
+
+async fn api_create_task(
+    State(state): State<WebState>,
+    Path(project_id): Path<String>,
+    axum::Json(body): axum::Json<CreateTaskBody>,
+) -> Response {
+    // 项目必须存在（拿 path 作 agent cwd）
+    let project_path = match (state.load_projects)() {
+        Ok(list) => list
+            .into_iter()
+            .find(|p| p.id == project_id)
+            .map(|p| p.path),
+        Err(_) => None,
+    };
+    let Some(project_path) = project_path else {
+        return err(
+            StatusCode::NOT_FOUND,
+            "0404",
+            &format!("project not found: {project_id}"),
+        );
+    };
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+
+    // 落盘；失败即 500，不留半态
+    let task = match create_task_in_store(state.load_tasks, save_tasks_shim, &project_id, &body, now_ms)
+    {
+        Ok(t) => t,
+        Err(e) => {
+            return err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "0500",
+                &format!("persist task failed: {e}"),
+            )
+        }
+    };
+
+    // 进程内直调桌面同款命令：Channel 丢弃输出（旁路 tap 已全量记录，
+    // 手机经 WS 消费；桌面实时流缺失为已知限制，见 backlog 260821）
+    // 经 job 队列交给持 AppHandle 的 worker（handler 内零 AppHandle 痕迹，
+    // 见模块头注释）；worker 回滚由本函数收到 Err 后执行
+    let (tx_reply, rx_reply) = tokio::sync::oneshot::channel();
+    let queued = CREATE_QUEUE.get().map(|tx| {
+        tx.send(CreateTaskJob {
+            project_path,
+            task: task.clone(),
+            body: body.clone(),
+            reply: tx_reply,
+        })
+    });
+    let run = match queued {
+        Some(Ok(())) => rx_reply.await.map_err(|_| "worker dropped".to_string()).and_then(|r| r),
+        _ => Err("create worker unavailable".to_string()),
+    };
+
+    match run {
+        Ok(task) => Json(Envelope::ok(task)).into_response(),
+        Err(e) => {
+            // 运行失败回滚任务记录，不留僵尸 pending
+            if let Ok(mut tasks) = (state.load_tasks)(&project_id) {
+                tasks.retain(|t| t.id != task.id);
+                let _ = save_tasks_shim(&project_id, tasks);
+            }
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "0500",
+                &format!("run task failed: {e}"),
+            )
+        }
+    }
+}
+
+fn save_tasks_shim(project_id: &str, tasks: Vec<Task>) -> Result<(), String> {
+    storage::coding_save_project_tasks(project_id.to_string(), tasks)
 }
 
 // ── 启动入口（lib.rs setup 调用）────────────────────────────────────────────
@@ -480,6 +725,12 @@ pub fn start(app: AppHandle) {
         eprintln!("[web-companion] disabled by web.json, skipping");
         return;
     }
+    let _ = APP_HANDLE.set(app.clone());
+    // 创建任务 worker：持 AppHandle 消费纯数据 job（与 handler 隔离）
+    let (job_tx, job_rx) = std::sync::mpsc::channel::<CreateTaskJob>();
+    let _ = CREATE_QUEUE.set(job_tx);
+    let worker_app = app.clone();
+    std::thread::spawn(move || create_task_worker(worker_app, job_rx));
     let state = WebState {
         token: Arc::new(config.token),
         load_projects: storage::coding_load_projects,
@@ -646,6 +897,108 @@ mod tests {
         assert_eq!(cfg.port, 19000);
     }
 
+    // ── 新建任务 ──
+
+    // fn 指针 loader 无法捕获闭包——经全局 store 桥接（测试串行保证互不干扰）
+    static STORE_A: once_cell::sync::Lazy<Mutex<Vec<Task>>> =
+        once_cell::sync::Lazy::new(|| Mutex::new(vec![]));
+    static STORE_B: once_cell::sync::Lazy<Mutex<Vec<Task>>> =
+        once_cell::sync::Lazy::new(|| Mutex::new(vec![]));
+
+    fn empty_tasks_with_store(
+        project_id: &str,
+        store: &Mutex<Vec<Task>>,
+    ) -> Result<Vec<Task>, String> {
+        if project_id == "p1" {
+            Ok(store.lock().clone())
+        } else {
+            Err("no such project dir".into())
+        }
+    }
+
+    #[test]
+    fn create_task_in_store_assigns_fresh_id_and_persists() {
+        STORE_A.lock().clear();
+        // 内存 store：load 返回上次 save 的内容
+        let load: LoadProjectTasks = |id: &str| empty_tasks_with_store(id, &STORE_A);
+        let save: SaveTasks = |_id, tasks| {
+            *STORE_A.lock() = tasks;
+            Ok(())
+        };
+        let body = CreateTaskBody {
+            prompt: "在项目根目录写入一个md文档".into(),
+            agent: "claude".into(),
+            permission_mode: "ask".into(),
+            model: None,
+            cols: Some(44),
+            rows: Some(30),
+        };
+        let task = create_task_in_store(load, save, "p1", &body, 1787300000000).unwrap();
+        assert_eq!(task.id, "1787300000000");
+        assert_eq!(task.status, "pending");
+        assert_eq!(task.name.as_deref(), Some("在项目根目录写入一个md文档"));
+        // 已落盘且置于列表头
+        assert_eq!(STORE_A.lock().len(), 1);
+    }
+
+    #[test]
+    fn create_task_in_store_id_collision_bumps() {
+        STORE_B.lock().clear();
+        // 预置同 id 任务，新任务应 +1 错开
+        *STORE_B.lock() = vec![Task {
+            id: "1787300000000".into(),
+            project_id: "p1".into(),
+            name: None,
+            prompt: "old".into(),
+            agent: "claude".into(),
+            permission_mode: "ask".into(),
+            model: None,
+            reasoning_effort: None,
+            status: "done".into(),
+            created_at: 1,
+            updated_at: None,
+            attention_requested_at: None,
+            claude_session_id: None,
+            claude_session_path: None,
+            codex_session_id: None,
+            codex_session_path: None,
+            starred: None,
+            failure_reason: None,
+        }];
+        let load: LoadProjectTasks = |id: &str| empty_tasks_with_store(id, &STORE_B);
+        let save: SaveTasks = |_id, tasks| {
+            *STORE_B.lock() = tasks;
+            Ok(())
+        };
+        let body = CreateTaskBody {
+            prompt: "新任务".into(),
+            agent: "codex".into(),
+            permission_mode: "full_access".into(),
+            model: None,
+            cols: None,
+            rows: None,
+        };
+        let task = create_task_in_store(load, save, "p1", &body, 1787300000000).unwrap();
+        assert_eq!(task.id, "1787300000001");
+        // 新任务在头部
+        assert_eq!(STORE_B.lock()[0].id, "1787300000001");
+    }
+
+    #[test]
+    fn create_task_body_parsing() {
+        let body: CreateTaskBody = serde_json::from_str(
+            r#"{"prompt":"hi","agent":"codex","permissionMode":"full_access"}"#,
+        )
+        .unwrap();
+        assert_eq!(body.agent, "codex");
+        assert_eq!(body.permission_mode, "full_access");
+        // 缺省：claude + ask
+        let body: CreateTaskBody = serde_json::from_str(r#"{"prompt":"hi"}"#).unwrap();
+        assert_eq!(body.agent, "claude");
+        assert_eq!(body.permission_mode, "ask");
+        assert_eq!(body.cols, None);
+    }
+
     // ── WS 纯函数 ──
 
     #[test]
@@ -681,6 +1034,7 @@ mod tests {
     #[test]
     fn ws_bus_event_filtering() {
         use crate::coding::events::BusEvent;
+
 
         let hit = BusEvent {
             name: "coding:task-status".into(),

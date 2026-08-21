@@ -422,6 +422,11 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        // 开机自启（260821 手机伴侣阶段 3）：设置面板开关控制，默认关
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![

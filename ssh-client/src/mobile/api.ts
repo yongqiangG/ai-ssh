@@ -58,6 +58,22 @@ export async function apiGet<T>(path: string): Promise<T> {
   return body.data;
 }
 
+export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "X-Companion-Token": getToken(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = (await res.json().catch(() => null)) as Envelope<T> | null;
+  if (!res.ok || !body || body.code !== "0000") {
+    throw new ApiError(body?.code ?? String(res.status), body?.info ?? `HTTP ${res.status}`);
+  }
+  return body.data;
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     await fetch("/api/health");

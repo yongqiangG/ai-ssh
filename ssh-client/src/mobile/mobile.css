@@ -342,3 +342,72 @@ button {
 .scroll-btn:active {
   background: #2d3a51;
 }
+
+/* ── 新建任务（阶段 3）── */
+.new-task-btn {
+  color: #7ab8ff;
+  font-size: 14px;
+  border: 1px solid #7ab8ff44;
+  border-radius: 10px;
+  padding: 4px 10px;
+}
+
+.new-task-body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 14px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 12px;
+  color: #8b93a7;
+  margin-top: 10px;
+}
+
+.prompt-input {
+  background: #121722;
+  border: 1px solid #1e2434;
+  border-radius: 10px;
+  color: #e6e9f0;
+  font-size: 15px;
+  font-family: inherit;
+  padding: 12px 14px;
+  outline: none;
+  resize: vertical;
+}
+
+.prompt-input:focus {
+  border-color: #7ab8ff;
+}
+
+.seg {
+  display: flex;
+  gap: 8px;
+}
+
+.seg-col {
+  flex-direction: column;
+}
+
+.seg-btn {
+  background: #121722;
+  border: 1px solid #1e2434;
+  border-radius: 10px;
+  color: #8b93a7;
+  font-size: 14px;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.seg-on {
+  border-color: #7ab8ff;
+  color: #7ab8ff;
+  background: #7ab8ff14;
+}
+
+.new-task .primary {
+  margin-top: 18px;
+}

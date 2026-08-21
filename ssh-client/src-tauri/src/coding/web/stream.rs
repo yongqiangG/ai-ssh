@@ -34,6 +34,10 @@ struct TapState {
     desktop_sizes: HashMap<String, (u16, u16)>,
     /// 每个任务当前挂着的手机 WS 连接数（归零才触发桌面尺寸还原）。
     live_ws: HashMap<String, usize>,
+    /// 经 web 创建的任务集合：此类任务无桌面 IPC channel，输出需同步
+    /// publish 成 `coding:task-output` 事件供桌面终端消费（去重开关——
+    /// channel 任务的事件直投与事件流不得并存）。
+    web_created: std::collections::HashSet<String>,
 }
 
 static TAPS: Lazy<Mutex<TapState>> = Lazy::new(|| {
@@ -42,8 +46,19 @@ static TAPS: Lazy<Mutex<TapState>> = Lazy::new(|| {
         subscribers: HashMap::new(),
         desktop_sizes: HashMap::new(),
         live_ws: HashMap::new(),
+        web_created: std::collections::HashSet::new(),
     })
 });
+
+/// 标记任务由 web 创建（create_task_worker 调用）。
+pub(crate) fn mark_web_created(id: &str) {
+    TAPS.lock().web_created.insert(id.to_string());
+}
+
+/// 是否 web 创建（send_pty_chunk 的 tap 据此决定是否发 task-output 事件）。
+pub(crate) fn is_web_created(id: &str) -> bool {
+    TAPS.lock().web_created.contains(id)
+}
 
 /// 记录一个输出块并扇出给活订阅者。`send_pty_chunk` 每块调用一次。
 pub(crate) fn record(id: &str, data: &str) {
@@ -91,6 +106,8 @@ fn evict_over_budget(state: &mut TapState) {
         }
         if let Some(buf) = state.buffers.remove(&id) {
             to_free = to_free.saturating_sub(buf.bytes);
+            // 缓冲都没了说明任务早已终结，web_created 标记一并回收
+            state.web_created.remove(&id);
         }
     }
 }
@@ -126,6 +143,11 @@ pub(crate) fn ws_connected(id: &str) {
     *TAPS.lock().live_ws.entry(id.to_string()).or_insert(0) += 1;
 }
 
+/// 该任务是否有手机 WS 在线（PTY 尺寸仲裁：在线期间 PTY 归手机）。
+pub(crate) fn has_live_ws(id: &str) -> bool {
+    TAPS.lock().live_ws.get(id).is_some_and(|n| *n > 0)
+}
+
 /// 手机 WS 断开注销。若归零且桌面尺寸有留底，返回该尺寸供调用方还原 PTY。
 pub(crate) fn ws_disconnected(id: &str) -> Option<(u16, u16)> {
     let mut state = TAPS.lock();
@@ -147,6 +169,7 @@ pub(crate) fn reset_for_test() {
     state.subscribers.clear();
     state.desktop_sizes.clear();
     state.live_ws.clear();
+    state.web_created.clear();
 }
 
 #[cfg(test)]

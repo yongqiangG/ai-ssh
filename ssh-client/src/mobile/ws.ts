@@ -42,7 +42,9 @@ export class TaskWs {
 
   private connect(): void {
     this.cb.onConnState(this.attempt === 0 ? "connecting" : "backoff");
-    const socket = this.socketFactory(this.url);
+    // nav=1 仅首连：服务端据此拽 PC 视图跟随（重连不重复导航）
+    const url = this.attempt === 0 ? `${this.url}&nav=1` : this.url;
+    const socket = this.socketFactory(url);
     this.socket = socket;
     socket.onopen = () => {
       this.openedAt = Date.now();

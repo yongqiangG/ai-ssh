@@ -1,0 +1,13 @@
+{
+  "name": "ai-ssh 伴侣",
+  "short_name": "ai-ssh",
+  "description": "AI Coding 手机伴侣——远程查看任务终端、批准确认、新建任务",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0e14",
+  "theme_color": "#0b0e14",
+  "icons": [
+    { "src": "/icon-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "/icon-310.png", "sizes": "310x310", "type": "image/png" }
+  ]
+}

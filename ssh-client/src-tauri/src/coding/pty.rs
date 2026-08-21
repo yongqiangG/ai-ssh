@@ -285,6 +285,8 @@ fn register_pty_handles(
     masters.insert(id.to_string(), master);
     writers.insert(id.to_string(), writer);
     children.insert(id.to_string(), child_arc.clone());
+    // 防睡眠守卫挂点（260821 阶段 3）：所有 spawn 路径的唯一汇合，含 shell
+    crate::coding::keepawake::session_added();
     Ok(child_arc)
 }
 
@@ -313,7 +315,18 @@ fn send_pty_chunk(app: &AppHandle, id: &str, sink: &OutputSink, data: String) {
     // 扇出（web/stream.rs）。纯旁路——失败静默、不阻塞，下方主路径不变。
     // shell（Event）不入旁路：Q3 决议手机端范围排除本地 Shell。
     if matches!(sink, OutputSink::Channel(_)) {
+        // 手机侧：尾窗环形缓冲 + 实时订阅扇出（纯旁路，失败静默）
         crate::coding::web::stream::record(id, &data);
+        // 桌面侧：web 创建的任务无 IPC channel，输出同步 publish 成事件供
+        // 桌面终端消费（260821 阶段 3 白名单扩展）。channel 任务不发——
+        // 与直投并存会双写
+        if crate::coding::web::stream::is_web_created(id) {
+            crate::coding::events::publish(
+                app,
+                "coding:task-output",
+                serde_json::json!({ "task_id": id, "data": data }),
+            );
+        }
     }
     match sink {
         OutputSink::Event { event_name, id_key } => {
@@ -1552,6 +1565,12 @@ pub async fn coding_resize_pty(
 ) -> Result<(), String> {
     // 手机伴侣断开还原用：留底桌面侧最近一次尺寸（260821 阶段 2）
     crate::coding::web::stream::note_desktop_size(&task_id, cols, rows);
+    // 尺寸仲裁（260821 阶段 3）：手机 WS 在线期间 PTY 归手机——桌面的
+    // resize 只留底不生效（40 列流在桌面窗口呈窄带可读；反向必散架）。
+    // 手机断开时 ws_disconnected 用留底还原。
+    if crate::coding::web::stream::has_live_ws(&task_id) {
+        return Ok(());
+    }
     resize_pty(&task_manager, &task_id, cols, rows)
 }
 

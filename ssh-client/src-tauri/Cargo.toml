@@ -28,6 +28,8 @@ serde_json = "1"
 sysinfo = "0.33"
 # 双开归一：第二实例只拉起已有窗口，保住「8091 占用者必是孤儿」公理
 tauri-plugin-single-instance = "2"
+# 开机自启（260821 手机伴侣阶段 3）：设置面板开关，默认关
+tauri-plugin-autostart = "2"
 
 # ── AI Coding 功能域（迁移自 nezha，见 docs/situations/260815-ai-coding-panel.md）──
 # PTY 终端（claude/codex/本地 shell）
@@ -63,5 +65,6 @@ win32job = "2"
 # parameter + single-instance approach, see docs/situations/260817-coding-desktop-notification.md).
 # Goes directly through windows-rs system templates—winrt-toast-reborn's hand-built ToastGeneric
 # XML is silently rejected by the shell (probe D vs A/E differential testing, 260817).
-windows = { version = "0.61", features = ["UI_Notifications", "Data_Xml_Dom"] }
+# Win32_System_Power: 手机伴侣 keep-awake 守卫的 SetThreadExecutionState（260821 阶段 3）。
+windows = { version = "0.61", features = ["UI_Notifications", "Data_Xml_Dom", "Win32_System_Power"] }
 

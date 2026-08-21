@@ -10,8 +10,8 @@ import { resolve } from "node:path";
 export default defineConfig({
   root: resolve(process.cwd(), "mobile"),
   plugins: [react()],
-  // 不拷贝桌面 public/ 静态资源（tauri.svg 等）
-  publicDir: false,
+  // 手机伴侣专属静态资源（manifest/图标）；不拷贝桌面 public/（tauri.svg 等）
+  publicDir: resolve(process.cwd(), "mobile/public"),
   build: {
     outDir: resolve(process.cwd(), "dist-mobile"),
     emptyOutDir: true,

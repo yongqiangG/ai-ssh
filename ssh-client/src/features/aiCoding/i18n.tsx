@@ -76,6 +76,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.sideloadedConptyHint":
       "On some Windows builds the system ConPTY does not feed fullscreen TUI (Claude/Codex) output into scrollback, so the mouse wheel cannot scroll back. When on, terminals run on the newer bundled ConPTY; turn off to fall back to the system ConPTY. Takes effect after restarting the app.",
     "appSettings.sideloadedConptyWindowsOnly": "Only applies on Windows. ",
+    "appSettings.autostart": "Launch at Startup",
+    "appSettings.autostartToggle": "Start the app automatically when the PC boots",
+    "appSettings.autostartHint":
+      "For remote monitoring via the mobile companion: with this on, the app (and its task terminals) comes back after a reboot, so your phone can reach it from outside.",
     "appSettings.agentPaths": "Agent Installation Paths",
     "appSettings.installation": "Installation",
     "appSettings.models.title": "Task Models",
@@ -478,6 +482,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.sideloadedConptyHint":
       "部分 Windows 上系统 ConPTY 不把全屏 TUI(Claude/Codex)的输出送入回滚缓冲,导致滚轮无法回滚。开启后终端改用内置的新版 ConPTY;关闭则回到系统内置版本。重启应用后生效。",
     "appSettings.sideloadedConptyWindowsOnly": "仅 Windows 可用。",
+    "appSettings.autostart": "开机自启",
+    "appSettings.autostartToggle": "电脑开机时自动启动本应用",
+    "appSettings.autostartHint":
+      "手机伴侣远程盯任务用:开启后 PC 重启应用会自动拉起,人在外面也能连上(任务与终端随应用恢复)。",
     "appSettings.agentPaths": "智能体安装路径",
     "appSettings.installation": "安装",
     "appSettings.models.title": "任务模型",

@@ -19,6 +19,7 @@
 
 - **Q1 一期性质 → 开发「web 门面」而非纯运维配置**：Tauri 进程内嵌 axum HTTP/WS 服务镜像 coding 命令 + 独立手机 UI 入口。（穿透只是管道，真实工程是补出 HTTP 面；远程桌面手机体验不可用，第三方 web UI 放弃自建差异化。）
 - **Q2 存量红线 → diff 白名单制**：桌面前端仅允许「设置面板新增自启开关」一处纯新增；Rust 存量仅允许 ① 16 处 `emit` 机械替换为 broadcast 总线 ② lib.rs 注册 axum 启动 ③ 任务生命周期挂 keep-awake 钩子；`cargo test` + `npm run test:run` + `npm run build` 全绿。白名单外改动即停线重审。（用户硬约束：成熟的 PC 使用不被破坏；核实结论——这不是重构，是加平行门面。）
+  - **260821/22 阶段 3 白名单扩展（用户批准）**：手机建的任务需在桌面可见可看，追加桌面前端两处——AiCodingApp 的 `coding:task-created` 监听（入列+buffer 预建+自动导航）与 useTerminalManager 的 `coding:task-output` 事件回退（直通既有注入管线）；Rust 侧配套 send_pty_chunk 对 web_created 任务多发一路事件（tap 与事件并存,channel 任务不受影响）。同时 Q10 再修订：**PTY 尺寸仲裁——手机 WS 在线期间归手机**（桌面 resize 只留底不生效;40 列流在桌面呈窄带可读,反向必散架的不对称性）,断开还原留底；手机查看任务 PC 视图跟随（首连 nav=1 → 复用 coding:navigate 通路）。
 - **Q3 手机范围 → 陪伴模式**：任务列表/运行状态 + 终端流查看与输入（agent 确认在 PTY 流内，批准路径必含）+ 新建任务 + 待确认状态横幅；**排除**文件浏览/本地 Shell/看板/设置。（覆盖「人在外面」完整闭环，API 面小 = 攻击面小。）
 - **Q4 通道 → Tailscale 主通道，frp 不做**：设备级互信零公网暴露，安全模型优于把主防线押在自写认证上；axum + token 通道无关，frp 随时可作第二通道（仅配置）。
 - **Q5 延迟优化路线 → 免费优先**：先在 Clash Meta TUN 配置放行 `tailscaled` 进程冲直连（成则 30-80ms），不成再国内 VPS 自建 DERP（<50ms，与 frp 共享 VPS 成本，不阻塞开发）。（当前 500ms 档对陪伴模式可用。）

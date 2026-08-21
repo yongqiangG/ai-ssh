@@ -28,6 +28,7 @@
         { "path": "$HOME/.ai-ssh" },
         { "path": "$HOME/.ai-ssh/**" }
       ]
-    }
+    },
+    "autostart:default"
   ]
 }

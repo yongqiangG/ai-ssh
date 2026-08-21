@@ -550,10 +550,26 @@ function App() {
         );
       },
     );
+    // 手机伴侣 web 创建的任务（260821 阶段 3 白名单扩展）：入列 + PC 同步
+    // 切到该任务终端（复用看板跳转三步，闭包模式与 pendingNavigation 消费
+    // 路径同构）。tasks.json 已由 Rust 侧落盘；buffer 需预建（web 任务无
+    // channel，输出走 coding:task-output 事件，缓冲不建好事件输出无处落）。
+    const p4 = listen<Task>("coding:task-created", (e) => {
+      const task = e.payload;
+      const project = latestRef.current.projects.find((p) => p.id === task.projectId);
+      if (!project) return;
+      tm.resetTaskTerminal(task.id);
+      setTasks((prev) => {
+        if (prev.some((t) => t.id === task.id)) return prev;
+        return [task, ...prev];
+      });
+      enterProjectFromKanban(project, task.id);
+    });
     return () => {
       p1.then((fn) => fn());
       p2.then((fn) => fn());
       p3.then((fn) => fn());
+      p4.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

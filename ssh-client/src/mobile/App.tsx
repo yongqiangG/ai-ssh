@@ -9,12 +9,14 @@ import {
   type Task,
 } from "./api";
 import { TaskView } from "./TaskView";
+import { NewTaskView } from "./NewTaskView";
 
 type View =
   | { kind: "setup"; error?: string }
   | { kind: "projects" }
   | { kind: "tasks"; project: Project }
-  | { kind: "task"; task: Task; project: Project };
+  | { kind: "task"; task: Task; project: Project }
+  | { kind: "newTask"; project: Project };
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   running: { text: "运行中", cls: "st-running" },
@@ -147,6 +149,16 @@ export function App() {
     );
   }
 
+  if (view.kind === "newTask") {
+    return (
+      <NewTaskView
+        project={view.project}
+        onStarted={(task) => setView({ kind: "task", task, project: view.project })}
+        onCancel={() => setView({ kind: "tasks", project: view.project })}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -158,6 +170,11 @@ export function App() {
           <span className="title">AI Coding</span>
         )}
         {view.kind === "tasks" && <span className="title">{view.project.name}</span>}
+        {view.kind === "tasks" && (
+          <button className="new-task-btn" onClick={() => setView({ kind: "newTask", project: view.project })}>
+            + 新建
+          </button>
+        )}
         {reachable === false && <span className="health-offline">离线</span>}
       </header>
 

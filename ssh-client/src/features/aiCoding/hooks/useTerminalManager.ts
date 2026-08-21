@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 // ── Buffer constants ─────────────────────────────────────────────────────────
 
@@ -167,6 +168,18 @@ export function useTerminalManager() {
     },
     [ingestAgentChunk],
   );
+
+  // web 创建的任务（手机伴侣，260821 阶段 3）：无 IPC channel，输出经
+  // coding:task-output 事件到达——走同一注入管线（pending/RAF/缓冲全复用）。
+  // channel 任务 Rust 侧不发此事件（stream::is_web_created 把关），无双写。
+  useEffect(() => {
+    const p = listen<{ task_id: string; data: string }>("coding:task-output", (e) => {
+      ingestAgentChunk(e.payload.task_id, e.payload.data);
+    });
+    return () => {
+      p.then((fn) => fn());
+    };
+  }, [ingestAgentChunk]);
 
   useEffect(() => {
     return () => {

@@ -60,11 +60,15 @@
 
 **目标**：手机全闭环（新建→跑→批准→看结果）；任务运行时 PC 不睡；PC 重启后应用可自启。
 
-**设计**：
-- `POST /api/projects/:id/tasks`（agent/权限模式/cwd），走 `coding_run_task` 同一内部路径，不复制逻辑
-- `coding/keepawake.rs`：专职长寿命线程持有 `SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)`，任务计数 0→N 获取、N→0 释放；挂 TaskManager 起止/终结路径（沿用 260820 资源评审的清理纪律）
-- autostart：tauri-plugin-autostart + GeneralPanel 开关（默认关，**桌面前端唯一白名单 diff**）
-- PWA-lite：manifest + 图标，可添加到主屏（不做 service worker 离线）
+**设计**（随实现就地更新）：
+- `POST /api/projects/{id}/tasks`：body{prompt/agent/permissionMode/model/cols/rows}→纯函数 `create_task_in_store` 落盘（id=毫秒时间戳防撞，复刻桌面流程）→ job 队列交 worker。**关键坑：axum handler 单态化代码里出现 AppHandle 类型即令测试 exe 加载失败（0xc0000139，Extension/OnceCell 两形态二分实证）**——handler 与 AppHandle 彻底类型隔离：专用 worker 线程持 AppHandle 消费纯数据 job（oneshot 回执），run 失败回滚任务记录
+- **手机建任务的桌面可见性**（用户批准的 Q2 白名单扩展）：①worker 成功后 publish `coding:task-created`（带 Task）→ AiCodingApp p4 监听：入列 + `tm.resetTaskTerminal` 预建 buffer + **PC 自动切到该任务终端**（复用 `enterProjectFromKanban` 三步；闭包链已核：mountProject/updateProjectView 皆 useCallback([])+函数式 setState；初版「仅当前项目入列」被用户复现证伪——列表界面 activeProject 为空直接跳过，改为无条件导航）；②stream.rs `web_created` 集合把关，此类任务输出在 send_pty_chunk 同步 publish `coding:task-output` 事件 → useTerminalManager 监听直通 `ingestAgentChunk`（pending/RAF/缓冲全复用；channel 任务不发,无双写）
+- **手机查看任务 PC 跟随**：WS 首连 `nav=1`（TaskWs 仅 attempt=0 追加,重连不拽）→ 服务端 publish `coding:navigate`——复用 260817 桌面通知跳转通路（App.tsx 常驻监听+pendingNav 桥）
+- **尺寸仲裁**（用户提出的并发冲突）：手机 WS 在线期间 PTY 归手机——`coding_resize_pty` 只 `note_desktop_size` 留底不实际 resize（不对称性：40 列流在桌面 220 列窗呈窄带可读,反向必散架）；手机断开 ws_disconnected 用留底还原
+- `keepawake.rs`：计数决策纯函数 + 专职线程持 `SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)`；挂点=所有 spawn/终结唯一汇合（`register_pty_handles`/`remove_pty_handles(_if_same)`,shell 活跃也计入）；失败方向安全
+- autostart：tauri-plugin-autostart + capabilities `autostart:default` + GeneralPanel 开关（自包含模式,默认关,桌面前端白名单 diff 之二）+ i18n 词条
+- PWA-lite：manifest.webmanifest + 图标（mobile/public/,vite publicDir 单独配置）+ axum 补 webmanifest MIME
+- 手机 UI：任务页「+ 新建」→ NewTaskView（prompt/agent/权限模式分段选择）→ POST 后直跳任务终端
 
 **验收标准**：
 - 手机完成新建→运行→批准→查看全闭环（蜂窝流量）
@@ -73,8 +77,8 @@
 - 三套验证全绿 + 桌面冒烟清单复跑
 
 **测试用例**：
-- Rust：keep-awake 计数单测（获取/释放/重复/异常清理路径）；新建任务参数校验单测
-- 前端：自启开关组件测试
+- Rust：create_task_in_store（id 生成/防撞/置头/pending 态）、body 解析缺省、keepawake 决策边界（0↔正/下限钳制）
+- 前端：ws.ts nav 参数（首连附加）、既有套件全绿
 
-**验证**：
-**状态**：未开始
+**验证**：cargo 126 / vitest 266 / 桌面+手机双构建全绿。真机已验：手机新建→直跳终端✅；PC 任意界面（含项目列表）建任务自动切终端+实时流✅（初版缺陷用户复现定位后修）；手机查看 PC 跟随✅；尺寸仲裁（手机在线 PTY 归手机）✅。**收官后观察项**：断网重连尾窗真机、powercfg/requests（需管理员）、自启重启、主屏快捷方式。遗留入 pool：细节打磨（桌面窄带观感、web 任务 buffer ensure 兜底、running 态陈旧修正）
+**状态**：已完成

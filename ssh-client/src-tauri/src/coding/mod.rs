@@ -15,6 +15,7 @@ pub mod events;
 pub mod fs;
 pub mod fs_watcher;
 pub mod hooks;
+pub mod keepawake;
 pub mod notify;
 pub mod platform;
 pub mod pty;
@@ -74,6 +75,7 @@ impl TaskManager {
         masters.remove(id);
         writers.remove(id);
         children.remove(id);
+        keepawake::session_removed();
     }
 
     /// 仅当 `child_handles` 里的条目仍是 `expected`（同代句柄，Arc 指针相等）
@@ -99,6 +101,7 @@ impl TaskManager {
             masters.remove(id);
             writers.remove(id);
             children.remove(id);
+            keepawake::session_removed();
         }
     }
 
