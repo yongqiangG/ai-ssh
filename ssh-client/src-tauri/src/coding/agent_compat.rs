@@ -32,14 +32,6 @@ impl PermissionTier {
             _ => None,
         }
     }
-
-    pub fn key(self) -> &'static str {
-        match self {
-            Self::Ask => "ask",
-            Self::AutoEdit => "auto_edit",
-            Self::FullAccess => "full_access",
-        }
-    }
 }
 
 /// 单个档位在某版本区间的 flag 组合。args 即实际下发参数原文（tooltip 透出）。
@@ -51,8 +43,6 @@ pub struct TierSpec {
 
 /// 一个 agent 的适配条目。entries 按 min_version 降序，取首个命中。
 struct AgentCompat {
-    /// agent 标识（"claude" / "codex"），仅用于报错与目录输出
-    agent: &'static str,
     entries: &'static [CompatEntry],
 }
 
@@ -92,7 +82,6 @@ const CODEX_TIERS: [TierSpec; 3] = [
 ];
 
 const CLAUDE_COMPAT: AgentCompat = AgentCompat {
-    agent: "claude",
     entries: &[CompatEntry {
         // --session-id/--settings 依赖的同族版本线；default/acceptEdits 在更早
         // 版本同样合法，保守取与 hook 链路一致的门槛。
@@ -102,7 +91,6 @@ const CLAUDE_COMPAT: AgentCompat = AgentCompat {
 };
 
 const CODEX_COMPAT: AgentCompat = AgentCompat {
-    agent: "codex",
     entries: &[CompatEntry {
         // -a untrusted 档位与 hook 相关 flag 的同族版本线。
         min_version: "0.131.0",
