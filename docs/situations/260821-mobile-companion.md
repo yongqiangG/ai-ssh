@@ -29,6 +29,7 @@
 - **Q9 管道可替换性 → 通道是配置不是代码**：axum 只认到达 18080 的 HTTP，代码零感知 Tailscale；手机端访问地址为输入项（存 localStorage）；后续可零代码切换 frp/headscale/自建 DERP/Funnel，公网化时 VPS 边缘加 TLS。（本期不堵死任何后路。）
 - **Q10 技术形态 → REST + WS + 独立 vite 入口**：REST 管任务 CRUD，WebSocket 管 PTY 双向流（输入帧 base64 保二进制安全，手机端不 resize 避免与桌面打架）；手机 UI 独立入口不进桌面 bundle；断线重连回放最近 ~256KB 尾窗（复用 session 查看器读取逻辑）。（实现细节，开发中可调。）
   - **260821 阶段 2 修订**：①手机端 **resize 接管**（不 resize 实测不可用：PTY 按桌面 220 列开、TUI 压进手机 40 列屏完全散架）——WS 建连发 resize 帧，最后一个手机连接断开时还原桌面最近 resize 留底（`coding_resize_pty` 记账）；②输入帧直接 JSON 字符串（既有链路是 String 非 raw 字节，base64 无必要）；③滚动走 SGR wheel 鼠标序列翻译（Claude 跑 alt-screen 无本地 scrollback，滚轮是 TUI 自处理事件）；④spawn 显式清除 NO_COLOR/CLAUDE_CODE_CHILD_SESSION（宿主脏环境泄漏会让 agent 输出全白，产品级修复）。
+- **Q11 评审补丁整体回滚（2026-08-23）**：260823 交付的评审补丁三提交（P1-a/P1-b/P2-a/P2-b/P2-c、卫生项含 imeGate/nav=1/api 404/resize 守卫，及其 docs 补记）**用户判定为无效修复，当日整体回滚**——仅保留无关的 agent_compat 死代码清理（487fc86），`release/02-ai工作台` 本地与远端已 force 同步至回滚态。（补丁所修问题若真实现，重开决策而非直接复活旧提交；回滚前完整状态封存于 2d64277，reflog 可寻。）
 
 ## 影响范围
 
