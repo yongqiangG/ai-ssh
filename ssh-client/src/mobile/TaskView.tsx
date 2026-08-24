@@ -33,11 +33,11 @@ function wsUrl(taskId: string): string {
 
 export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
   const termHostRef = useRef<HTMLDivElement | null>(null);
-  // 滚动按钮触达闭包内的 term 实例（按钮渲染在 effect 外）
+  // 顶/底按钮与工具条触达闭包内的实现（按钮渲染在 effect 外）
   const termApiRef = useRef<{
-    scroll: (lines: number) => void;
     toTop: () => void;
     toBottom: () => void;
+    send: (seq: string) => void;
   } | null>(null);
   const [status, setStatus] = useState(task.status);
   const [conn, setConn] = useState<WsConnState>("connecting");
@@ -45,6 +45,10 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
   useEffect(() => {
     const host = termHostRef.current;
     if (!host) return;
+    // 终端模式（快照 alt 标志，260824 terminal-ux）：true=alt 屏（Claude 型
+    // TUI，历史在应用内部，滚动发远程序列）；false=普通屏（Codex 型，历史
+    // 在 xterm 本地 scrollback，滚动走本地 API，零 RTT）。
+    let altScreen = false;
     // 手机固定逻辑尺寸、不 resize（Q10 决议：避免与桌面端打架）。宽流（桌面
     // 220 列）按窄屏折行渲染——已知取舍：全屏 TUI 画面观感粗糙，但批准类
     // 单行文本可读，交互闭环不受影响。
@@ -70,8 +74,9 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
     term.open(host);
 
     const ws = new TaskWs(wsUrl(task.id), {
-      // 重连后快照替换全部内容（服务端尾窗覆盖断线期间的输出）
-      onSnapshot: (data) => {
+      // 重连后快照替换全部内容；alt 标志同步刷新交互模式
+      onSnapshot: (data, alt) => {
+        altScreen = alt;
         term.reset();
         term.write(data);
       },
@@ -95,50 +100,97 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
     });
     observer.observe(host);
     term.onResize(({ cols, rows }) => ws.sendResize(cols, rows));
-    // 滚动 = SGR 鼠标 wheel 序列（\x1b[<64/65;x;yM）——Claude Code 跑在
-    // alternate screen（无本地 scrollback），滚轮是它自己处理的鼠标事件；
-    // TUI 忽略坐标只认按钮码。按钮与触摸滑动共用此通道。
-    const wheel = (direction: 64 | 65, times: number) => {
-      for (let i = 0; i < times; i++) {
-        ws.sendInput(`\x1b[<${direction};10;10M`);
+
+    // ── 双模式滚动层（260824 terminal-ux Q1/Q2/Q3）───────────────────────
+    // alt 屏：滚动 = 发序列给 TUI（wheel 细滚 / PgUp/PgDn 翻页 / Home/End
+    //   直达），每步感知延迟 = RTT（已知天花板）；
+    // 普通屏：滚动 = xterm 本地 API（历史就在本地 scrollback），瞬时零 RTT，
+    //   零字节进 PTY——任务进程无感知。
+    const SEQ = {
+      wheelUp: "\x1b[<64;10;10M",
+      wheelDown: "\x1b[<65;10;10M",
+      pageUp: "\x1b[5~",
+      pageDown: "\x1b[6~",
+      home: "\x1b[H",
+      end: "\x1b[F",
+    };
+    /** 细滚：alt 屏发 1 个 wheel（TUI 自释 ≈3 行），普通屏本地滚 3 行。 */
+    const nudge = (down: boolean) => {
+      if (altScreen) {
+        ws.sendInput(down ? SEQ.wheelDown : SEQ.wheelUp);
+      } else {
+        term.scrollLines(down ? 3 : -3);
+      }
+    };
+    /** 翻页（fling 用，pages 1-3 按速度分档）：alt 屏 PgUp/PgDn ×N，
+     *  普通屏本地 scrollPages。 */
+    const page = (down: boolean, pages: number) => {
+      const n = Math.min(3, Math.max(1, pages));
+      if (altScreen) {
+        for (let i = 0; i < n; i++) {
+          ws.sendInput(down ? SEQ.pageDown : SEQ.pageUp);
+        }
+      } else {
+        term.scrollPages(down ? n : -n);
       }
     };
     termApiRef.current = {
-      scroll: (lines: number) => wheel(lines < 0 ? 64 : 65, Math.min(4, Math.abs(lines) / 3 | 0) || 1),
-      toTop: () => wheel(64, 14),
-      toBottom: () => wheel(65, 14),
+      toTop: () => (altScreen ? ws.sendInput(SEQ.home) : term.scrollToTop()),
+      toBottom: () => (altScreen ? ws.sendInput(SEQ.end) : term.scrollToBottom()),
+      send: (seq: string) => ws.sendInput(seq),
     };
 
-    // 触摸滑动 → wheel 事件流：每滑过 SLIDE_STEP 像素发一个（约 3 行/个）。
-    // 方向按手机「拖内容」习惯：下滑看历史（wheel up）、上滑回最新（wheel down）。
-    // 无位移的触摸透传给 xterm（点选项不受影响）；CSS touch-action:none
-    // 阻止浏览器整页滚动抢手势。
+    // 触摸滑动：慢滑按 SLIDE_STEP（32px≈3 行）步进；抬指时按末段速度判
+    // fling（>0.5px/ms 翻页，速度分档 1-3 页）。方向按手机「拖内容」习惯：
+    // 下滑看历史、上滑回最新。无位移的触摸透传给 xterm（点选项不受影响）；
+    // CSS touch-action:none 阻止浏览器整页滚动抢手势。
     const SLIDE_STEP = 32;
+    const FLING_VELOCITY = 0.5; // px/ms
     let touchStartY = 0;
     let emitted = 0;
+    // 末段速度采样：只记最后一个 move 点（fling 判据用最近 ~1 帧位移）
+    let lastY = 0;
+    let lastT = 0;
     const onTouchStart = (e: TouchEvent) => {
       touchStartY = e.touches[0].clientY;
+      lastY = touchStartY;
+      lastT = performance.now();
       emitted = 0;
     };
     const onTouchMove = (e: TouchEvent) => {
-      const dy = touchStartY - e.touches[0].clientY; // 正=上滑
+      const y = e.touches[0].clientY;
+      const dy = touchStartY - y; // 正=上滑（回最新）
+      lastY = y;
+      lastT = performance.now();
       const steps = Math.trunc(dy / SLIDE_STEP);
       while (steps > emitted) {
         emitted += 1;
-        wheel(65, 1); // 上滑 → 回最新
+        nudge(true); // 上滑 → 回最新
       }
       while (steps < emitted) {
         emitted -= 1;
-        wheel(64, 1); // 下滑 → 看历史
+        nudge(false); // 下滑 → 看历史
       }
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const dt = performance.now() - lastT;
+      if (dt === 0 || e.changedTouches.length === 0) return;
+      // 末段速度（px/ms）：只对最近的位移判 fling，长滑整体平均会低估
+      const velocity = (lastY - e.changedTouches[0].clientY) / dt;
+      if (Math.abs(velocity) < FLING_VELOCITY) return;
+      // 速度分档：0.5/1.2/2.5 px/ms → 1/2/3 页
+      const tier = Math.abs(velocity) > 2.5 ? 3 : Math.abs(velocity) > 1.2 ? 2 : 1;
+      page(velocity > 0, tier);
     };
     host.addEventListener("touchstart", onTouchStart, { passive: true });
     host.addEventListener("touchmove", onTouchMove, { passive: true });
+    host.addEventListener("touchend", onTouchEnd, { passive: true });
     ws.start();
 
     return () => {
       host.removeEventListener("touchstart", onTouchStart);
       host.removeEventListener("touchmove", onTouchMove);
+      host.removeEventListener("touchend", onTouchEnd);
       observer.disconnect();
       ws.close();
       term.dispose();
@@ -171,20 +223,34 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
         </div>
       )}
       <div className="term-host" ref={termHostRef} />
-      {/* 触屏滚动：TUI 开鼠标上报时 xterm 把触控拖动转发给程序、本地滚动失效，
-          滑动手势（wheel 序列翻译）为主，按钮做精确定位兜底。 */}
-      <div className="term-scroll-pad">
-        <button className="scroll-btn" onClick={() => termApiRef.current?.toTop()} aria-label="回到顶部">
+      {/* 触屏滚动：慢滑/fling 双模式手势（alt 屏远程序列 / 普通屏本地 API，
+          260824 terminal-ux），顶/底一击即达做精确定位。 */}
+      <div className="term-jump-pad">
+        <button className="jump-btn" onClick={() => termApiRef.current?.toTop()} aria-label="回到顶部">
           顶
         </button>
-        <button className="scroll-btn" onClick={() => termApiRef.current?.scroll(-12)} aria-label="向上滚动">
+        <button className="jump-btn" onClick={() => termApiRef.current?.toBottom()} aria-label="回到最新">
+          底
+        </button>
+      </div>
+      {/* 输入工具条（260824 Q4）：手机软键盘没有 Ctrl/Esc/Tab——常驻细条
+          直发标准控制序列，agent 原生语义解释（Esc=Claude 打断/Codex 取消；
+          ^C=清空输入，退出确认由 agent 双击交互把关）。 */}
+      <div className="term-toolbar">
+        <button className="tool-btn" onClick={() => termApiRef.current?.send("\x1b")}>
+          Esc
+        </button>
+        <button className="tool-btn" onClick={() => termApiRef.current?.send("\x03")}>
+          ^C
+        </button>
+        <button className="tool-btn" onClick={() => termApiRef.current?.send("\x09")}>
+          Tab
+        </button>
+        <button className="tool-btn" onClick={() => termApiRef.current?.send("\x1b[A")} aria-label="上方向键">
           ↑
         </button>
-        <button className="scroll-btn" onClick={() => termApiRef.current?.scroll(12)} aria-label="向下滚动">
+        <button className="tool-btn" onClick={() => termApiRef.current?.send("\x1b[B")} aria-label="下方向键">
           ↓
-        </button>
-        <button className="scroll-btn" onClick={() => termApiRef.current?.toBottom()} aria-label="回到最新">
-          底
         </button>
       </div>
     </div>

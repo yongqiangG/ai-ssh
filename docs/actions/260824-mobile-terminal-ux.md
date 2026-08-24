@@ -16,9 +16,12 @@
 
 **测试用例**：alt 流（含 `?1049h`）→ 状态序列 + alt=true；无 1049 普通流 → 快照等于原始尾窗 + alt=false；空任务 → 复位序列 + alt=false（空网格非 alt）。
 
-**验证**：
+**验证**：隔离 target（用户 dev 实例锁 target\debug，CARGO_TARGET_DIR 旁路）跑
+`cargo test --lib coding::web` 25/25 绿：alt 流→状态序列+alt=true、普通屏流→**快照严格等于原始尾窗**+alt=false、
+Claude 退屏（1049l 收尾）→自动切尾窗重放、静默任务→空串+alt=false、仿真器双模式照常常驻。
+`subscribe_with_snapshot` 签名变三元组（快照, alt, rx），mod.rs 消息加 `alt` 字段。
 
-**状态**：未开始
+**状态**：已完成
 
 ## 阶段 2：手机端交互重构——双模式手势 + 顶底按钮 + 输入工具条
 
@@ -34,9 +37,14 @@
 
 **测试用例**：ws 消息解析（alt 字段透传）；手势层逻辑（模块内可测的纯函数抽离则测，交互手感真机验）。
 
-**验证**：
+**验证**：`ws.test.ts` 5/5 绿（snapshot alt 字段透传断言 true/false 双例）；`npm run build` 过。
+TaskView 重构落地：`nudge`/`page` 双模式分流（alt 屏 wheel/PgUp×N / 普通屏 scrollLines/scrollPages，
+fling 末段速度 0.5/1.2/2.5 px/ms 三档）、顶/底按钮（Home/End 序列 vs 本地 scrollTo）、
+常驻 34px 工具条 Esc/^C/Tab/↑/↓ 直发序列、四键区删除、touchend 手势判 fling。
+xterm API 签名对装版 typings 核实（scrollLines/scrollPages/scrollToTop/scrollToBottom 均在）。
+输入通道 onData→sendInput 未动一行。
 
-**状态**：未开始
+**状态**：已完成
 
 ## 阶段 3：回归 + 真机验收
 
@@ -48,6 +56,10 @@
 
 **测试用例**：见上。
 
-**验证**：
+**验证**：三件套全绿——`cargo test --lib` 133/133（隔离 target，dev 实例在跑不抢锁）、
+`npm run test:run` 266/266、`npm run build` 过；`git diff --stat` 实证 `src/features/`（桌面）与
+`pty.rs` 零改动，改动面 = web 两文件 + mobile 四文件，严格贴白名单。真机清单已交付用户
+（双 agent 滚动/顶底/打断/清输入/Tab/选项点选、CJK IME、桌面回归、Codex 重连历史恢复），
+**待用户真机结果回填后封档**。
 
-**状态**：未开始
+**状态**：进行中

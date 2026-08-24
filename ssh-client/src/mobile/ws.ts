@@ -3,14 +3,17 @@
 // 稳定连接 30s 后归零。
 
 export type ServerMsg =
-  | { type: "snapshot"; data: string }
+  // alt = 服务端仿真器探测的终端模式（260824 terminal-ux）：
+  // true=alt 屏（Claude 型，历史在 TUI 内部，滚动走远程序列）；
+  // false=普通屏（Codex 型，历史在终端 scrollback，滚动走本地 API）
+  | { type: "snapshot"; data: string; alt: boolean }
   | { type: "output"; data: string }
   | { type: "status"; task_id: string; status: string | null };
 
 export type WsConnState = "connecting" | "open" | "backoff" | "closed";
 
 export interface TaskWsCallbacks {
-  onSnapshot(data: string): void;
+  onSnapshot(data: string, alt: boolean): void;
   onOutput(data: string): void;
   onStatus(status: string): void;
   onConnState(state: WsConnState): void;
@@ -89,7 +92,7 @@ export class TaskWs {
     }
     switch (msg.type) {
       case "snapshot":
-        this.cb.onSnapshot(msg.data);
+        this.cb.onSnapshot(msg.data, msg.alt);
         break;
       case "output":
         this.cb.onOutput(msg.data);

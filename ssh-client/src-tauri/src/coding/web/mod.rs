@@ -476,18 +476,22 @@ async fn task_ws_loop(mut socket: WebSocket, state: WsState, task_id: String) {
     // 手机 WS 生命周期登记（最后一个断开时还原桌面尺寸）
     stream::ws_connected(&task_id);
     // 快照 + 订阅在同一临界段内注册（stream.rs 保证无丢帧窗口）。
-    // 260824 起快照内容 = 无头仿真器状态序列（百字节级），引导硬失败时
-    // 由 stream.rs 内部回退原始尾窗，此处无感知
-    let (snapshot, mut output_rx) = stream::subscribe_with_snapshot(&task_id);
-    // 快照体积观测（260824 验收项：状态序列 <10KB vs 原始尾窗 256KB）
+    // 260824 terminal-ux 起按终端模式分流：alt 屏（Claude 型）= 状态序列，
+    // 普通屏（Codex 型）= 原始尾窗（恢复手机端 scrollback）；alt 标志随
+    // 快照下发，前端据此选择滚动交互模式（远程序列 vs 本地滚动）
+    let (snapshot, alt, mut output_rx) = stream::subscribe_with_snapshot(&task_id);
+    // 快照体积观测（260824 验收项：状态序列 <10KB；普通屏尾窗按需全量）
     eprintln!(
-        "[web-companion] snapshot task={} bytes={} (state-sync or tail fallback)",
+        "[web-companion] snapshot task={} bytes={} alt={} (state-sync or tail replay)",
         task_id,
-        snapshot.len()
+        snapshot.len(),
+        alt
     );
     if socket
         .send(Message::Text(
-            serde_json::json!({ "type": "snapshot", "data": snapshot }).to_string().into(),
+            serde_json::json!({ "type": "snapshot", "data": snapshot, "alt": alt })
+                .to_string()
+                .into(),
         ))
         .await
         .is_err()

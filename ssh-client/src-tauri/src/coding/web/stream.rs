@@ -136,18 +136,24 @@ fn evict_over_budget(state: &mut TapState) {
     }
 }
 
-/// 同一临界段内：引导仿真器（不存在则建格灌尾窗）+ 序列化状态快照 +
-/// 注册实时订阅者。返回 (快照全文, 接收端)。此后接收端收到的块严格晚于
-/// 快照内容。
+/// 同一临界段内：引导仿真器（不存在则建格灌尾窗）+ 按终端模式二选一产出
+/// 快照 + 注册实时订阅者。返回 (快照全文, 是否 alt-screen, 接收端)。此后
+/// 接收端收到的块严格晚于快照内容。
 ///
-/// 快照 = 仿真器最终屏幕状态重编码的 VT 序列（260824）：百字节级，手机端
-/// xterm 原样 write 即恢复，管线与 260821 完全一致。引导/序列化硬失败
-/// （vt100 bug 级 panic，Q5 决议）→ catch_unwind 回退原始尾窗，退化到
-/// 全量重放，不会更糟。panic 时仿真器可能未入 map（局部建、灌完才 insert，
-/// 半灌实例随 unwind 丢弃），下次建连重新引导。
+/// 快照按 `alternate_screen()` 分流（260824 terminal-ux Q1）：
+/// - **alt 屏**（Claude 型 TUI，历史在应用内部）：仿真器最终屏幕状态重编码
+///   的 VT 序列——百字节级，xterm 原样 write 即恢复；
+/// - **普通屏**（Codex 型，历史在终端 scrollback）：**原始尾窗全量重放**——
+///   恢复手机端 xterm 本地 scrollback（状态序列只含可见屏，会把历史丢掉，
+///   260824 上午状态同步引入的回归，此分支修复）。普通屏输出线性追加，
+///   重放解析远快于 alt 屏帧流。
+///
+/// 引导/序列化硬失败（vt100 bug 级 panic，Q5 决议）→ catch_unwind 回退
+/// 原始尾窗，退化到全量重放，不会更糟。仿真器对两种模式照常常驻（后续
+/// 建连免重解析；Claude 任务结束退回普通屏的场景自动切到尾窗路径）。
 pub(crate) fn subscribe_with_snapshot(
     id: &str,
-) -> (String, tokio::sync::mpsc::UnboundedReceiver<String>) {
+) -> (String, bool, tokio::sync::mpsc::UnboundedReceiver<String>) {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let mut state = TAPS.lock();
     let tail = state
@@ -168,24 +174,31 @@ pub(crate) fn subscribe_with_snapshot(
             state.emulators.insert(id.to_string(), parser);
         }
         let screen = state.emulators.get(id)?.screen();
+        if !screen.alternate_screen() {
+            // 普通屏：尾窗重放才是正路（scrollback 恢复），序列化反而丢历史
+            return None;
+        }
         let mut out = Vec::new();
         // alt-screen 进入序列 crate 不序列化（PoC 实证），按查询自补——
-        // Claude/Codex 全程 TUI，缺它后续实时流的光标语义会错位
-        if screen.alternate_screen() {
-            out.extend_from_slice(b"\x1b[?1049h");
-        }
+        // Claude/Codex 型 TUI 全程 alt，缺它后续实时流的光标语义会错位
+        out.extend_from_slice(b"\x1b[?1049h");
         // state_formatted = 内容+SGR+光标定位+输入模式（keypad/bracketed-paste）
         out.extend_from_slice(&screen.state_formatted());
         Some(String::from_utf8_lossy(&out).into_owned())
     }))
     .unwrap_or(None);
-    let snapshot = state_sync.unwrap_or_else(|| tail.clone());
+    let (snapshot, alt) = match state_sync {
+        Some(s) => (s, true),
+        // None 覆盖三种情况：普通屏（正路）/ 引导或序列化 panic（回退）/
+        // 仿真器缺失（防御）——统一走尾窗，alt=false
+        None => (tail, false),
+    };
     state
         .subscribers
         .entry(id.to_string())
         .or_default()
         .push(tx);
-    (snapshot, rx)
+    (snapshot, alt, rx)
 }
 
 /// PTY 尺寸记账 + 仿真器纯跟随（Q4）。spawn（coding_run_task openpty 后）
@@ -276,7 +289,7 @@ mod tests {
         reset_for_test();
         touch("t1", "hello ");
         touch("t1", "world");
-        let (snapshot, mut rx) = subscribe_with_snapshot("t1");
+        let (snapshot, _alt, mut rx) = subscribe_with_snapshot("t1");
         // 260824 起快照是状态序列（清屏/复位头 + 内容），不再等于原始尾窗
         assert!(snapshot.contains("hello world"), "snapshot={snapshot:?}");
         // 订阅后新块实时到达（原始流原样转发，不走仿真器编码）
@@ -285,12 +298,14 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_of_silent_task_is_reset_sequence_not_empty() {
+    fn snapshot_of_silent_task_is_empty_normal_screen() {
         let _g = TEST_LOCK.lock();
         reset_for_test();
-        let (snapshot, mut rx) = subscribe_with_snapshot("nobody");
-        // 空网格也输出清屏复位序列（引导出的仿真器状态），实时流照常
-        assert!(!snapshot.is_empty());
+        let (snapshot, alt_silent, mut rx) = subscribe_with_snapshot("nobody");
+        // 空任务：无任何输出 → 普通屏路径（alt=false），快照为空串（手机端
+        // term.reset 后无内容可写）；实时流照常
+        assert!(snapshot.is_empty());
+        assert!(!alt_silent);
         touch("nobody", "x");
         assert_eq!(rx.try_recv().unwrap(), "x");
     }
@@ -311,15 +326,15 @@ mod tests {
             assert_eq!(buf.bytes, 4 * 64 * 1024);
         }
         // 引导照常可用（无 panic）
-        let (_snapshot, _rx) = subscribe_with_snapshot("t2");
+        let (_snapshot, _alt, _rx) = subscribe_with_snapshot("t2");
     }
 
     #[test]
     fn multiple_subscribers_each_get_output() {
         let _g = TEST_LOCK.lock();
         reset_for_test();
-        let (_s1, mut r1) = subscribe_with_snapshot("t3");
-        let (_s2, mut r2) = subscribe_with_snapshot("t3");
+        let (_s1, _a1, mut r1) = subscribe_with_snapshot("t3");
+        let (_s2, _a2, mut r2) = subscribe_with_snapshot("t3");
         touch("t3", "fanout");
         assert_eq!(r1.try_recv().unwrap(), "fanout");
         assert_eq!(r2.try_recv().unwrap(), "fanout");
@@ -329,10 +344,10 @@ mod tests {
     fn dropping_receiver_prunes_subscriber_on_next_record() {
         let _g = TEST_LOCK.lock();
         reset_for_test();
-        let (_snapshot, rx) = subscribe_with_snapshot("t4");
+        let (_snapshot, _alt, rx) = subscribe_with_snapshot("t4");
         drop(rx);
         touch("t4", "after-drop");
-        let (_, mut late) = subscribe_with_snapshot("t4");
+        let (_, _alt2, mut late) = subscribe_with_snapshot("t4");
         // 死订阅者已被清掉，活着的照常收
         touch("t4", "second");
         assert_eq!(late.try_recv().unwrap(), "second");
@@ -396,9 +411,10 @@ mod tests {
         for _ in 0..2000 {
             touch("t10", &tui_stream());
         }
-        let (snapshot, _rx) = subscribe_with_snapshot("t10");
+        let (snapshot, alt10, _rx) = subscribe_with_snapshot("t10");
         // 状态同步断言：百字节级（全量重放是 2000×80B≈160KB）
         assert!(snapshot.len() < 2048, "snapshot len={}", snapshot.len());
+        assert!(alt10, "alt-screen stream must report alt=true");
         // 内容语义：含最终屏文本、alt 进入序列、SGR；不含原始流的重复帧
         assert!(snapshot.contains("\x1b[?1049h"), "alt enter missing");
         assert!(snapshot.contains("AI Coding"));
@@ -413,11 +429,12 @@ mod tests {
         let _g = TEST_LOCK.lock();
         reset_for_test();
         touch("t11", &tui_stream());
-        let (snap1, _rx1) = subscribe_with_snapshot("t11");
+        let (snap1, alt11, _rx1) = subscribe_with_snapshot("t11");
         assert!(snap1.contains("AI Coding"));
+        assert!(alt11);
         // 引导后新增输出 → 常驻增量喂入 → 第二个连接看到的状态包含它
         touch("t11", "\x1b[10;1HLATER_CONTENT");
-        let (snap2, _rx2) = subscribe_with_snapshot("t11");
+        let (snap2, _alt12, _rx2) = subscribe_with_snapshot("t11");
         assert!(snap2.contains("LATER_CONTENT"), "incremental feed missing");
     }
 
@@ -439,9 +456,9 @@ mod tests {
         let _g = TEST_LOCK.lock();
         reset_for_test();
         touch("t13", &tui_stream());
-        let (_s, _rx) = subscribe_with_snapshot("t13");
+        let (_s, _alt, _rx) = subscribe_with_snapshot("t13");
         drop_emulator_for_test("t13"); // 模拟硬失败丢仿真器后的下一次建连
-        let (snap2, _rx2) = subscribe_with_snapshot("t13");
+        let (snap2, _alt, _rx2) = subscribe_with_snapshot("t13");
         // 重新引导：状态同步路径自愈（panic 回退分支本身由 catch_unwind
         // 兜底，无法无侵入注入 panic，不做表演性断言）
         assert!(snap2.contains("AI Coding"));
@@ -461,5 +478,39 @@ mod tests {
             touch(&format!("bulk{i}"), &big);
         }
         assert!(emulator_probe("old-task").is_none(), "emulator not reclaimed");
+    }
+
+    // ── 260824 terminal-ux：快照按终端模式分流 ──────────────────────────
+
+    #[test]
+    fn normal_screen_task_replays_raw_tail_with_alt_false() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // Codex 型普通屏流：线性追加、无 1049——历史归终端 scrollback
+        let chunks: Vec<String> = (0..300).map(|i| format!("line {i}\r\n")).collect();
+        for c in &chunks {
+            touch("codex-like", c);
+        }
+        let (snapshot, alt, _rx) = subscribe_with_snapshot("codex-like");
+        // 普通屏正路 = 原始尾窗全量重放（恢复手机端 scrollback）
+        let expect: String = chunks.concat();
+        assert_eq!(snapshot, expect, "normal screen must replay raw tail");
+        assert!(!alt);
+        // 仿真器仍常驻（模式判定与后续免重解析）
+        assert!(emulator_probe("codex-like").is_some());
+    }
+
+    #[test]
+    fn alt_task_returning_to_normal_screen_switches_to_tail_replay() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // Claude 任务结束场景：进 alt 干活 → 退出 alt（TUI 收尾）回普通屏
+        touch("done-task", &tui_stream());
+        touch("done-task", "\x1b[?1049l\r\nfinal summary line\r\n");
+        let (snapshot, alt, _rx) = subscribe_with_snapshot("done-task");
+        // 退屏后是普通屏 → 尾窗重放，alt=false（完整历史含 TUI 阶段可恢复）
+        assert!(!alt);
+        assert!(snapshot.contains("final summary line"));
+        assert!(snapshot.contains("\x1b[?1049h"), "tail keeps TUI phase");
     }
 }

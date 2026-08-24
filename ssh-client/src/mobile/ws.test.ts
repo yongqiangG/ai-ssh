@@ -47,6 +47,7 @@ function lastSocket(): FakeWebSocket {
 describe("TaskWs", () => {
   let states: WsConnState[];
   let snapshots: string[];
+  let snapshotAlts: boolean[];
   let outputs: string[];
   let statuses: string[];
 
@@ -54,7 +55,10 @@ describe("TaskWs", () => {
     new TaskWs(
       "ws://x/api/ws/task/t1?token=k",
       {
-        onSnapshot: (d) => snapshots.push(d),
+        onSnapshot: (d, alt) => {
+          snapshots.push(d);
+          snapshotAlts.push(alt);
+        },
         onOutput: (d) => outputs.push(d),
         onStatus: (s) => statuses.push(s),
         onConnState: (s) => states.push(s),
@@ -66,6 +70,7 @@ describe("TaskWs", () => {
     FakeWebSocket.instances = [];
     states = [];
     snapshots = [];
+    snapshotAlts = [];
     outputs = [];
     statuses = [];
     vi.useFakeTimers();
@@ -80,11 +85,14 @@ describe("TaskWs", () => {
     ws.start();
     const sock = lastSocket();
     sock.open();
-    sock.message({ type: "snapshot", data: "history..." });
+    sock.message({ type: "snapshot", data: "history...", alt: true });
+    sock.message({ type: "snapshot", data: "raw tail", alt: false });
     sock.message({ type: "output", data: "new line" });
     sock.message({ type: "status", task_id: "t1", status: "input_required" });
     sock.message({ type: "garbage", x: 1 });
-    expect(snapshots).toEqual(["history..."]);
+    expect(snapshots).toEqual(["history...", "raw tail"]);
+    // 终端模式标志随快照透传（260824 terminal-ux 双模式交互的判据）
+    expect(snapshotAlts).toEqual([true, false]);
     expect(outputs).toEqual(["new line"]);
     expect(statuses).toEqual(["input_required"]);
     ws.close();
