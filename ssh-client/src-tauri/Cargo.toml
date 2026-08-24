@@ -40,6 +40,9 @@ tokio = { version = "1", features = ["sync", "macros", "rt", "time", "process", 
 axum = { version = "0.8", features = ["ws"] }
 # 静态资源内嵌：debug 构建从磁盘 dist-mobile/ 实时读（前端迭代免重编），release 打进二进制
 rust-embed = "6.8"
+# 无头终端仿真器：手机快照状态同步——建连发最终屏幕状态而非重放 256KB 尾窗
+# （docs/situations/260824-mobile-snapshot-statesync.md）
+vt100 = "0.16"
 tower = { version = "0.5", features = ["util"] }
 once_cell = "1.19"
 chrono = "0.4"

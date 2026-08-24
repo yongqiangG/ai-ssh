@@ -704,6 +704,8 @@ fn spawn_fork_task_process(
             pixel_height: 0,
         })
         .map_err(|e| e.to_string())?;
+    // spawn 初始尺寸记账（260824，agent 任务三 spawn 点之一：fork）
+    crate::coding::web::stream::note_pty_size(&task_id, cols, rows);
     let mut child = pair
         .slave
         .spawn_command(command)
@@ -899,6 +901,13 @@ pub async fn coding_run_task(
             pixel_height: 0,
         })
         .map_err(|e| e.to_string())?;
+    // spawn 初始尺寸记账（260824，agent 任务三 spawn 点之一：run）——
+    // 桌面任务常驻初始尺寸从不 resize，仿真器建格需要真值
+    crate::coding::web::stream::note_pty_size(
+        &task_id,
+        cols.unwrap_or(220),
+        rows.unwrap_or(50),
+    );
 
     // 将图片保存至 .ai-coding/attachments/ 并获取文件路径
     let image_paths = save_task_images(&project_path, &task_id, &images.unwrap_or_default())?;
@@ -1261,6 +1270,12 @@ pub async fn coding_resume_task(
             pixel_height: 0,
         })
         .map_err(|e| e.to_string())?;
+    // spawn 初始尺寸记账（260824，agent 任务三 spawn 点之一：resume）
+    crate::coding::web::stream::note_pty_size(
+        &task_id,
+        cols.unwrap_or(220),
+        rows.unwrap_or(50),
+    );
 
     let launch = crate::coding::app_settings::get_agent_launch_spec(&agent);
     let agent_bin = launch.program.clone();
@@ -1552,6 +1567,9 @@ pub(crate) fn resize_pty(
         master
             .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .map_err(|e| e.to_string())?;
+        // PTY 真实尺寸变更的汇合点记账（260824）：WS 接管/桌面命令/断开还原
+        // 三个调用方全过此处——仿真器纯跟随（Q4）单点覆盖
+        crate::coding::web::stream::note_pty_size(task_id, cols, rows);
     }
     Ok(())
 }

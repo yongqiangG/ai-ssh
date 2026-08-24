@@ -7,8 +7,14 @@
 //!
 //! 丢帧窗口消除：快照读取与订阅注册在同一临界段内完成——`record` 也在
 //! 同一把锁内追加，快照与实时流之间不可能漏块。
+//!
+//! 快照状态同步（docs/situations/260824-mobile-snapshot-statesync.md）：
+//! 每 id 一个惰性引导后常驻的 vt100 无头仿真器，与尾窗同一把锁、同一
+//! 逐出生命周期。WS 建连快照 = 仿真器最终屏幕状态（O(屏幕)，百字节级），
+//! 替代原始尾窗全量重放（O(历史)，256KB 级）；引导/序列化硬失败回退
+//! 原始尾窗，行为退化到 260821 之前、不会更糟。
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Instant;
 
 use once_cell::sync::Lazy;
@@ -19,6 +25,8 @@ use tokio::sync::mpsc::UnboundedSender;
 const TAIL_BYTES: usize = 256 * 1024;
 /// 全局内存预算：超预算按最久未活跃逐出整条缓冲。
 const TOTAL_BUDGET_BYTES: usize = 8 * 1024 * 1024;
+/// 仿真器建格兜底尺寸：与 coding_run_task 的 openpty 缺省一致（220×50）。
+const FALLBACK_SIZE: (u16, u16) = (50, 220);
 
 struct TapBuffer {
     chunks: VecDeque<String>,
@@ -37,7 +45,13 @@ struct TapState {
     /// 经 web 创建的任务集合：此类任务无桌面 IPC channel，输出需同步
     /// publish 成 `coding:task-output` 事件供桌面终端消费（去重开关——
     /// channel 任务的事件直投与事件流不得并存）。
-    web_created: std::collections::HashSet<String>,
+    web_created: HashSet<String>,
+    /// 惰性引导后常驻的无头仿真器（260824）：首个手机 WS 建连时按 PTY
+    /// 当前尺寸建格并灌尾窗，此后随 record 增量喂；随尾窗逐出一并回收。
+    emulators: HashMap<String, vt100::Parser>,
+    /// PTY 当前真实尺寸：spawn（coding_run_task）与 resize 汇合点
+    /// （resize_pty）两处记账——仿真器建格与纯跟随（Q4）的数据源。
+    pty_sizes: HashMap<String, (u16, u16)>,
 }
 
 static TAPS: Lazy<Mutex<TapState>> = Lazy::new(|| {
@@ -46,7 +60,9 @@ static TAPS: Lazy<Mutex<TapState>> = Lazy::new(|| {
         subscribers: HashMap::new(),
         desktop_sizes: HashMap::new(),
         live_ws: HashMap::new(),
-        web_created: std::collections::HashSet::new(),
+        web_created: HashSet::new(),
+        emulators: HashMap::new(),
+        pty_sizes: HashMap::new(),
     })
 });
 
@@ -83,6 +99,11 @@ pub(crate) fn record(id: &str, data: &str) {
     if let Some(subs) = state.subscribers.get_mut(id) {
         subs.retain(|tx| tx.send(data.to_string()).is_ok());
     }
+    // 常驻仿真器增量喂入（260824）：与尾窗追加同把锁，次序天然正确。
+    // vt100 纯内存解析不返回 Result，无失败分支；持锁增量微秒级。
+    if let Some(parser) = state.emulators.get_mut(id) {
+        parser.process(data.as_bytes());
+    }
     evict_over_budget(&mut state);
 }
 
@@ -106,18 +127,30 @@ fn evict_over_budget(state: &mut TapState) {
         }
         if let Some(buf) = state.buffers.remove(&id) {
             to_free = to_free.saturating_sub(buf.bytes);
-            // 缓冲都没了说明任务早已终结，web_created 标记一并回收
+            // 缓冲都没了说明任务早已终结，web_created 标记一并回收；
+            // 仿真器与尺寸记账随尾窗同路回收（260824 常驻生命周期的终点）
             state.web_created.remove(&id);
+            state.emulators.remove(&id);
+            state.pty_sizes.remove(&id);
         }
     }
 }
 
-/// 同一临界段内：取尾窗快照 + 注册实时订阅者。
-/// 返回 (快照全文, 接收端)。此后接收端收到的块严格晚于快照内容。
-pub(crate) fn subscribe_with_snapshot(id: &str) -> (String, tokio::sync::mpsc::UnboundedReceiver<String>) {
+/// 同一临界段内：引导仿真器（不存在则建格灌尾窗）+ 序列化状态快照 +
+/// 注册实时订阅者。返回 (快照全文, 接收端)。此后接收端收到的块严格晚于
+/// 快照内容。
+///
+/// 快照 = 仿真器最终屏幕状态重编码的 VT 序列（260824）：百字节级，手机端
+/// xterm 原样 write 即恢复，管线与 260821 完全一致。引导/序列化硬失败
+/// （vt100 bug 级 panic，Q5 决议）→ catch_unwind 回退原始尾窗，退化到
+/// 全量重放，不会更糟。panic 时仿真器可能未入 map（局部建、灌完才 insert，
+/// 半灌实例随 unwind 丢弃），下次建连重新引导。
+pub(crate) fn subscribe_with_snapshot(
+    id: &str,
+) -> (String, tokio::sync::mpsc::UnboundedReceiver<String>) {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let mut state = TAPS.lock();
-    let snapshot = state
+    let tail = state
         .buffers
         .get(id)
         .map(|b| b.chunks.iter().fold(String::new(), |mut acc, c| {
@@ -125,12 +158,47 @@ pub(crate) fn subscribe_with_snapshot(id: &str) -> (String, tokio::sync::mpsc::U
             acc
         }))
         .unwrap_or_default();
+    let state_sync = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if !state.emulators.contains_key(id) {
+            // 惰性引导（Q2）：按 PTY 当前真实尺寸建格（无记账则用 openpty
+            // 同款兜底），灌完整尾窗后才入 map——常驻自此开始
+            let (rows, cols) = state.pty_sizes.get(id).copied().unwrap_or(FALLBACK_SIZE);
+            let mut parser = vt100::Parser::new(rows, cols, 0);
+            parser.process(tail.as_bytes());
+            state.emulators.insert(id.to_string(), parser);
+        }
+        let screen = state.emulators.get(id)?.screen();
+        let mut out = Vec::new();
+        // alt-screen 进入序列 crate 不序列化（PoC 实证），按查询自补——
+        // Claude/Codex 全程 TUI，缺它后续实时流的光标语义会错位
+        if screen.alternate_screen() {
+            out.extend_from_slice(b"\x1b[?1049h");
+        }
+        // state_formatted = 内容+SGR+光标定位+输入模式（keypad/bracketed-paste）
+        out.extend_from_slice(&screen.state_formatted());
+        Some(String::from_utf8_lossy(&out).into_owned())
+    }))
+    .unwrap_or(None);
+    let snapshot = state_sync.unwrap_or_else(|| tail.clone());
     state
         .subscribers
         .entry(id.to_string())
         .or_default()
         .push(tx);
     (snapshot, rx)
+}
+
+/// PTY 尺寸记账 + 仿真器纯跟随（Q4）。spawn（coding_run_task openpty 后）
+/// 与 resize 汇合点（resize_pty 成功后）各调一次——两写入点全覆盖，
+/// 仿真器网格形状永远与 PTY 真值一致。
+pub(crate) fn note_pty_size(id: &str, cols: u16, rows: u16) {
+    let mut state = TAPS.lock();
+    // 统一存 (rows, cols)——与 Parser::new/set_size 参数序一致
+    // （区别于 desktop_sizes 的 (cols, rows)，那是对外还原协议的既有序）
+    state.pty_sizes.insert(id.to_string(), (rows, cols));
+    if let Some(parser) = state.emulators.get_mut(id) {
+        parser.screen_mut().set_size(rows, cols);
+    }
 }
 
 /// 桌面侧 resize 留底（coding_resize_pty 每次成功调用时记一笔）。
@@ -170,6 +238,23 @@ pub(crate) fn reset_for_test() {
     state.desktop_sizes.clear();
     state.live_ws.clear();
     state.web_created.clear();
+    state.emulators.clear();
+    state.pty_sizes.clear();
+}
+
+/// 测试探针：仿真器是否存在及其网格尺寸。
+#[cfg(test)]
+pub(crate) fn emulator_probe(id: &str) -> Option<(u16, u16)> {
+    TAPS.lock()
+        .emulators
+        .get(id)
+        .map(|p| p.screen().size())
+}
+
+/// 测试探针：强制丢弃仿真器（模拟硬失败后的回退路径）。
+#[cfg(test)]
+pub(crate) fn drop_emulator_for_test(id: &str) {
+    TAPS.lock().emulators.remove(id);
 }
 
 #[cfg(test)]
@@ -192,18 +277,20 @@ mod tests {
         touch("t1", "hello ");
         touch("t1", "world");
         let (snapshot, mut rx) = subscribe_with_snapshot("t1");
-        assert_eq!(snapshot, "hello world");
-        // 订阅后新块实时到达
+        // 260824 起快照是状态序列（清屏/复位头 + 内容），不再等于原始尾窗
+        assert!(snapshot.contains("hello world"), "snapshot={snapshot:?}");
+        // 订阅后新块实时到达（原始流原样转发，不走仿真器编码）
         touch("t1", "!");
         assert_eq!(rx.try_recv().unwrap(), "!");
     }
 
     #[test]
-    fn snapshot_before_any_output_is_empty() {
+    fn snapshot_of_silent_task_is_reset_sequence_not_empty() {
         let _g = TEST_LOCK.lock();
         reset_for_test();
         let (snapshot, mut rx) = subscribe_with_snapshot("nobody");
-        assert!(snapshot.is_empty());
+        // 空网格也输出清屏复位序列（引导出的仿真器状态），实时流照常
+        assert!(!snapshot.is_empty());
         touch("nobody", "x");
         assert_eq!(rx.try_recv().unwrap(), "x");
     }
@@ -216,9 +303,15 @@ mod tests {
         for _ in 0..10 {
             touch("t2", &big);
         }
-        let (snapshot, _rx) = subscribe_with_snapshot("t2");
-        // 10×64KB 中只保留最近 4 块（256KB 上限）
-        assert_eq!(snapshot.len(), 4 * 64 * 1024);
+        // 10×64KB 中尾窗只保留最近 4 块（256KB 上限）。260824 起快照是屏幕
+        // 状态（≈可见区 11KB），裁剪量改为直接断言内部缓冲
+        {
+            let state = TAPS.lock();
+            let buf = state.buffers.get("t2").unwrap();
+            assert_eq!(buf.bytes, 4 * 64 * 1024);
+        }
+        // 引导照常可用（无 panic）
+        let (_snapshot, _rx) = subscribe_with_snapshot("t2");
     }
 
     #[test]
@@ -236,8 +329,7 @@ mod tests {
     fn dropping_receiver_prunes_subscriber_on_next_record() {
         let _g = TEST_LOCK.lock();
         reset_for_test();
-        let (snapshot, rx) = subscribe_with_snapshot("t4");
-        assert!(snapshot.is_empty());
+        let (_snapshot, rx) = subscribe_with_snapshot("t4");
         drop(rx);
         touch("t4", "after-drop");
         let (_, mut late) = subscribe_with_snapshot("t4");
@@ -283,5 +375,91 @@ mod tests {
         // 桌面从没 resize 过（无留底）：归零也无从还原
         ws_connected("t-no-note");
         assert_eq!(ws_disconnected("t-no-note"), None);
+    }
+
+    // ── 260824 快照状态同步 ──────────────────────────────────────────────
+
+    /// 合成一段 alt-screen TUI 流：进 alt + 定位 + SGR 彩色 + CJK。
+    fn tui_stream() -> String {
+        let mut s = String::from("\x1b[?1049h\x1b[H\x1b[J");
+        s.push_str("\x1b[1;1H\x1b[7m AI Coding \x1b[m\r\n");
+        s.push_str("中文宽字符 ✅\r\n");
+        s.push_str("\x1b[33;1mYELLOW\x1b[m");
+        s
+    }
+
+    #[test]
+    fn snapshot_is_state_sync_not_raw_replay() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // 前置大量冗余帧（模拟 TUI 反复重绘），尾窗远大于最终状态
+        for _ in 0..2000 {
+            touch("t10", &tui_stream());
+        }
+        let (snapshot, _rx) = subscribe_with_snapshot("t10");
+        // 状态同步断言：百字节级（全量重放是 2000×80B≈160KB）
+        assert!(snapshot.len() < 2048, "snapshot len={}", snapshot.len());
+        // 内容语义：含最终屏文本、alt 进入序列、SGR；不含原始流的重复帧
+        assert!(snapshot.contains("\x1b[?1049h"), "alt enter missing");
+        assert!(snapshot.contains("AI Coding"));
+        assert!(snapshot.contains("中文宽字符 ✅"));
+        assert!(!snapshot.contains("YELLOW\x1b[m\x1b[?1049h"), "raw replay leaked");
+        // 仿真器已常驻
+        assert_eq!(emulator_probe("t10"), Some((50, 220)), "fallback size");
+    }
+
+    #[test]
+    fn emulator_is_incrementally_fed_after_bootstrap() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        touch("t11", &tui_stream());
+        let (snap1, _rx1) = subscribe_with_snapshot("t11");
+        assert!(snap1.contains("AI Coding"));
+        // 引导后新增输出 → 常驻增量喂入 → 第二个连接看到的状态包含它
+        touch("t11", "\x1b[10;1HLATER_CONTENT");
+        let (snap2, _rx2) = subscribe_with_snapshot("t11");
+        assert!(snap2.contains("LATER_CONTENT"), "incremental feed missing");
+    }
+
+    #[test]
+    fn emulator_follows_pty_resize() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        note_pty_size("t12", 220, 50); // spawn 记账（cols, rows）
+        touch("t12", &tui_stream());
+        let _ = subscribe_with_snapshot("t12");
+        assert_eq!(emulator_probe("t12"), Some((50, 220)));
+        // 手机接管 resize 40 列（note_pty_size 参数序 (cols, rows)）
+        note_pty_size("t12", 40, 24);
+        assert_eq!(emulator_probe("t12"), Some((24, 40)), "follow failed");
+    }
+
+    #[test]
+    fn rebootstrap_after_emulator_drop() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        touch("t13", &tui_stream());
+        let (_s, _rx) = subscribe_with_snapshot("t13");
+        drop_emulator_for_test("t13"); // 模拟硬失败丢仿真器后的下一次建连
+        let (snap2, _rx2) = subscribe_with_snapshot("t13");
+        // 重新引导：状态同步路径自愈（panic 回退分支本身由 catch_unwind
+        // 兜底，无法无侵入注入 panic，不做表演性断言）
+        assert!(snap2.contains("AI Coding"));
+    }
+
+    #[test]
+    fn eviction_reclaims_emulator_too() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        note_pty_size("old-task", 220, 50);
+        touch("old-task", &tui_stream());
+        let _ = subscribe_with_snapshot("old-task");
+        assert!(emulator_probe("old-task").is_some());
+        // 灌满全局预算触发逐出（最久未活跃先走）
+        let big = "z".repeat(64 * 1024);
+        for i in 0..200 {
+            touch(&format!("bulk{i}"), &big);
+        }
+        assert!(emulator_probe("old-task").is_none(), "emulator not reclaimed");
     }
 }

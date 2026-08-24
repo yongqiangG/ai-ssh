@@ -475,8 +475,16 @@ async fn ws_task(
 async fn task_ws_loop(mut socket: WebSocket, state: WsState, task_id: String) {
     // 手机 WS 生命周期登记（最后一个断开时还原桌面尺寸）
     stream::ws_connected(&task_id);
-    // 快照 + 订阅在同一临界段内注册（stream.rs 保证无丢帧窗口）
+    // 快照 + 订阅在同一临界段内注册（stream.rs 保证无丢帧窗口）。
+    // 260824 起快照内容 = 无头仿真器状态序列（百字节级），引导硬失败时
+    // 由 stream.rs 内部回退原始尾窗，此处无感知
     let (snapshot, mut output_rx) = stream::subscribe_with_snapshot(&task_id);
+    // 快照体积观测（260824 验收项：状态序列 <10KB vs 原始尾窗 256KB）
+    eprintln!(
+        "[web-companion] snapshot task={} bytes={} (state-sync or tail fallback)",
+        task_id,
+        snapshot.len()
+    );
     if socket
         .send(Message::Text(
             serde_json::json!({ "type": "snapshot", "data": snapshot }).to_string().into(),
