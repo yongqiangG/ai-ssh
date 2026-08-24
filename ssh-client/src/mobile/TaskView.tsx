@@ -222,20 +222,10 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
           {status === "input_required" ? "任务等待你的确认——在下方终端按 y/回车应答" : "一轮已结束，等待验收"}
         </div>
       )}
-      <div className="term-host" ref={termHostRef} />
-      {/* 触屏滚动：慢滑/fling 双模式手势（alt 屏远程序列 / 普通屏本地 API，
-          260824 terminal-ux），顶/底一击即达做精确定位。 */}
-      <div className="term-jump-pad">
-        <button className="jump-btn" onClick={() => termApiRef.current?.toTop()} aria-label="回到顶部">
-          顶
-        </button>
-        <button className="jump-btn" onClick={() => termApiRef.current?.toBottom()} aria-label="回到最新">
-          底
-        </button>
-      </div>
-      {/* 输入工具条（260824 Q4）：手机软键盘没有 Ctrl/Esc/Tab——常驻细条
-          直发标准控制序列，agent 原生语义解释（Esc=Claude 打断/Codex 取消；
-          ^C=清空输入，退出确认由 agent 双击交互把关）。 */}
+      {/* 输入工具条（260824 Q4）：手机软键盘没有 Ctrl/Esc/Tab——直发标准
+          控制序列，agent 原生语义解释（Esc=Claude 打断/Codex 取消；
+          ^C=清空输入，退出确认由 agent 双击交互把关）。放顶部：键盘/底部
+          地址栏永远盖不到（放底部时 resizes-visual 默认下被叠盖，真机实证）。 */}
       <div className="term-toolbar">
         <button className="tool-btn" onClick={() => termApiRef.current?.send("\x1b")}>
           Esc
@@ -251,6 +241,18 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
         </button>
         <button className="tool-btn" onClick={() => termApiRef.current?.send("\x1b[B")} aria-label="下方向键">
           ↓
+        </button>
+      </div>
+      <div className="term-host" ref={termHostRef} />
+      {/* 触屏滚动：慢滑/fling 双模式手势（alt 屏远程序列 / 普通屏本地 API，
+          260824 terminal-ux），顶/底一击即达做精确定位；右缘垂直居中——
+          顶部工具条与底部地址栏/键盘都盖不到。 */}
+      <div className="term-jump-pad">
+        <button className="jump-btn" onClick={() => termApiRef.current?.toTop()} aria-label="回到顶部">
+          顶
+        </button>
+        <button className="jump-btn" onClick={() => termApiRef.current?.toBottom()} aria-label="回到最新">
+          底
         </button>
       </div>
     </div>

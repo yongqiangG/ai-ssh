@@ -2,7 +2,10 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- interactive-widget=resizes-content：键盘弹出时压缩布局视口（Chrome
+         默认 resizes-visual 只缩视觉视口，底部元素被键盘盖住——260824 手机端
+         工具条遮挡问题的根因之一；其余浏览器忽略该键无害） -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0b0e14" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-128.png" />

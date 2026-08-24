@@ -294,7 +294,7 @@ button {
 
 .term-host {
   flex: 1;
-  margin: 10px 8px 8px;
+  margin: 0 8px calc(10px + env(safe-area-inset-bottom));
   padding: 8px;
   background: #0d1017;
   border: 1px solid #1e2434;
@@ -315,12 +315,14 @@ button {
   overscroll-behavior: contain;
 }
 
-/* 浮动跳转按钮对（右缘贴边，260824 terminal-ux：顶/底一击即达，
-   alt 屏发 Home/End 序列 / 普通屏本地 scrollTo） */
+/* 浮动跳转按钮对（右缘垂直居中，260824 terminal-ux：顶/底一击即达，
+   alt 屏发 Home/End 序列 / 普通屏本地 scrollTo）——居中避开顶部工具条
+   与底部地址栏/键盘（fixed+bottom 会被浏览器 chrome 叠盖，真机实证） */
 .term-jump-pad {
   position: fixed;
   right: 14px;
-  bottom: calc(64px + env(safe-area-inset-bottom));
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -345,13 +347,14 @@ button {
   background: #2d3a51;
 }
 
-/* 常驻输入工具条（260824 Q4）：手机软键盘无 Ctrl/Esc/Tab——细条直发
-   标准控制序列，键序语义由 agent 原生解释 */
+/* 输入工具条（260824 Q4）：放顶部（task-meta 之下、终端之上）——键盘与
+   底部地址栏永远盖不到；手机软键盘无 Ctrl/Esc/Tab，细条直发标准控制序列 */
 .term-toolbar {
   display: flex;
   gap: 6px;
-  margin: 0 8px calc(8px + env(safe-area-inset-bottom));
+  margin: 6px 8px 8px;
   height: 34px;
+  flex: none;
 }
 
 .tool-btn {
