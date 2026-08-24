@@ -17,9 +17,13 @@
 
 **测试用例**：含 SGR 彩色文本 + CJK + alt-screen 切换的合成 VT 流灌入 → 序列化输出 → 目测/断言覆盖属性保留。
 
-**验证**：
+**验证**：官方 `vt100` 0.16.2（2026-08-17 发版，活跃维护，无需 fork）。序列化用自带
+`Screen::state_formatted()`（contents+SGR+末尾光标定位+输入模式/keypad/bracketed-paste 一件套）；
+**alt-screen 进入序列 crate 不发**，按 `alternate_screen()` 查询自己补 `\x1b[?1049h` 前缀。
+临时工程实跑（/tmp/vt100-poc，已废弃）：alt-screen+SGR+CJK+emoji 合成流 → 快照 **119 字节**（vs 256KB 尾窗）；
+`中` is_wide=true 续格模型正确；`set_size(220→40)` 截断保头，纯跟随成立。结论：阶段 1 序列化零自研编码，仅补 alt 前缀。
 
-**状态**：进行中
+**状态**：已完成
 
 ## 阶段 1：实现 term_state 模块
 
