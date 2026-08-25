@@ -13,6 +13,17 @@ mod coding;
 mod lifecycle;
 
 const BACKEND_PORT: u16 = 8091;
+
+/// dev 沙盒端口（260825）：debug 构建的 sidecar 走 8092——与常驻安装版的
+/// 8091 分流（双 sidecar 不抢端口），且与 vite 代理（8092）对齐，`npm run
+/// tauri dev` 一条命令即全链可用。release 打包版仍 8091。
+fn spawn_backend_port() -> u16 {
+    if cfg!(debug_assertions) {
+        8092
+    } else {
+        BACKEND_PORT
+    }
+}
 const BACKEND_JAR_NAME: &str = "ssh-server-app.jar";
 /// 首启训练的延迟：错开主后端冷启动的 CPU 峰值窗口
 const CDS_TRAINING_DELAY_SECS: u64 = 30;
@@ -227,7 +238,8 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
     fs::create_dir_all(&data_dir).map_err(|e| format!("create backend log dir failed: {e}"))?;
 
     // 启动自愈（仅 release）：8091 被占时按 PID 档案识别孤儿——证据确凿才杀，
-    // 查无实据即失败快报。dev 下 8091 是开发者手动后端，壳不插手。
+    // 查无实据即失败快报。dev 下 8092 是本壳自己的 sidecar（260825 起 dev 也
+    // spawn，debug 分流 8092），孤儿场景不复存在，壳不插手。
     if !cfg!(debug_assertions) {
         lifecycle::heal_orphan_backend(&data_dir, BACKEND_PORT)?;
     }
@@ -288,7 +300,7 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
     command
         .current_dir(&backend_dir)
         .arg("-Dspring.profiles.active=single")
-        .arg(format!("-Dserver.port={BACKEND_PORT}"))
+        .arg(format!("-Dserver.port={}", spawn_backend_port()))
         // stdin 哨兵 opt-in：仅壳拉起时启用，管道 EOF（壳退出/关闭写端）即优雅停机
         .arg("-Dlifecycle.stdin-watch=true")
         .arg("-Xms128m")
@@ -301,7 +313,7 @@ fn start_backend(app: &tauri::App) -> Result<Child, String> {
     command
         .arg("-jar")
         .arg(BACKEND_JAR_NAME)
-        .arg(format!("--server.port={BACKEND_PORT}"))
+        .arg(format!("--server.port={}", spawn_backend_port()))
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))
         // 管道写端由 Child 持有，随 BackendProcess 存活；stop() drop 之即发 EOF

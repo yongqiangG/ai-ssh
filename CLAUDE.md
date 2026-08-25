@@ -28,9 +28,9 @@ cd ssh-server-app
 mvn spring-boot:run          # 默认 single profile：HTTP 8091，H2 文件库（~/.ai-ssh/），零外部依赖
 mvn spring-boot:run -Dspring-boot.run.profiles=dev   # dev：连 MySQL 127.0.0.1:13306/ai_ssh (root/123456)
 
-# dev 沙盒后端（与常驻安装版双开，见 docs/situations/260825-dev-sandbox-isolation.md）：
-scripts\dev-backend.cmd      # 从仓库根跑：single profile + 8092 + H2/secret 落 ~/.ai-ssh-dev
-# Git Bash 等价：cd ssh-server/ssh-server-app && AI_SSH_HOME=~/.ai-ssh-dev SERVER_PORT=8092 mvn spring-boot:run
+# ⚠️ 日常 dev **不需要**手动起后端：`npm run tauri dev` 的壳会自动 spawn sidecar
+# （debug 构建 8092 + AI_SSH_HOME 沙盒，见下方 tauri 说明）。仅调试后端 Java 时才
+# 手动 mvn——注意手动实例与 sidecar 会抢 8092/H2 沙盒锁，二选一（先退 tauri dev）。
 
 # 单元测试：domain / infrastructure 模块用默认 surefire，可直接跑
 mvn -pl ssh-server-domain test
@@ -56,7 +56,7 @@ npm run tauri dev      # Tauri 桌面壳（自动拉起前端 dev server）
 npm run tauri build    # 打包桌面应用
 ```
 
-`npm run tauri` 走 `scripts/tauri.cmd`，该脚本固定了 MSVC 2022 BuildTools 与 Windows SDK 的路径（`C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\...`）后再调用 Tauri CLI。换机器或工具链版本变化时需改这个文件。**该脚本同时注入 `AI_SSH_HOME=%USERPROFILE%\.ai-ssh-dev`（260825 dev 沙盒）**：`npm run tauri dev` 的数据根/web.json/任务数据全落 `.ai-ssh-dev`，web-companion 用 18081（debug 构建默认）——与常驻安装版（`~/.ai-ssh` + 18080 + sidecar 8091）**桌面双开互不干扰**，dev 后端配套 `ssh-server/scripts/dev-backend.cmd`（8092）。已知边界：dev 与安装版同时各跑 Codex 任务时，hook 注入改写的全局 `~/.codex/config.toml` 会互踩（Claude 走 `--settings` 任务级不受影响）。
+`npm run tauri` 走 `scripts/tauri.cmd`，该脚本固定了 MSVC 2022 BuildTools 与 Windows SDK 的路径（`C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\...`）后再调用 Tauri CLI。换机器或工具链版本变化时需改这个文件。**该脚本在 dev 子命令时注入 `AI_SSH_HOME=%USERPROFILE%\.ai-ssh-dev`（260825 dev 沙盒，build 不注入）**：`npm run tauri dev` 的数据根/web.json/任务数据全落 `.ai-ssh-dev`，web-companion 用 18081、sidecar 后端 8092（均为 debug 构建默认，`target\debug\resources` 里的 jar 会随 dev spawn）——与常驻安装版（`~/.ai-ssh` + 18080 + sidecar 8091）**桌面双开互不干扰，且一条命令全链可用（无需手动起后端）**。已知边界：dev 与安装版同时各跑 Codex 任务时，hook 注入改写的全局 `~/.codex/config.toml` 会互踩（Claude 走 `--settings` 任务级不受影响）；dev sidecar 用的是 resources 里的 jar，改后端 Java 后需重新打包 resources（build-personal.sh 1-4 步）再重启 dev。
 
 ## ssh-server 架构（DDD 分层）
 

@@ -36,7 +36,9 @@
 
 **验证**：`dev-backend.cmd` 实跑（26-08-25 10:10）——Tomcat 起在 **8092**、`~/.ai-ssh-dev/` 生成 `ai-ssh.mv.db` + `secret.key`、`curl 127.0.0.1:8092/api/ping` 返回 `"0000" pong`；测后按端口精确补杀 8092 JVM（安装版 8091 未动）。不注入 env 时 yml 占位符回落 `${user.home}/.ai-ssh`，与旧路径逐字节一致（安装版零变化）。vite proxy 已改 8092（`vite.config.ts` 注释说明分流语义）。
 
-**状态**：已完成
+**复测修正（26-08-25 10:43，用户真机「tauri dev 未正常启动」）**：实证 dev 壳**同样无条件 spawn sidecar**（`lib.rs` setup 直调；「dev 不拉 sidecar」系对旧注释的误读，其「resources 无 jar」前提已过时）——sidecar 起在 8091 与 vite 8092 错位致启动门卡死，且其 H2 锁沙盒挡住手动后端。**Q3 决议随真机证据修正**（见 situation）：`lib.rs` 增 `spawn_backend_port()`（debug 8092/release 8091），vite 8092 对齐 sidecar，`npm run tauri dev` 恢复一条命令全链；`dev-backend.cmd` 撤销（git rm）。CLAUDE.md 同步：日常 dev 无需手动后端，手动 mvn 仅调试后端用（与 sidecar 抢 8092/沙盒锁，二选一）。
+
+**状态**：已完成（含 Q3 修正）
 
 ## 阶段 3：双开验收 + 文档 + 封档
 
