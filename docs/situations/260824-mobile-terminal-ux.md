@@ -22,6 +22,7 @@
   - **Codex CLI**：**普通屏**（codex-rs/tui scrollback.rs 两策略均无 1049，FullScreen 策略只是 scroll region workaround）+ **终端本地 scrollback 承载历史**（history_pagination.rs 明言 terminal-native scrollback）；**全 TUI 源码零鼠标捕获**——现有滑动手势/四按钮在 Codex 任务上是死键（今日现状即如此）；键盘翻页键位（PageUp/Down/Home/End/Ctrl+u/d）绑定在 transcript overlay（Ctrl+T）上下文，主视图 Home/End 是输入框行首/行尾。
 - **tmux 类比结论**：tmux copy-mode 丝滑的本质是 scrollback 浏览本地化；对 alt-screen 应用（Claude）tmux 同样只能转发 wheel——远程序列是 Claude 的天花板；Codex 的历史物理上就在终端 scrollback 里，本地滚动即 tmux copy-mode 等价物，零 RTT。
 - **状态同步回归（自首）**：260824 上午的快照状态同步只恢复可见屏——Codex 普通屏任务的 scrollback 历史**重连后丢失**（旧尾窗重放可恢复 256KB）。修法：快照按仿真器 `alternate_screen()` 分流。
+- **Q1 分流判据的实测失败（0824 夜，Q6 起点）**：当晚真机复测，新建 Claude 任务退出重连全程 `alt=false`（快照 bytes 一路涨满 256KB，~10s 级体感）；次晨同代码自愈（`alt=true`，2-7KB 状态序列，1s 体感）。根因未锁——`?1049h` 丢失环节三候选：ConPTY 初始化期消化 / 首连引导错过窗 / 其他，竞态类可复发。误判时不止慢，滚动模式也错（本地滚死键）。诊断日志（0825 防御）下次复发即锁定根因。
 - 输入通道现状：`term.onData → ws.sendInput → write_pty_input` 原始字符串通道现成，缺的只是手机软键盘没有 Ctrl/Esc/Tab；成熟范式 = Blink/Termius 辅助键工具条。
 
 ## 决议
@@ -31,11 +32,13 @@
 - **Q3 手势参数**：慢滑 32px/步（Claude 1 wheel≈3 行；Codex scrollLines(±3)）；fling 阈值 0.5px/ms，按速度 1-3 档（Claude PgUp/PgDn ×N；Codex scrollPages ±N）。初值进真机调优，验收写体感不写数字。
 - **Q4 输入工具条 → 常驻 28px 细条五键**：Esc（`\x1b`，Claude 打断生成）、Ctrl+C（`\x03`，清空输入；空输入时 Claude 出退出确认需再按一次，单点安全）、Tab（`\x09`）、↑/↓（`\x1b[A/B`）。拒绝「键盘弹出才显示」形态——Esc 打断是键盘收起时的高频动作，藏了最重要的键。Ctrl+C 不做连击宏，退出确认由 agent 原生交互把关。
 - **Q5 范围与安全 → 核心对话流程零影响为硬约束**：输入通道一行不动；触摸无位移透传（选项点选不受干扰）；桌面前端/`pty.rs`/事件总线零改动；Codex 本地滚动物理上无法影响任务（零字节）；最坏失败模式全部是「功能不生效」而非「对话不可用」。改动白名单：`TaskView.tsx`、`mobile.css`、`ws.ts(+test)`、`stream.rs`（快照分流，含 Codex 回归修复）、`web/mod.rs`（alt 字段）。
+- **Q6 误判防御 → 诊断日志 + 截断兜底（0825，grill 三问定案）**：Q1 判据存在可复发的竞态失败（见背景），防御优先于根因。①截断兜底：`alt=false` 快照超 48KB 从最老端截断（对齐 ESC 序列边界防劈序列；纯文本退 UTF-8 字符边界），钳住复发时建连耗时 ≤2s（DERP 实测吞吐 ~25-30KB/s 折算）——只作用于发送的快照副本，尾窗缓冲与桌面链路零接触；代价 = Codex scrollback 恢复上限 48KB（静默，复测体感后再议提示）。②诊断：record 流内扫 `?1049h/l`（跨块 carry）每任务首见打一行 + 引导时打"窗内是否含 1049"，与 mod.rs 快照日志三行拼出完整因果，下次复发即锁定根因；扫描同时是将来「判定转正」方案的现成地基（若根因显示序列到流、仿真器错过）。**不上扫描判定**（若根因是 ConPTY 消化序列则无效，赌注不押）。验收：cargo 139 绿 + alt 快路径零改动。
 
 ## 影响范围
 
 - ssh-client 前端：`src/mobile/`（TaskView/ws/css/test）——桌面零改动。
 - ssh-client Rust：`coding/web/stream.rs`（快照二选一分流 + 返回 alt 标志）、`coding/web/mod.rs`（快照消息 `alt` 字段）——`pty.rs` 零改动。
 - 修复：Codex 普通屏任务重连 scrollback 丢失回归（260824 上午状态同步引入）。
+- 0825 防御补丁（Q6）：`stream.rs` 截断兜底 + 1049 首见诊断（日志锁外打印）；`mod.rs`/前端/桌面零改动。
 - 不动：输入通道、resize 仲裁、桌面一切、SSH 运维链路。
 - 验收（真机）：双 agent 滚动/顶底/打断/清输入/Tab/选项点选；CJK IME 组合输入验证；桌面核心对话回归；stream 单测（分流分支）+ 三件套全绿。

@@ -62,4 +62,11 @@ xterm API 签名对装版 typings 核实（scrollLines/scrollPages/scrollToTop/s
 （双 agent 滚动/顶底/打断/清输入/Tab/选项点选、CJK IME、桌面回归、Codex 重连历史恢复），
 **待用户真机结果回填后封档**。
 
+**真机发现（0824 夜→0825 晨，Q6 起点）**：真机复测踩中 alt 误判——运行中 Claude 任务
+全程 `alt=false`（快照 256KB 全量重放，~10s 体感 + 滚动模式错）；次晨同代码自愈（alt=true、
+2-7KB、1s 体感）。根因竞态未锁，防御补丁已落（Q6：48KB 截断兜底 + 1049 首见诊断，
+决议见 situation Q6；`cargo test --lib` 139/139）。封档前真机清单追加：④重连体感维持 ~1s
+（防御不劣化正常路径）；下次若再遇慢加载，抓 `[web-companion]` 三行日志（alt-seq /
+bootstrap / snapshot）锁根因后升级 situation。
+
 **状态**：进行中

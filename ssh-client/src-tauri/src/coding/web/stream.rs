@@ -13,6 +13,11 @@
 //! 逐出生命周期。WS 建连快照 = 仿真器最终屏幕状态（O(屏幕)，百字节级），
 //! 替代原始尾窗全量重放（O(历史)，256KB 级）；引导/序列化硬失败回退
 //! 原始尾窗，行为退化到 260821 之前、不会更糟。
+//!
+//! 误判防御（docs/situations/260824-mobile-terminal-ux.md Q6，0824 夜）：
+//! `alternate_screen()` 判据存在可复发的竞态失败（实测一晚 Claude 任务被
+//! 误判 alt=false → 256KB 重放 ~10s）。防御 = 普通屏快照截断兜底
+//! （48KB 上限 + ESC 边界对齐）+ 1049 首见诊断日志（下次复发即锁定根因）。
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Instant;
@@ -27,6 +32,18 @@ const TAIL_BYTES: usize = 256 * 1024;
 const TOTAL_BUDGET_BYTES: usize = 8 * 1024 * 1024;
 /// 仿真器建格兜底尺寸：与 coding_run_task 的 openpty 缺省一致（220×50）。
 const FALLBACK_SIZE: (u16, u16) = (50, 220);
+/// 普通屏快照体积上限（260824 terminal-ux Q6 截断兜底）：alt 误判或真普通屏
+/// 任务的尾窗重放超此值时从最老端截断，钳住手机端建连耗时（DERP 实测吞吐
+/// ~25-30KB/s → ≤2s）。只作用于发送出去的快照副本，尾窗缓冲本身不动，
+/// alt=true 状态序列路径不受影响。
+const NORMAL_SNAPSHOT_CAP: usize = 48 * 1024;
+/// 截断点向后扫描 ESC 序列边界的窗口：找不到 ESC（极端纯文本）时退回原始
+/// 截点、推进到 UTF-8 字符边界截。
+const ESC_SCAN_WINDOW: usize = 256;
+/// alt 屏进入/退出序列（260824 Q6 诊断扫描目标）：真实流里它们是否/何时
+/// 到达 record 是昨晚 alt 误判悬案的关键取证点。
+const ALT_ENTER_SEQ: &[u8] = b"\x1b[?1049h";
+const ALT_EXIT_SEQ: &[u8] = b"\x1b[?1049l";
 
 struct TapBuffer {
     chunks: VecDeque<String>,
@@ -52,6 +69,11 @@ struct TapState {
     /// PTY 当前真实尺寸：spawn（coding_run_task）与 resize 汇合点
     /// （resize_pty）两处记账——仿真器建格与纯跟随（Q4）的数据源。
     pty_sizes: HashMap<String, (u16, u16)>,
+    /// 1049 首见诊断记账（260824 Q6）：已打日志的任务集合，此后不再扫描。
+    /// 纯取证不参与快照判定（判定仍走仿真器 alternate_screen）。
+    alt_seq_seen: HashSet<String>,
+    /// 1049 扫描的跨块 carry：上一块尾部残余（序列被 read 边界劈开时拼接判定）。
+    alt_scan_carry: HashMap<String, Vec<u8>>,
 }
 
 static TAPS: Lazy<Mutex<TapState>> = Lazy::new(|| {
@@ -63,6 +85,8 @@ static TAPS: Lazy<Mutex<TapState>> = Lazy::new(|| {
         web_created: HashSet::new(),
         emulators: HashMap::new(),
         pty_sizes: HashMap::new(),
+        alt_seq_seen: HashSet::new(),
+        alt_scan_carry: HashMap::new(),
     })
 });
 
@@ -81,30 +105,38 @@ pub(crate) fn record(id: &str, data: &str) {
     if data.is_empty() {
         return;
     }
-    let mut state = TAPS.lock();
-    let buf = state.buffers.entry(id.to_string()).or_insert_with(|| TapBuffer {
-        chunks: VecDeque::new(),
-        bytes: 0,
-        last_touch: Instant::now(),
-    });
-    buf.chunks.push_back(data.to_string());
-    buf.bytes += data.len();
-    buf.last_touch = Instant::now();
-    while buf.bytes > TAIL_BYTES {
-        match buf.chunks.pop_front() {
-            Some(front) => buf.bytes -= front.len(),
-            None => break,
+    let alt_log = {
+        let mut state = TAPS.lock();
+        let buf = state.buffers.entry(id.to_string()).or_insert_with(|| TapBuffer {
+            chunks: VecDeque::new(),
+            bytes: 0,
+            last_touch: Instant::now(),
+        });
+        buf.chunks.push_back(data.to_string());
+        buf.bytes += data.len();
+        buf.last_touch = Instant::now();
+        while buf.bytes > TAIL_BYTES {
+            match buf.chunks.pop_front() {
+                Some(front) => buf.bytes -= front.len(),
+                None => break,
+            }
         }
+        if let Some(subs) = state.subscribers.get_mut(id) {
+            subs.retain(|tx| tx.send(data.to_string()).is_ok());
+        }
+        // 常驻仿真器增量喂入（260824）：与尾窗追加同把锁，次序天然正确。
+        // vt100 纯内存解析不返回 Result，无失败分支；持锁增量微秒级。
+        if let Some(parser) = state.emulators.get_mut(id) {
+            parser.process(data.as_bytes());
+        }
+        let log = note_alt_seq(id, data, &mut state);
+        evict_over_budget(&mut state);
+        log
+    };
+    // 诊断日志锁外打印（stderr 锁不与 TAPS 锁嵌套）
+    if let Some(msg) = alt_log {
+        eprintln!("{msg}");
     }
-    if let Some(subs) = state.subscribers.get_mut(id) {
-        subs.retain(|tx| tx.send(data.to_string()).is_ok());
-    }
-    // 常驻仿真器增量喂入（260824）：与尾窗追加同把锁，次序天然正确。
-    // vt100 纯内存解析不返回 Result，无失败分支；持锁增量微秒级。
-    if let Some(parser) = state.emulators.get_mut(id) {
-        parser.process(data.as_bytes());
-    }
-    evict_over_budget(&mut state);
 }
 
 /// 预算逐出：按最久未活跃整条移除（订阅者不逐出——WS 断开时自行清理）。
@@ -128,10 +160,13 @@ fn evict_over_budget(state: &mut TapState) {
         if let Some(buf) = state.buffers.remove(&id) {
             to_free = to_free.saturating_sub(buf.bytes);
             // 缓冲都没了说明任务早已终结，web_created 标记一并回收；
-            // 仿真器与尺寸记账随尾窗同路回收（260824 常驻生命周期的终点）
+            // 仿真器与尺寸记账随尾窗同路回收（260824 常驻生命周期的终点）；
+            // 1049 诊断记账同路回收（Q6）
             state.web_created.remove(&id);
             state.emulators.remove(&id);
             state.pty_sizes.remove(&id);
+            state.alt_seq_seen.remove(&id);
+            state.alt_scan_carry.remove(&id);
         }
     }
 }
@@ -151,6 +186,9 @@ fn evict_over_budget(state: &mut TapState) {
 /// 引导/序列化硬失败（vt100 bug 级 panic，Q5 决议）→ catch_unwind 回退
 /// 原始尾窗，退化到全量重放，不会更糟。仿真器对两种模式照常常驻（后续
 /// 建连免重解析；Claude 任务结束退回普通屏的场景自动切到尾窗路径）。
+///
+/// Q6 截断兜底：普通屏路径的尾窗重放超 `NORMAL_SNAPSHOT_CAP` 时从最老端
+/// 截断（对齐 ESC 序列边界）——昨晚 alt 误判致 256KB 全量重放 ~10s 的钳制。
 pub(crate) fn subscribe_with_snapshot(
     id: &str,
 ) -> (String, bool, tokio::sync::mpsc::UnboundedReceiver<String>) {
@@ -164,6 +202,10 @@ pub(crate) fn subscribe_with_snapshot(
             acc
         }))
         .unwrap_or_default();
+    // 引导诊断（Q6）：首次建仿真器时记录窗内是否含 1049——与 record 首见
+    // 日志、mod.rs 快照日志三行拼出完整因果链（序列到没到流里 / 引导时在
+    // 不在窗内 / 最终判了什么）。
+    let mut bootstrap_note: Option<(usize, bool)> = None;
     let state_sync = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         if !state.emulators.contains_key(id) {
             // 惰性引导（Q2）：按 PTY 当前真实尺寸建格（无记账则用 openpty
@@ -172,6 +214,7 @@ pub(crate) fn subscribe_with_snapshot(
             let mut parser = vt100::Parser::new(rows, cols, 0);
             parser.process(tail.as_bytes());
             state.emulators.insert(id.to_string(), parser);
+            bootstrap_note = Some((tail.len(), tail.contains("\x1b[?1049")));
         }
         let screen = state.emulators.get(id)?.screen();
         if !screen.alternate_screen() {
@@ -190,15 +233,87 @@ pub(crate) fn subscribe_with_snapshot(
     let (snapshot, alt) = match state_sync {
         Some(s) => (s, true),
         // None 覆盖三种情况：普通屏（正路）/ 引导或序列化 panic（回退）/
-        // 仿真器缺失（防御）——统一走尾窗，alt=false
-        None => (tail, false),
+        // 仿真器缺失（防御）——统一走尾窗（Q6 超限截断），alt=false
+        None => (truncate_normal_snapshot(tail), false),
     };
     state
         .subscribers
         .entry(id.to_string())
         .or_default()
         .push(tx);
+    drop(state);
+    // 引导日志锁外打印（stderr 锁不与 TAPS 锁嵌套）
+    if let Some((n, has)) = bootstrap_note {
+        eprintln!(
+            "[web-companion] bootstrap task={} tail-bytes={n} contains-1049={has} (引导时窗内 alt 进入序列有无)",
+            id
+        );
+    }
     (snapshot, alt, rx)
+}
+
+/// 1049 序列首见检测（260824 Q6 诊断）：真实流里 `?1049h/l` 是否到达、何时
+/// 到达——昨晚 alt 误判悬案的取证点（根因三候选：ConPTY 初始化期消化 /
+/// 首连引导错过 / 其他）。找到即记日志并停止扫描；尾部 carry 保证序列被
+/// read 边界劈开时不漏检。**纯取证，不参与快照判定。**
+fn note_alt_seq(id: &str, data: &str, state: &mut TapState) -> Option<String> {
+    if state.alt_seq_seen.contains(id) {
+        return None;
+    }
+    let mut buf = state.alt_scan_carry.remove(id).unwrap_or_default();
+    buf.extend_from_slice(data.as_bytes());
+    // 扫描整个拼接缓冲（carry 是拼接材料不是扫描边界——序列可横跨任意块界）
+    let hit = if buf.windows(ALT_ENTER_SEQ.len()).any(|w| w == ALT_ENTER_SEQ) {
+        Some("enter")
+    } else if buf.windows(ALT_EXIT_SEQ.len()).any(|w| w == ALT_EXIT_SEQ) {
+        Some("exit")
+    } else {
+        None
+    };
+    match hit {
+        Some(kind) => {
+            state.alt_seq_seen.insert(id.to_string());
+            Some(format!(
+                "[web-companion] alt-seq task={} first-seen={kind} (1049 已到达 record 流)",
+                id
+            ))
+        }
+        None => {
+            // 未命中：尾部保留（序列长 - 1）字节，序列劈在本块边界时拼入下一块再判
+            let keep = ALT_ENTER_SEQ.len().saturating_sub(1);
+            let split = buf.len().saturating_sub(keep);
+            state
+                .alt_scan_carry
+                .insert(id.to_string(), buf[split..].to_vec());
+            None
+        }
+    }
+}
+
+/// 普通屏快照截断（260824 Q6 兜底）：超 `NORMAL_SNAPSHOT_CAP` 时从最老端
+/// 截断，截断点向后对齐到下一个 ESC（VT 序列边界）——避免把转义序列劈成
+/// 两半导致手机端首行渲染错乱；窗口内找不到 ESC（极端纯文本）时退回原始
+/// 截点、推进到 UTF-8 字符边界。快照长度因此 ≤ cap + 一个多字节字符宽。
+fn truncate_normal_snapshot(tail: String) -> String {
+    if tail.len() <= NORMAL_SNAPSHOT_CAP {
+        return tail;
+    }
+    let bytes = tail.as_bytes();
+    let min_start = bytes.len() - NORMAL_SNAPSHOT_CAP;
+    let limit = (min_start + ESC_SCAN_WINDOW).min(bytes.len());
+    let mut start = min_start;
+    while start < limit && bytes[start] != 0x1b {
+        start += 1;
+    }
+    if start >= limit {
+        // 窗口内无 ESC：回退原始截点，仅做字符边界对齐
+        start = min_start;
+    }
+    // ESC 是 ASCII 字节必在字符边界上；纯文本路径则推进到最近的 UTF-8 边界
+    while start < bytes.len() && !tail.is_char_boundary(start) {
+        start += 1;
+    }
+    tail[start..].to_string()
 }
 
 /// PTY 尺寸记账 + 仿真器纯跟随（Q4）。spawn（coding_run_task openpty 后）
@@ -253,6 +368,8 @@ pub(crate) fn reset_for_test() {
     state.web_created.clear();
     state.emulators.clear();
     state.pty_sizes.clear();
+    state.alt_seq_seen.clear();
+    state.alt_scan_carry.clear();
 }
 
 /// 测试探针：仿真器是否存在及其网格尺寸。
@@ -262,6 +379,12 @@ pub(crate) fn emulator_probe(id: &str) -> Option<(u16, u16)> {
         .emulators
         .get(id)
         .map(|p| p.screen().size())
+}
+
+/// 测试探针：1049 首见诊断是否已触发（Q6）。
+#[cfg(test)]
+pub(crate) fn alt_seq_seen_probe(id: &str) -> bool {
+    TAPS.lock().alt_seq_seen.contains(id)
 }
 
 /// 测试探针：强制丢弃仿真器（模拟硬失败后的回退路径）。
@@ -512,5 +635,107 @@ mod tests {
         assert!(!alt);
         assert!(snapshot.contains("final summary line"));
         assert!(snapshot.contains("\x1b[?1049h"), "tail keeps TUI phase");
+    }
+
+    // ── 260824 Q6：截断兜底 + 1049 首见诊断 ─────────────────────────────
+
+    #[test]
+    fn normal_screen_snapshot_truncated_to_cap() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // 100KB 普通屏线性流（远超 48KB cap），末尾放最新标记
+        let mut stream = String::new();
+        while stream.len() < 100 * 1024 {
+            stream.push_str("plain line 0123456789 abcdefghij\r\n");
+        }
+        stream.push_str("LATEST-MARKER\r\n");
+        touch("big-normal", &stream);
+        let (snapshot, alt, _rx) = subscribe_with_snapshot("big-normal");
+        assert!(!alt);
+        // 截断到 ≤ cap + 一个多字节字符宽（字符边界对齐的余量）
+        assert!(
+            snapshot.len() <= NORMAL_SNAPSHOT_CAP + 3,
+            "len={}",
+            snapshot.len()
+        );
+        // 最新端必须保留（截断只丢最老历史）
+        assert!(snapshot.contains("LATEST-MARKER"));
+    }
+
+    #[test]
+    fn truncation_aligns_to_esc_boundary() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // ESC 密集流（每 ~40 字节一个转义序列）：截断点必须落在序列边界上
+        let mut stream = String::new();
+        while stream.len() < 60 * 1024 {
+            stream.push_str("\x1b[32mCOLOR\x1b[m 中文本段 padding text 0123456789\r\n");
+        }
+        touch("esc-flow", &stream);
+        let (snapshot, alt, _rx) = subscribe_with_snapshot("esc-flow");
+        assert!(!alt);
+        assert!(snapshot.len() <= NORMAL_SNAPSHOT_CAP + 3);
+        // 快照从 ESC 开始 = 没有把转义序列劈成两半
+        assert!(
+            snapshot.starts_with('\x1b'),
+            "snapshot must start at ESC boundary"
+        );
+        assert!(snapshot.contains("padding text"));
+    }
+
+    #[test]
+    fn truncation_falls_back_to_char_boundary_in_plain_cjk() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // 纯 CJK 无转义流：ESC 窗口扫描落空 → 退回原始截点，推进到 UTF-8 边界
+        let mut stream = String::new();
+        while stream.len() < 50 * 1024 {
+            stream.push_str("汉字段落无转义序列纯文本测试");
+        }
+        touch("cjk-plain", &stream);
+        let (snapshot, alt, _rx) = subscribe_with_snapshot("cjk-plain");
+        assert!(!alt);
+        assert!(snapshot.len() <= NORMAL_SNAPSHOT_CAP + 3);
+        assert!(!snapshot.contains('\u{FFFD}'), "UTF-8 边界劈开会产生替换符");
+        // 截断结果是原流的尾部后缀
+        assert!(stream.ends_with(&snapshot));
+    }
+
+    #[test]
+    fn alt_seq_detected_across_chunk_boundary() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        // 序列劈在块边界：前块尾部 "\x1b[?10"，后块头部 "49h..."——carry 必须拼上
+        touch("split", "before \x1b[?10");
+        assert!(!alt_seq_seen_probe("split"));
+        touch("split", "49h after");
+        assert!(alt_seq_seen_probe("split"), "劈开的 1049h 必须检出");
+    }
+
+    #[test]
+    fn alt_seq_not_detected_in_plain_stream_until_real_seq() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        for i in 0..10 {
+            touch("plain", &format!("line {i} no escape\r\n"));
+        }
+        assert!(!alt_seq_seen_probe("plain"), "普通流不得误报");
+        // 退出序列同样算首见（诊断的是 1049 双向到达与否）
+        touch("plain", "\x1b[?1049l");
+        assert!(alt_seq_seen_probe("plain"));
+    }
+
+    #[test]
+    fn alt_seq_state_evicted_with_task() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        touch("old", "\x1b[?1049h");
+        assert!(alt_seq_seen_probe("old"));
+        // 灌满全局预算触发逐出（最久未活跃先走）——诊断记账同路回收
+        let big = "z".repeat(64 * 1024);
+        for i in 0..200 {
+            touch(&format!("bulk{i}"), &big);
+        }
+        assert!(!alt_seq_seen_probe("old"), "alt-seq state not reclaimed");
     }
 }
