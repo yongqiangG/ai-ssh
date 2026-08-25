@@ -107,11 +107,14 @@ pub(crate) fn record(id: &str, data: &str) {
     }
     let alt_log = {
         let mut state = TAPS.lock();
-        let buf = state.buffers.entry(id.to_string()).or_insert_with(|| TapBuffer {
-            chunks: VecDeque::new(),
-            bytes: 0,
-            last_touch: Instant::now(),
-        });
+        let buf = state
+            .buffers
+            .entry(id.to_string())
+            .or_insert_with(|| TapBuffer {
+                chunks: VecDeque::new(),
+                bytes: 0,
+                last_touch: Instant::now(),
+            });
         buf.chunks.push_back(data.to_string());
         buf.bytes += data.len();
         buf.last_touch = Instant::now();
@@ -197,10 +200,12 @@ pub(crate) fn subscribe_with_snapshot(
     let tail = state
         .buffers
         .get(id)
-        .map(|b| b.chunks.iter().fold(String::new(), |mut acc, c| {
-            acc.push_str(c);
-            acc
-        }))
+        .map(|b| {
+            b.chunks.iter().fold(String::new(), |mut acc, c| {
+                acc.push_str(c);
+                acc
+            })
+        })
         .unwrap_or_default();
     // 引导诊断（Q6）：首次建仿真器时记录窗内是否含 1049——与 record 首见
     // 日志、mod.rs 快照日志三行拼出完整因果链（序列到没到流里 / 引导时在
@@ -331,7 +336,9 @@ pub(crate) fn note_pty_size(id: &str, cols: u16, rows: u16) {
 
 /// 桌面侧 resize 留底（coding_resize_pty 每次成功调用时记一笔）。
 pub(crate) fn note_desktop_size(id: &str, cols: u16, rows: u16) {
-    TAPS.lock().desktop_sizes.insert(id.to_string(), (cols, rows));
+    TAPS.lock()
+        .desktop_sizes
+        .insert(id.to_string(), (cols, rows));
 }
 
 /// 手机 WS 建连登记。返回应还原前是否首个连接等不需要——由 disconnect 判定。
@@ -357,6 +364,20 @@ pub(crate) fn ws_disconnected(id: &str) -> Option<(u16, u16)> {
     None
 }
 
+/// 恢复任务前清场（260825 web resume）：旧尾窗与常驻仿真器一并移除——
+/// 恢复后是全新会话画面，旧屏不与新输出拼接、手机重连快照不重放历史。
+/// 订阅者不动（活 WS 继续收新输出）；pty_sizes 保留（spawn 时
+/// note_pty_size 随后覆盖）；web_created 保留（worker 成功后会重标记，
+/// 期间无 PTY 亦无输出，标志悬空无害）。
+pub(crate) fn reset_task_stream(id: &str) {
+    let mut state = TAPS.lock();
+    state.buffers.remove(id);
+    state.emulators.remove(id);
+    // 旧会话的 1049 诊断记账随旧屏作废
+    state.alt_seq_seen.remove(id);
+    state.alt_scan_carry.remove(id);
+}
+
 /// 测试辅助：清空全部状态。
 #[cfg(test)]
 pub(crate) fn reset_for_test() {
@@ -375,10 +396,7 @@ pub(crate) fn reset_for_test() {
 /// 测试探针：仿真器是否存在及其网格尺寸。
 #[cfg(test)]
 pub(crate) fn emulator_probe(id: &str) -> Option<(u16, u16)> {
-    TAPS.lock()
-        .emulators
-        .get(id)
-        .map(|p| p.screen().size())
+    TAPS.lock().emulators.get(id).map(|p| p.screen().size())
 }
 
 /// 测试探针：1049 首见诊断是否已触发（Q6）。
@@ -477,6 +495,30 @@ mod tests {
     }
 
     #[test]
+    fn reset_task_stream_clears_tail_and_emulator_keeps_subscribers() {
+        let _g = TEST_LOCK.lock();
+        reset_for_test();
+        touch("r1", "old-session ");
+        let (_snapshot, _alt, mut rx) = subscribe_with_snapshot("r1");
+        assert!(emulator_probe("r1").is_some());
+
+        reset_task_stream("r1");
+        {
+            let state = TAPS.lock();
+            assert!(state.buffers.get("r1").is_none());
+        }
+        assert!(emulator_probe("r1").is_none());
+
+        // 新会话首块：活订阅者照常收到，旧屏不混入
+        touch("r1", "new-session");
+        assert_eq!(rx.try_recv().unwrap(), "new-session");
+        // 重连快照从零开始（不含旧尾窗内容）
+        let (snapshot, _alt2, _rx2) = subscribe_with_snapshot("r1");
+        assert!(snapshot.contains("new-session"), "snapshot={snapshot:?}");
+        assert!(!snapshot.contains("old-session"));
+    }
+
+    #[test]
     fn budget_eviction_drops_oldest_id_first() {
         let _g = TEST_LOCK.lock();
         reset_for_test();
@@ -542,7 +584,10 @@ mod tests {
         assert!(snapshot.contains("\x1b[?1049h"), "alt enter missing");
         assert!(snapshot.contains("AI Coding"));
         assert!(snapshot.contains("中文宽字符 ✅"));
-        assert!(!snapshot.contains("YELLOW\x1b[m\x1b[?1049h"), "raw replay leaked");
+        assert!(
+            !snapshot.contains("YELLOW\x1b[m\x1b[?1049h"),
+            "raw replay leaked"
+        );
         // 仿真器已常驻
         assert_eq!(emulator_probe("t10"), Some((50, 220)), "fallback size");
     }
@@ -600,7 +645,10 @@ mod tests {
         for i in 0..200 {
             touch(&format!("bulk{i}"), &big);
         }
-        assert!(emulator_probe("old-task").is_none(), "emulator not reclaimed");
+        assert!(
+            emulator_probe("old-task").is_none(),
+            "emulator not reclaimed"
+        );
     }
 
     // ── 260824 terminal-ux：快照按终端模式分流 ──────────────────────────

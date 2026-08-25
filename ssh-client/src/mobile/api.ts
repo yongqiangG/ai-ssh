@@ -26,6 +26,8 @@ export interface Task {
   createdAt: number;
   updatedAt?: number | null;
   failureReason?: string | null;
+  claudeSessionId?: string | null;
+  codexSessionId?: string | null;
 }
 
 export const TOKEN_KEY = "ai-ssh:mobile:token";
@@ -72,6 +74,13 @@ export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
     throw new ApiError(body?.code ?? String(res.status), body?.info ?? `HTTP ${res.status}`);
   }
   return body.data;
+}
+
+// 恢复已结束任务（260825）：服务端翻状态、起新进程（agent CLI 原生会话
+// 续跑），返回翻转为 pending 的任务。cols/rows 为本机 fit 值——PTY 初始
+// 尺寸以手机为准，WS 断开时服务端还原桌面尺寸。
+export function resumeTask(taskId: string, cols: number, rows: number): Promise<Task> {
+  return apiPost<Task>(`/api/tasks/${encodeURIComponent(taskId)}/resume`, { cols, rows });
 }
 
 export async function checkHealth(): Promise<boolean> {

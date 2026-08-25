@@ -5,18 +5,21 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { themeFor } from "../features/aiCoding/components/terminalShared";
 import type { ThemeVariant } from "../features/aiCoding/types";
-import { getToken, type Task } from "./api";
+import { getToken, resumeTask, type Task } from "./api";
+import { isTaskResumable } from "./resume";
 import { TaskWs, type WsConnState } from "./ws";
 
 const ATTENTION_STATUSES = new Set(["input_required", "awaiting_review"]);
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+  pending: { text: "启动中", cls: "st-running" },
   running: { text: "运行中", cls: "st-running" },
   input_required: { text: "待确认", cls: "st-attention" },
   awaiting_review: { text: "待验收", cls: "st-attention" },
   done: { text: "完成", cls: "st-done" },
   failed: { text: "失败", cls: "st-failed" },
   cancelled: { text: "已取消", cls: "st-muted" },
+  interrupted: { text: "已中断", cls: "st-muted" },
 };
 
 const CONN_LABEL: Record<WsConnState, { text: string; cls: string }> = {
@@ -38,9 +41,14 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
     toTop: () => void;
     toBottom: () => void;
     send: (seq: string) => void;
+    reset: () => void;
+    size: () => { cols: number; rows: number };
   } | null>(null);
   const [status, setStatus] = useState(task.status);
   const [conn, setConn] = useState<WsConnState>("connecting");
+  // 恢复请求（260825）：in-flight 防双击；错误横幅展示
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
 
   useEffect(() => {
     const host = termHostRef.current;
@@ -138,6 +146,8 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
       toTop: () => (altScreen ? ws.sendInput(SEQ.home) : term.scrollToTop()),
       toBottom: () => (altScreen ? ws.sendInput(SEQ.end) : term.scrollToBottom()),
       send: (seq: string) => ws.sendInput(seq),
+      reset: () => term.reset(),
+      size: () => ({ cols: term.cols, rows: term.rows }),
     };
 
     // 触摸滑动：慢滑按 SLIDE_STEP（32px≈3 行）步进；抬指时按末段速度判
@@ -202,6 +212,26 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
   const connInfo = CONN_LABEL[conn];
   const attention = ATTENTION_STATUSES.has(status);
 
+  // 恢复（260825 决议 Q5）：单击直达、无确认层——误触的软着陆是工具条
+  // Esc 打断当前回合（停止烧 token/动文件），故不加确认摩擦。
+  const handleResume = async () => {
+    if (resuming) return;
+    setResuming(true);
+    setResumeError(null);
+    const size = termApiRef.current?.size() ?? { cols: 44, rows: 30 };
+    try {
+      await resumeTask(task.id, size.cols, size.rows);
+      // 服务端 tap 已清场；本地旧尾屏同步清掉，新会话画面从零开始。
+      // 状态徽章先翻 pending（WS running 状态帧随后接管）。
+      termApiRef.current?.reset();
+      setStatus("pending");
+    } catch (e) {
+      setResumeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResuming(false);
+    }
+  };
+
   return (
     <div className="task-view">
       <header className="topbar">
@@ -221,6 +251,21 @@ export function TaskView({ task, onBack }: { task: Task; onBack: () => void }) {
         <div className="banner banner-attention">
           {status === "input_required" ? "任务等待你的确认——在下方终端按 y/回车应答" : "一轮已结束，等待验收"}
         </div>
+      )}
+      {/* 恢复横幅（260825）：可恢复状态（done/failed/cancelled/interrupted，
+          有 sessionId）且实时状态未变时出现；成功后随状态翻转自动隐藏。 */}
+      {isTaskResumable(task, status) && (
+        <div className="banner banner-resume">
+          <span className="resume-hint">
+            {status === "done" ? "任务已结束" : "任务未跑完"}——恢复将在 PC 上续跑此会话
+          </span>
+          <button className="resume-btn" disabled={resuming} onClick={handleResume}>
+            {resuming ? "恢复中…" : "恢复任务"}
+          </button>
+        </div>
+      )}
+      {resumeError && (
+        <div className="banner banner-error resume-error">恢复失败：{resumeError}</div>
       )}
       {/* 输入工具条（260824 Q4）：手机软键盘没有 Ctrl/Esc/Tab——直发标准
           控制序列，agent 原生语义解释（Esc=Claude 打断/Codex 取消；

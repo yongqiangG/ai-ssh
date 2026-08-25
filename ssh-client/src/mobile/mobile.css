@@ -292,6 +292,48 @@ button {
   color: #fbbf24;
 }
 
+/* 恢复横幅（260825）：与 banner-attention 同槽，cyan 系——恢复=任务即将
+   回到 running。横幅基类已有 margin/圆角，这里补动作行布局 */
+.banner-resume {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #67e8f91a;
+  border: 1px solid #67e8f944;
+  color: #67e8f9;
+}
+
+.resume-hint {
+  color: #8b93a7;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.resume-btn {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 10px;
+  border: 1px solid #67e8f944;
+  background: #67e8f926;
+  color: #67e8f9;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.resume-btn:active {
+  background: #67e8f93d;
+}
+
+.resume-btn:disabled {
+  opacity: 0.55;
+}
+
+/* 错误横幅紧跟恢复横幅（间距收敛，不打断终端区） */
+.resume-error {
+  margin-top: -4px;
+}
+
 .term-host {
   flex: 1;
   margin: 0 8px calc(10px + env(safe-area-inset-bottom));

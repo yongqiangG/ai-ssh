@@ -24,7 +24,7 @@ use axum::{
     http::{header, StatusCode, Uri},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use once_cell::sync::Lazy;
@@ -380,7 +380,11 @@ fn build_api_router(state: WebState) -> Router {
             get(api_project_tasks).post(api_create_task),
         )
         .route("/tasks/{task_id}", get(api_task))
-        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+        .route("/tasks/{task_id}/resume", post(api_resume_task))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
     Router::new()
         .route("/api/health", get(api_health))
@@ -421,7 +425,10 @@ enum ClientFrame {
 fn parse_client_frame(text: &str) -> Option<ClientFrame> {
     let v: Value = serde_json::from_str(text).ok()?;
     match v.get("type")?.as_str()? {
-        "input" => v.get("data")?.as_str().map(|d| ClientFrame::Input(d.to_owned())),
+        "input" => v
+            .get("data")?
+            .as_str()
+            .map(|d| ClientFrame::Input(d.to_owned())),
         "resize" => {
             let cols = v.get("cols")?.as_u64()?;
             let rows = v.get("rows")?.as_u64()?;
@@ -685,8 +692,13 @@ async fn api_create_task(
         .unwrap_or_default();
 
     // 落盘；失败即 500，不留半态
-    let task = match create_task_in_store(state.load_tasks, save_tasks_shim, &project_id, &body, now_ms)
-    {
+    let task = match create_task_in_store(
+        state.load_tasks,
+        save_tasks_shim,
+        &project_id,
+        &body,
+        now_ms,
+    ) {
         Ok(t) => t,
         Err(e) => {
             return err(
@@ -711,7 +723,10 @@ async fn api_create_task(
         })
     });
     let run = match queued {
-        Some(Ok(())) => rx_reply.await.map_err(|_| "worker dropped".to_string()).and_then(|r| r),
+        Some(Ok(())) => rx_reply
+            .await
+            .map_err(|_| "worker dropped".to_string())
+            .and_then(|r| r),
         _ => Err("create worker unavailable".to_string()),
     };
 
@@ -736,6 +751,262 @@ fn save_tasks_shim(project_id: &str, tasks: Vec<Task>) -> Result<(), String> {
     storage::coding_save_project_tasks(project_id.to_string(), tasks)
 }
 
+// ── 恢复任务（260825，docs/situations/260825-mobile-resume-task.md）────────
+
+/// 恢复请求体。cols/rows 为手机 fit 值（对齐 CreateTaskBody；PTY 初始尺寸
+/// 以手机为准，WS 断开还原桌面尺寸的既有机制兜底；缺省走
+/// coding_resume_task 的 220x50 兜底）。
+#[derive(Deserialize, Clone, Debug)]
+pub struct ResumeTaskBody {
+    #[serde(default)]
+    pub cols: Option<u16>,
+    #[serde(default)]
+    pub rows: Option<u16>,
+}
+
+/// 可恢复的磁盘状态（与桌面恢复按钮一致，减去需先杀孤儿的 detached——
+/// 一期不做，见决议 3；active 状态在跑中，恢复会双进程）。
+pub fn task_status_resumable(status: &str) -> bool {
+    matches!(status, "done" | "failed" | "cancelled" | "interrupted")
+}
+
+/// 落盘翻转：status→pending、清 attention（对齐桌面 handleResumeTask 的
+/// setTasks 语义）。返回 (翻转后任务, 原状态)——原状态供失败回滚。
+pub fn resume_task_in_store(
+    load_tasks: LoadProjectTasks,
+    save_tasks: SaveTasks,
+    project_id: &str,
+    task_id: &str,
+    now_ms: u128,
+) -> Result<(Task, String), String> {
+    let mut tasks = load_tasks(project_id)?;
+    let task = tasks
+        .iter_mut()
+        .find(|t| t.id == task_id)
+        .ok_or_else(|| format!("task not found: {task_id}"))?;
+    if !task_status_resumable(&task.status) {
+        return Err(format!("task not resumable: status={}", task.status));
+    }
+    let original_status = task.status.clone();
+    task.status = "pending".to_string();
+    task.updated_at = Some(now_ms as i64);
+    task.attention_requested_at = None;
+    let flipped = task.clone();
+    save_tasks(project_id, tasks)?;
+    Ok((flipped, original_status))
+}
+
+/// 失败回滚：状态翻回原值（create 失败是删任务；resume 的任务不能删）。
+/// 幂等守卫：仅当仍是本侧翻转出的 pending 才回写——状态已被其它路径
+/// 改写（桌面并发操作）时不覆盖。
+pub fn rollback_task_status(
+    load_tasks: LoadProjectTasks,
+    save_tasks: SaveTasks,
+    project_id: &str,
+    task_id: &str,
+    original_status: &str,
+) -> Result<(), String> {
+    let mut tasks = load_tasks(project_id)?;
+    let task = tasks
+        .iter_mut()
+        .find(|t| t.id == task_id)
+        .ok_or_else(|| format!("task not found: {task_id}"))?;
+    if task.status != "pending" {
+        return Ok(());
+    }
+    task.status = original_status.to_string();
+    save_tasks(project_id, tasks)
+}
+
+/// 恢复任务 job：handler → worker 的纯数据通道（与 CreateTaskJob 同构，
+/// AppHandle 链接陷阱规避见模块头注释；独立队列/线程，create 路径零改动）。
+struct ResumeTaskJob {
+    project_path: String,
+    task: Task,
+    original_status: String,
+    body: ResumeTaskBody,
+    reply: tokio::sync::oneshot::Sender<Result<Task, String>>,
+}
+
+static RESUME_QUEUE: once_cell::sync::OnceCell<std::sync::mpsc::Sender<ResumeTaskJob>> =
+    once_cell::sync::OnceCell::new();
+
+/// worker 线程：持 AppHandle 消费 job，进程内直调桌面同款
+/// `coding_resume_task`（agent CLI 原生会话续跑，恢复链路全复用）。
+/// 不被任何测试路径引用（start() 才 spawn），不进测试 exe。
+fn resume_task_worker(app: AppHandle, rx: std::sync::mpsc::Receiver<ResumeTaskJob>) {
+    while let Ok(job) = rx.recv() {
+        let ResumeTaskJob {
+            project_path,
+            task,
+            original_status,
+            body,
+            reply,
+        } = job;
+        // 旧尾窗/仿真器清场：恢复后是全新会话画面，旧屏不与新输出拼接
+        stream::reset_task_stream(&task.id);
+        let session_id = if task.agent == "codex" {
+            task.codex_session_id.clone()
+        } else {
+            task.claude_session_id.clone()
+        }
+        .unwrap_or_default();
+        let tm = app.state::<TaskManager>();
+        // Channel 丢弃输出（旁路 tap 已全量记录，双端经 WS/事件消费；与
+        // create_task_worker 同款）
+        let sink = tauri::ipc::Channel::new(|_resp: tauri::ipc::InvokeResponseBody| Ok(()));
+        let run = tauri::async_runtime::block_on(crate::coding::pty::coding_resume_task(
+            app.clone(),
+            tm,
+            task.id.clone(),
+            project_path,
+            task.agent.clone(),
+            session_id,
+            task.prompt.clone(),
+            task.permission_mode.clone(),
+            task.model.clone(),
+            task.reasoning_effort.clone(),
+            body.cols,
+            body.rows,
+            sink,
+        ));
+        match run {
+            Ok(()) => {
+                // web 无桌面 IPC channel：输出需 publish 成 coding:task-output
+                // 事件供桌面终端消费（task-status running 已由
+                // coding_resume_task 内部发出）
+                stream::mark_web_created(&task.id);
+                // 桌面联动：新会话画面（前端清 buffer + remount）+ 跟随导航
+                // （与 WS nav=1 同通路，App.tsx 常驻监听）
+                let _ = crate::coding::events::publish(
+                    &app,
+                    "coding:task-resumed",
+                    serde_json::json!({ "task_id": task.id }),
+                );
+                let _ = crate::coding::events::publish(
+                    &app,
+                    "coding:navigate",
+                    serde_json::json!({ "task_id": task.id }),
+                );
+                let _ = reply.send(Ok(task));
+            }
+            Err(e) => {
+                // 回滚磁盘状态，不留 pending 僵尸
+                let _ = rollback_task_status(
+                    load_project_tasks_shim,
+                    save_tasks_shim,
+                    &task.project_id,
+                    &task.id,
+                    &original_status,
+                );
+                let _ = reply.send(Err(e));
+            }
+        }
+    }
+}
+
+async fn api_resume_task(
+    State(state): State<WebState>,
+    Path(task_id): Path<String>,
+    axum::Json(body): axum::Json<ResumeTaskBody>,
+) -> Response {
+    // 跨项目定位任务与项目路径（拿 path 作 agent cwd，对齐 api_create_task）
+    let located = (state.load_projects)().ok().and_then(|projects| {
+        projects.into_iter().find_map(|p| {
+            let project_id = p.id.clone();
+            let path = p.path;
+            (state.load_tasks)(&project_id)
+                .ok()?
+                .into_iter()
+                .find(|t| t.id == task_id)
+                .map(|t| (path, t))
+        })
+    });
+    let Some((project_path, task)) = located else {
+        return err(
+            StatusCode::NOT_FOUND,
+            "0404",
+            &format!("task not found: {task_id}"),
+        );
+    };
+    if !task_status_resumable(&task.status) {
+        return err(
+            StatusCode::CONFLICT,
+            "0409",
+            &format!("task not resumable: status={}", task.status),
+        );
+    }
+    let has_session = if task.agent == "codex" {
+        task.codex_session_id.is_some()
+    } else {
+        task.claude_session_id.is_some()
+    };
+    if !has_session {
+        return err(
+            StatusCode::CONFLICT,
+            "0409",
+            "no session recorded for this task",
+        );
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+
+    // 落盘翻 pending（原状态留作失败回滚）；二次加载撞上并发改写则拒绝
+    let (task, original_status) = match resume_task_in_store(
+        state.load_tasks,
+        save_tasks_shim,
+        &task.project_id,
+        &task_id,
+        now_ms,
+    ) {
+        Ok(v) => v,
+        Err(e) => return err(StatusCode::CONFLICT, "0409", &e),
+    };
+
+    // 经 job 队列交给持 AppHandle 的 worker（handler 内零 AppHandle 痕迹，
+    // 见模块头注释）
+    let (tx_reply, rx_reply) = tokio::sync::oneshot::channel();
+    let queued = RESUME_QUEUE.get().map(|tx| {
+        tx.send(ResumeTaskJob {
+            project_path,
+            task: task.clone(),
+            original_status: original_status.clone(),
+            body,
+            reply: tx_reply,
+        })
+    });
+    let run = match queued {
+        Some(Ok(())) => rx_reply
+            .await
+            .map_err(|_| "worker dropped".to_string())
+            .and_then(|r| r),
+        _ => Err("resume worker unavailable".to_string()),
+    };
+
+    match run {
+        Ok(task) => Json(Envelope::ok(task)).into_response(),
+        Err(e) => {
+            // worker 已回滚正常失败路径；这里兜底队列不可用/worker 掉线时
+            // 还留在盘上的 pending 翻转（幂等守卫使双次回滚无害）
+            let _ = rollback_task_status(
+                state.load_tasks,
+                save_tasks_shim,
+                &task.project_id,
+                &task.id,
+                &original_status,
+            );
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "0500",
+                &format!("resume task failed: {e}"),
+            )
+        }
+    }
+}
+
 // ── 启动入口（lib.rs setup 调用）────────────────────────────────────────────
 
 pub fn start(app: AppHandle) {
@@ -750,6 +1021,11 @@ pub fn start(app: AppHandle) {
     let _ = CREATE_QUEUE.set(job_tx);
     let worker_app = app.clone();
     std::thread::spawn(move || create_task_worker(worker_app, job_rx));
+    // 恢复任务 worker：同款隔离（260825 web resume）
+    let (rjob_tx, rjob_rx) = std::sync::mpsc::channel::<ResumeTaskJob>();
+    let _ = RESUME_QUEUE.set(rjob_tx);
+    let resume_app = app.clone();
+    std::thread::spawn(move || resume_task_worker(resume_app, rjob_rx));
     let state = WebState {
         token: Arc::new(config.token),
         load_projects: storage::coding_load_projects,
@@ -1019,6 +1295,139 @@ mod tests {
         assert_eq!(body.cols, None);
     }
 
+    // ── 恢复任务 ──
+
+    static STORE_C: once_cell::sync::Lazy<Mutex<Vec<Task>>> =
+        once_cell::sync::Lazy::new(|| Mutex::new(vec![]));
+    static STORE_D: once_cell::sync::Lazy<Mutex<Vec<Task>>> =
+        once_cell::sync::Lazy::new(|| Mutex::new(vec![]));
+
+    fn fixture_task(id: &str, status: &str) -> Task {
+        Task {
+            id: id.into(),
+            project_id: "p1".into(),
+            name: Some("demo".into()),
+            prompt: "hi".into(),
+            agent: "claude".into(),
+            permission_mode: "ask".into(),
+            model: None,
+            reasoning_effort: None,
+            status: status.into(),
+            created_at: 1,
+            updated_at: None,
+            attention_requested_at: Some(99),
+            claude_session_id: Some("sess-1".into()),
+            claude_session_path: Some("D:/x/sess-1.jsonl".into()),
+            codex_session_id: None,
+            codex_session_path: None,
+            starred: None,
+            failure_reason: None,
+        }
+    }
+
+    // fn 指针 loader 无法捕获闭包——闭包直接引用 static（不算捕获），
+    // 与 create 测试的 empty_tasks_with_store 同款桥接
+    fn tasks_with_store_c(project_id: &str) -> Result<Vec<Task>, String> {
+        if project_id == "p1" {
+            Ok(STORE_C.lock().clone())
+        } else {
+            Err("no such project dir".into())
+        }
+    }
+
+    fn save_store_c(_id: &str, tasks: Vec<Task>) -> Result<(), String> {
+        *STORE_C.lock() = tasks;
+        Ok(())
+    }
+
+    fn tasks_with_store_d(project_id: &str) -> Result<Vec<Task>, String> {
+        if project_id == "p1" {
+            Ok(STORE_D.lock().clone())
+        } else {
+            Err("no such project dir".into())
+        }
+    }
+
+    fn save_store_d(_id: &str, tasks: Vec<Task>) -> Result<(), String> {
+        *STORE_D.lock() = tasks;
+        Ok(())
+    }
+
+    #[test]
+    fn task_status_resumable_matrix() {
+        for s in ["done", "failed", "cancelled", "interrupted"] {
+            assert!(task_status_resumable(s), "{s} 应可恢复");
+        }
+        // active 在跑中（恢复=双进程）；detached 需先杀孤儿，一期不开放
+        for s in [
+            "pending",
+            "running",
+            "input_required",
+            "awaiting_review",
+            "detached",
+        ] {
+            assert!(!task_status_resumable(s), "{s} 不应可恢复");
+        }
+    }
+
+    #[test]
+    fn resume_task_in_store_flips_and_persists() {
+        STORE_C.lock().clear();
+        *STORE_C.lock() = vec![fixture_task("t1", "done")];
+        let (flipped, original) =
+            resume_task_in_store(tasks_with_store_c, save_store_c, "p1", "t1", 200).unwrap();
+        assert_eq!(original, "done");
+        assert_eq!(flipped.status, "pending");
+        assert_eq!(flipped.attention_requested_at, None);
+        assert_eq!(flipped.updated_at, Some(200));
+        // spawn 参数完整携带（agent/权限/会话 id 不丢）
+        assert_eq!(flipped.claude_session_id.as_deref(), Some("sess-1"));
+        // 已落盘
+        assert_eq!(STORE_C.lock()[0].status, "pending");
+    }
+
+    #[test]
+    fn resume_task_in_store_rejects_active_and_missing() {
+        STORE_D.lock().clear();
+        *STORE_D.lock() = vec![
+            fixture_task("run", "running"),
+            fixture_task("gone-detached", "detached"),
+        ];
+        let load = tasks_with_store_d;
+        let save = save_store_d;
+        let err = resume_task_in_store(load, save, "p1", "run", 200).unwrap_err();
+        assert!(err.contains("not resumable"), "{err}");
+        let err = resume_task_in_store(load, save, "p1", "gone-detached", 200).unwrap_err();
+        assert!(err.contains("not resumable"), "{err}");
+        let err = resume_task_in_store(load, save, "p1", "nope", 200).unwrap_err();
+        assert!(err.contains("not found"), "{err}");
+        // 拒绝不落盘
+        assert_eq!(STORE_D.lock()[0].status, "running");
+    }
+
+    #[test]
+    fn rollback_task_status_restores_and_is_idempotent() {
+        STORE_C.lock().clear();
+        *STORE_C.lock() = vec![fixture_task("t1", "failed")];
+        let load = tasks_with_store_c;
+        let save = save_store_c;
+        let (_, original) = resume_task_in_store(load, save, "p1", "t1", 200).unwrap();
+        rollback_task_status(load, save, "p1", "t1", &original).unwrap();
+        assert_eq!(STORE_C.lock()[0].status, "failed");
+        // 幂等：已非 pending 再滚一次不误伤（并发改写保护）
+        *STORE_C.lock() = vec![fixture_task("t1", "done")];
+        rollback_task_status(load, save, "p1", "t1", "failed").unwrap();
+        assert_eq!(STORE_C.lock()[0].status, "done");
+    }
+
+    #[test]
+    fn resume_task_body_parsing() {
+        let body: ResumeTaskBody = serde_json::from_str("{}").unwrap();
+        assert_eq!((body.cols, body.rows), (None, None));
+        let body: ResumeTaskBody = serde_json::from_str(r#"{"cols":44,"rows":30}"#).unwrap();
+        assert_eq!((body.cols, body.rows), (Some(44), Some(30)));
+    }
+
     // ── WS 纯函数 ──
 
     #[test]
@@ -1054,7 +1463,6 @@ mod tests {
     #[test]
     fn ws_bus_event_filtering() {
         use crate::coding::events::BusEvent;
-
 
         let hit = BusEvent {
             name: "coding:task-status".into(),

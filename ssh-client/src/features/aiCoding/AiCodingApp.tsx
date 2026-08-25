@@ -565,11 +565,24 @@ function App() {
       });
       enterProjectFromKanban(project, task.id);
     });
+    // 手机伴侣 web 恢复的任务（260825）：Rust worker 已翻状态/起新进程
+    // （task-status running 事件驱动视图切回终端），桌面只差为新会话画面
+    // 清 buffer + remount 终端（对齐桌面自身 resume 的 resetTaskTerminal +
+    // runCount bump；输出经 coding:task-output 事件，依赖 web_created 标记）。
+    const p5 = listen<{ task_id: string }>("coding:task-resumed", (e) => {
+      const { task_id } = e.payload;
+      tm.resetTaskTerminal(task_id);
+      setTaskRunCounts((prev) => ({
+        ...prev,
+        [task_id]: (prev[task_id] ?? 0) + 1,
+      }));
+    });
     return () => {
       p1.then((fn) => fn());
       p2.then((fn) => fn());
       p3.then((fn) => fn());
       p4.then((fn) => fn());
+      p5.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
