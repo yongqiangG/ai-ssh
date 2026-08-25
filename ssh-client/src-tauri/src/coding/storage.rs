@@ -66,10 +66,34 @@ pub struct Task {
 
 // ── Path helpers ─────────────────────────────────────────────────────────────
 
+/// 数据根目录（260825 dev 沙盒隔离）：默认 `~/.ai-ssh`；`AI_SSH_HOME` 环境
+/// 变量非空则覆盖——dev 由 `scripts/tauri.cmd` 注入 `.ai-ssh-dev`，与常驻
+/// 安装版的库/配置/任务数据彻底分流。唯一的根解析点，新增路径一律经
+/// `coding_dir()` 派生，不要再自拼。
+pub(crate) fn ai_ssh_root() -> Result<std::path::PathBuf, String> {
+    resolve_ai_ssh_root(
+        std::env::var("AI_SSH_HOME").ok().as_deref(),
+        crate::coding::platform::home_dir(),
+    )
+}
+
+/// 纯函数核心（env 参数化，测试免进程级 env 操控）：空值/缺省回退 home。
+fn resolve_ai_ssh_root(
+    env_val: Option<&str>,
+    home: Option<std::path::PathBuf>,
+) -> Result<std::path::PathBuf, String> {
+    if let Some(root) = env_val {
+        let p = std::path::PathBuf::from(root);
+        if !p.as_os_str().is_empty() {
+            return Ok(p);
+        }
+    }
+    let home = home.ok_or_else(|| "Cannot find home directory".to_string())?;
+    Ok(home.join(".ai-ssh"))
+}
+
 pub(crate) fn coding_dir() -> Result<std::path::PathBuf, String> {
-    let home =
-        crate::coding::platform::home_dir().ok_or_else(|| "Cannot find home directory".to_string())?;
-    Ok(home.join(".ai-ssh").join("coding"))
+    Ok(ai_ssh_root()?.join("coding"))
 }
 
 fn projects_path() -> Result<PathBuf, String> {
@@ -232,6 +256,31 @@ mod tests {
 
     fn temp_dir(tag: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("nezha-storage-{}-{}", tag, uuid::Uuid::new_v4()))
+    }
+
+    /// 数据根解析（260825 dev 沙盒）：env 有效值覆盖；空值/缺省回退
+    /// `~/.ai-ssh`；home 不可得时报错。
+    #[test]
+    fn ai_ssh_root_env_override_and_fallback() {
+        let home = std::path::PathBuf::from("C:/Users/someone");
+        // 无 env → home/.ai-ssh
+        assert_eq!(
+            resolve_ai_ssh_root(None, Some(home.clone())).unwrap(),
+            home.join(".ai-ssh")
+        );
+        // 空串视为未设置
+        assert_eq!(
+            resolve_ai_ssh_root(Some(""), Some(home.clone())).unwrap(),
+            home.join(".ai-ssh")
+        );
+        // 有效 env 覆盖（dev 沙盒）
+        assert_eq!(
+            resolve_ai_ssh_root(Some("C:/Users/someone/.ai-ssh-dev"), Some(home.clone()))
+                .unwrap(),
+            std::path::PathBuf::from("C:/Users/someone/.ai-ssh-dev")
+        );
+        // env 缺省时 home 不可得 → 报错
+        assert!(resolve_ai_ssh_root(None, None).is_err());
     }
 
     /// 删项目数据目录：存在 → 删除成功；不存在 → 幂等 Ok

@@ -243,9 +243,8 @@ fn settings_lock() -> &'static Mutex<()> {
 }
 
 fn coding_dir() -> Result<PathBuf, String> {
-    let home = crate::coding::platform::home_dir()
-        .ok_or_else(|| "Cannot find home directory".to_string())?;
-    Ok(home.join(".ai-ssh").join("coding"))
+    // 260825 收敛：统一走 storage 的数据根解析（AI_SSH_HOME 沙盒覆盖）
+    crate::coding::storage::coding_dir()
 }
 
 fn settings_path() -> Result<PathBuf, String> {

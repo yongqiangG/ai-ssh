@@ -114,7 +114,14 @@ fn default_enabled() -> bool {
 }
 
 fn default_port() -> u16 {
-    18080
+    // 260825 dev 沙盒：debug 构建默认 18081，与常驻安装版的 18080 分流
+    // （dev 由 tauri.cmd 配套 AI_SSH_HOME 沙盒，web.json 落沙盒内，首次
+    // 生成即 18081）；release 默认 18080 不变。web.json 显式配置优先于此。
+    if cfg!(debug_assertions) {
+        18081
+    } else {
+        18080
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -903,7 +910,8 @@ mod tests {
     fn config_defaults_and_partial_parse() {
         let cfg: WebConfig = serde_json::from_str("{}").unwrap();
         assert!(cfg.enabled);
-        assert_eq!(cfg.port, 18080);
+        // 260825 dev 沙盒：默认端口随构建形态分流（cargo test 跑在 debug）
+        assert_eq!(cfg.port, if cfg!(debug_assertions) { 18081 } else { 18080 });
         assert!(cfg.token.is_empty());
         let cfg: WebConfig = serde_json::from_str("{\"port\": 19000}").unwrap();
         assert_eq!(cfg.port, 19000);

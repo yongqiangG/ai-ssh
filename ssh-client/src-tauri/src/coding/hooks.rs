@@ -69,12 +69,9 @@ pub struct HookInstallStatus {
 
 // ── 路径辅助 ────────────────────────────────────────────────────────────────
 
-fn home_dir() -> Result<PathBuf, String> {
-    crate::coding::platform::home_dir().ok_or_else(|| "Cannot find home directory".to_string())
-}
-
 pub fn hooks_dir() -> Result<PathBuf, String> {
-    Ok(home_dir()?.join(".ai-ssh").join("coding").join("hooks"))
+    // 260825 收敛：统一走 storage 的数据根解析（AI_SSH_HOME 沙盒覆盖）
+    Ok(crate::coding::storage::coding_dir()?.join("hooks"))
 }
 
 pub fn script_path() -> Result<PathBuf, String> {
@@ -82,11 +79,16 @@ pub fn script_path() -> Result<PathBuf, String> {
 }
 
 pub fn events_root() -> Result<PathBuf, String> {
-    Ok(home_dir()?.join(".ai-ssh").join("coding").join("events"))
+    Ok(crate::coding::storage::coding_dir()?.join("events"))
 }
 
 pub fn events_dir_for(task_id: &str) -> Result<PathBuf, String> {
     Ok(events_root()?.join(task_id))
+}
+
+/// 用户主目录（`~/.codex` 等用户全局配置用——不参与 AI_SSH_HOME 沙盒分流）。
+fn home_dir() -> Result<PathBuf, String> {
+    crate::coding::platform::home_dir().ok_or_else(|| "Cannot find home directory".to_string())
 }
 
 fn codex_config_path() -> Result<PathBuf, String> {
