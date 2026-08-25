@@ -3,8 +3,9 @@ setlocal
 
 rem 260825 dev 沙盒隔离：数据根切到 .ai-ssh-dev，与常驻安装版(~/.ai-ssh)的
 rem 库/配置/任务数据/手机伴侣(18080)彻底分流;web-companion debug 默认 18081。
-rem 仅 dev 走本脚本,安装版零感知。后端配套 scripts(dev-backend.cmd) 同款注入。
-set "AI_SSH_HOME=%USERPROFILE%\.ai-ssh-dev"
+rem 仅 dev 子命令注入——正式构建(build-personal.sh 末步走 build)不带沙盒 env;
+rem 后端配套 scripts(dev-backend.cmd) 同款注入。
+if /i "%~1"=="dev" set "AI_SSH_HOME=%USERPROFILE%\.ai-ssh-dev"
 
 set "MSVC_TOOLS=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207"
 set "WINSDK=C:\Program Files (x86)\Windows Kits\10"
