@@ -24,7 +24,8 @@
 - **Q1 隔离策略 → dev 沙盒（`AI_SSH_HOME` 数据根覆盖），非纯端口拆分**：痛点表面是端口，根子是安装版与 dev 共享同一套 `~/.ai-ssh` 状态；数据根分开后端口/库/token/任务数据天然各一套（不是人工维护两套配置，是沙盒冷启动自动生成）。纯端口拆分被否——数据混淆与 H2 锁仍在，治标。
 - **Q2 注入方式 → 启动脚本注入 env**：`scripts/tauri.cmd`（只有 dev 走它，安装版零感知）注入 `AI_SSH_HOME=%USERPROFILE%\.ai-ssh-dev`；Rust 侧 `storage.rs` 收敛单点 `ai_ssh_root()`（env 覆盖，默认 `~/.ai-ssh`），`app_settings.rs`/`hooks.rs` 的重复实现改走它；Java `application-single.yml` 的 H2 URL 与 secret key 占位符化 `${AI_SSH_HOME:${user.home}/.ai-ssh}`。web-companion **debug 构建默认 18081**（release 18080 不变；`web.json` 显式配置仍优先于默认值）。
 - **Q3 后端形态 → dev sidecar 自动起、debug 端口 8092**（真机复测推翻首轮设计后修正）：首轮曾决议「dev 手动后端 + dev-backend.cmd 脚本」，前提是「dev 不拉 sidecar」——复测实证 dev 壳**会**spawn sidecar（且 vite 8092 与 sidecar 8091 错位致启动门卡死、手动实例与 sidecar 抢 H2 沙盒锁）。修正：`lib.rs` 增 `spawn_backend_port()`（debug 8092 / release 8091），vite proxy 8092 对齐——`npm run tauri dev` 一条命令全链可用，与安装版双 sidecar 端口分流；`dev-backend.cmd` 撤销（避免两套后端心智）。手动 mvn 仅调试后端时用，需先退 tauri dev（抢 8092/沙盒锁）；sidecar 用 resources 内 jar，改后端后需重跑 build-personal 前 4 步刷新。
-- **不做**：appdata（identifier）不隔离（无实痛，动了要动打包身份）；dev profile（MySQL）不涉及；Codex hook 互踩边界留 pool 观察；1420 不动。
+- **不做**：dev profile（MySQL）不涉及；Codex hook 互踩边界留 pool 观察；1420 不动。
+- **identifier 分流补记（同日真机续）**：安装版常驻时 dev 起不来第二实例——single-instance 插件按 identifier 互斥，且 identifier 同时决定 WebView2 UDF 与 appdata（三重共享锁）。`tauri.dev.conf.json`（com.johnny.ai-ssh.dev）仅 dev 子命令加载。边界：`notify.rs` 的 AUMID 硬编码 com.johnny.ai-ssh——dev 的待确认 toast 依赖安装版快捷方式存在（进程内 Activated 回调仍归 dev 进程，点击跳转不受损）。
 
 ## 影响范围
 
