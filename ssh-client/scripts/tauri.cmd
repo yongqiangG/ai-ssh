@@ -23,8 +23,11 @@ set "INCLUDE=%MSVC_TOOLS%\include;%WINSDK%\Include\10.0.26100.0\ucrt;%WINSDK%\In
 set "LIB=%MSVC_TOOLS%\lib\x64;%WINSDK%\Lib\10.0.26100.0\ucrt\x64;%WINSDK%\Lib\10.0.26100.0\um\x64;%WINSDK%\Debuggers\lib\x64"
 set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%MSVC_TOOLS%\bin\Hostx64\x64\link.exe"
 set "CARGO=%USERPROFILE%\.cargo\bin\cargo.exe"
-set "CXX_x86_64_pc_windows_msvc=%MSVC_TOOLS%\bin\x64\cl.exe"
-set "CC_x86_64_pc_windows_msvc=%MSVC_TOOLS%\bin\x64\cl.exe"
+rem cc-rs splits CC/CXX env values on whitespace (first token = compiler,
+rem rest = flags): a full cl.exe path containing spaces breaks with
+rem ToolNotFound "C:\Program" (260826). Bare cl.exe resolves via PATH above.
+set "CXX_x86_64_pc_windows_msvc=cl.exe"
+set "CC_x86_64_pc_windows_msvc=cl.exe"
 
 node "%~dp0..\node_modules\@tauri-apps\cli\tauri.js" %*
 exit /b %ERRORLEVEL%
