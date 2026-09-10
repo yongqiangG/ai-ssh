@@ -164,7 +164,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "perm.subtitle.claude.full_access":
       "Skips all permission prompts — use with care",
     "perm.subtitle.codex.ask":
-      "Read-only sandbox; untrusted commands need approval in the terminal",
+      "Read-only sandbox; file edits and internet access need approval in the terminal",
     "perm.subtitle.codex.auto_edit":
       "Workspace-write sandbox; commands outside the workspace ask",
     "perm.subtitle.codex.full_access":
@@ -559,7 +559,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "perm.subtitle.claude.ask": "只读操作自动放行；文件修改与命令执行均需手动确认",
     "perm.subtitle.claude.auto_edit": "文件编辑与常见文件系统命令自动放行，其余命令仍需确认",
     "perm.subtitle.claude.full_access": "跳过全部权限提示，谨慎使用",
-    "perm.subtitle.codex.ask": "只读沙箱；非信任命令需在终端内确认后执行",
+    "perm.subtitle.codex.ask": "只读沙箱；文件编辑与联网操作需在终端内确认后执行",
     "perm.subtitle.codex.auto_edit": "工作区可写沙箱；越界命令仍需确认",
     "perm.subtitle.codex.full_access": "无沙箱无审批，谨慎使用",
     "perm.subtitle.fallback": "当前 CLI 版本未覆盖在适配表内，已按 CLI 默认行为启动",

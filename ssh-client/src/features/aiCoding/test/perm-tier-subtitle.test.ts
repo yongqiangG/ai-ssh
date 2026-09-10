@@ -8,9 +8,9 @@ const t = (key: string) => key;
 function catalog(overrides: Partial<PermAgentCatalog> = {}): PermAgentCatalog {
   return {
     agent: "codex",
-    version: "0.144.6",
+    version: "0.154.0",
     tiers: [
-      { key: "ask", args: ["-s", "read-only", "-a", "untrusted"], subtitleKey: "perm.subtitle.codex.ask", degraded: false },
+      { key: "ask", args: ["-s", "read-only", "-a", "on-request"], subtitleKey: "perm.subtitle.codex.ask", degraded: false },
       { key: "auto_edit", args: ["--sandbox", "workspace-write", "-a", "on-request"], subtitleKey: "perm.subtitle.codex.auto_edit", degraded: false },
       { key: "full_access", args: ["--dangerously-bypass-approvals-and-sandbox"], subtitleKey: "perm.subtitle.codex.full_access", degraded: false },
     ],

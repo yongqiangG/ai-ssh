@@ -776,11 +776,12 @@ mod fork_command_tests {
 
     #[test]
     fn builds_codex_model_and_reasoning_arguments_without_shell_parsing() {
-        // 权限 args 来自适配层（codex ask 档 = 只读沙箱 + 非信任命令审批）
+        // 权限 args 来自适配层（codex ask 档 = 只读沙箱 + on-request 审批，
+        // 0.149.0 起 untrusted 已被官方移除）
         let perm: Vec<String> = crate::coding::agent_compat::resolve_tier_with_version(
             "codex",
             "ask",
-            Some("0.144.6"),
+            Some("0.154.0"),
         )
         .args
         .iter()
@@ -795,7 +796,7 @@ mod fork_command_tests {
                 OsStr::new("-s").to_owned(),
                 OsStr::new("read-only").to_owned(),
                 OsStr::new("-a").to_owned(),
-                OsStr::new("untrusted").to_owned(),
+                OsStr::new("on-request").to_owned(),
                 OsStr::new("--model").to_owned(),
                 OsStr::new("provider/model:deployment").to_owned(),
                 OsStr::new("-c").to_owned(),

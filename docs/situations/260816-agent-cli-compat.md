@@ -13,6 +13,8 @@
 - 迁移来的映射：claude 三档传参显式且当前正确；**codex ask 档不传任何参数**（吃 CLI 默认值，为最大漂移源）。
 - codex「ask 写入不询问」根因：用户 `~/.codex/config.toml` 中多条 `trust_level = "trusted"`（含 `d:\`、`E:\` 整盘根）——trusted 项目下 TUI 对工作区写默认免审批，短路了档位语义。对照实验：无 flag 的 exec 模式默认只读沙箱（拒写）。
 
+- **2026-09-10 增补（官方 breaking change）**：Codex 0.149.0 起官方移除 `-a untrusted`（PR #39630，2026-08-20 合入，CLI/config/MCP 三处同步删除，显式传值即 `invalid value` 硬拒启）——本机 0.154.0 实测复现「ask 档启动报错」。映射表加 `min_version: 0.149.0` 新条目：ask 档改传 `-s read-only -a on-request`（对齐官方 Read Only preset：读自由，编辑/联网在终端内确认），auto_edit/full_access 两档 flag 未变沿用；0.131.0 旧条目保留服务 ≤0.148。Q1-Q5 决议结构不变，仅表数据演进。
+
 ## 决议
 
 - **Q1 UI 模型 → 统一三档 + 差异副标题**：保留 ask/auto_edit/full_access 统一抽象，但每 agent×档位配一句真实行为描述（如 Codex ask=「只读沙箱，非信任命令需确认」），不再让同标签掩盖语义差异。

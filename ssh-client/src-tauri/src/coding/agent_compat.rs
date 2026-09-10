@@ -8,11 +8,13 @@
 //! - UI 侧经 `coding_get_permission_catalog` 读取同一张表渲染差异副标题与
 //!   tooltip（实际下发的 flag 原文），适配层对错一眼可验。
 //!
-//! 语义事实（2026-08-16 实测 + 官方文档核实）：
+//! 语义事实（2026-08-16 实测 + 2026-09-10 复核）：
 //! - claude `--permission-mode default` 是 Manual 模式的 config 值（只读外
 //!   全部手动确认），CLI choices 里的 `manual` 为别名；
-//! - codex ask 档显式传 `-s read-only -a untrusted`，不再裸奔吃 CLI 默认值
-//!   （TUI 默认 + 项目 trust_level=trusted 会静默放行工作区写入）。
+//! - codex 0.149.0 起 `-a` 仅剩 on-request/never——untrusted 档被官方移除
+//!   （PR #39630，显式传值即 `invalid value` 硬拒启），ask 档随之改传
+//!   `-s read-only -a on-request`（对齐官方 Read Only preset）；0.131~0.148
+//!   仍走 `-a untrusted` 旧条目。
 
 use serde::Serialize;
 
@@ -66,7 +68,25 @@ const CLAUDE_TIERS: [TierSpec; 3] = [
     },
 ];
 
-const CODEX_TIERS: [TierSpec; 3] = [
+/// Codex 0.149.0+：`-a untrusted` 已被官方移除（PR #39630），ask 档改传
+/// on-request；workspace-write 档的 on-request 本就合法，原值沿用。
+const CODEX_TIERS_MODERN: [TierSpec; 3] = [
+    TierSpec {
+        args: &["-s", "read-only", "-a", "on-request"],
+        subtitle_key: "perm.subtitle.codex.ask",
+    },
+    TierSpec {
+        args: &["--sandbox", "workspace-write", "-a", "on-request"],
+        subtitle_key: "perm.subtitle.codex.auto_edit",
+    },
+    TierSpec {
+        args: &["--dangerously-bypass-approvals-and-sandbox"],
+        subtitle_key: "perm.subtitle.codex.full_access",
+    },
+];
+
+/// Codex 0.131.0 ~ 0.148.x。
+const CODEX_TIERS_LEGACY: [TierSpec; 3] = [
     TierSpec {
         args: &["-s", "read-only", "-a", "untrusted"],
         subtitle_key: "perm.subtitle.codex.ask",
@@ -91,11 +111,18 @@ const CLAUDE_COMPAT: AgentCompat = AgentCompat {
 };
 
 const CODEX_COMPAT: AgentCompat = AgentCompat {
-    entries: &[CompatEntry {
-        // -a untrusted 档位与 hook 相关 flag 的同族版本线。
-        min_version: "0.131.0",
-        tiers: CODEX_TIERS,
-    }],
+    entries: &[
+        CompatEntry {
+            // 0.149.0 起官方移除 `-a untrusted`（PR #39630）。
+            min_version: "0.149.0",
+            tiers: CODEX_TIERS_MODERN,
+        },
+        CompatEntry {
+            // -a untrusted 档位与 hook 相关 flag 的同族版本线。
+            min_version: "0.131.0",
+            tiers: CODEX_TIERS_LEGACY,
+        },
+    ],
 };
 
 fn compat_for(agent: &str) -> Option<&'static AgentCompat> {
@@ -299,6 +326,37 @@ mod tests {
     #[test]
     fn codex_ask_passes_explicit_manual_confirm_flags() {
         let r = resolve_tier_with_version("codex", "ask", Some("0.144.6"));
+        assert_eq!(r.args, vec!["-s", "read-only", "-a", "untrusted"]);
+        assert!(!r.degraded);
+    }
+
+    #[test]
+    fn codex_modern_uses_on_request_after_untrusted_removal() {
+        // 0.149.0 起 untrusted 被官方移除，ask 档改传 on-request
+        // （对齐官方 Read Only preset）。
+        let ask = resolve_tier_with_version("codex", "ask", Some("0.149.0"));
+        assert_eq!(ask.args, vec!["-s", "read-only", "-a", "on-request"]);
+        assert!(!ask.degraded);
+
+        let latest = resolve_tier_with_version("codex", "ask", Some("0.154.0"));
+        assert_eq!(latest.args, ask.args);
+
+        // auto_edit / full_access 两档 flag 未变
+        let auto_edit = resolve_tier_with_version("codex", "auto_edit", Some("0.154.0"));
+        assert_eq!(
+            auto_edit.args,
+            vec!["--sandbox", "workspace-write", "-a", "on-request"]
+        );
+        let full = resolve_tier_with_version("codex", "full_access", Some("0.154.0"));
+        assert_eq!(
+            full.args,
+            vec!["--dangerously-bypass-approvals-and-sandbox"]
+        );
+    }
+
+    #[test]
+    fn codex_148_stays_on_legacy_untrusted_entry() {
+        let r = resolve_tier_with_version("codex", "ask", Some("0.148.0"));
         assert_eq!(r.args, vec!["-s", "read-only", "-a", "untrusted"]);
         assert!(!r.degraded);
     }
