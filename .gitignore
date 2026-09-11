@@ -37,3 +37,7 @@ ssh-client/src-tauri/resources/*
 # impeccable 设计工具链（本机 skill 装置，未入库；见 .claude/skills 同理）
 .agents/
 skills-lock.json
+
+# ---- Python ----
+__pycache__/
+*.pyc
