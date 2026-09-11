@@ -7,6 +7,9 @@ import {
   getNewlineShortcutLabel,
   getSendShortcutKeys,
   getSendShortcutLabel,
+  getTerminalNavShortcutKeys,
+  getTerminalNavShortcutLabel,
+  isTerminalNavShortcut,
   isToggleKanbanShortcut,
   normalizeSendShortcut,
   shouldInsertPromptNewlineKey,
@@ -217,5 +220,76 @@ describe("kanban toggle shortcut", () => {
     expect(getKanbanShortcutLabel("macos")).toBe("⌘K");
     expect(getKanbanShortcutLabel("windows")).toBe("Alt + K");
     expect(getKanbanShortcutLabel("other")).toBe("Alt + K");
+  });
+});
+
+describe("terminal history nav shortcut (需求-终端后退)", () => {
+  test("matches Ctrl+Alt+Arrow on windows/other", () => {
+    expect(
+      isTerminalNavShortcut(
+        { key: "ArrowLeft", metaKey: false, ctrlKey: true, shiftKey: false, altKey: true },
+        "windows",
+      ),
+    ).toBe(true);
+    expect(
+      isTerminalNavShortcut(
+        { key: "ArrowRight", metaKey: false, ctrlKey: true, shiftKey: false, altKey: true },
+        "windows",
+      ),
+    ).toBe(true);
+    expect(
+      isTerminalNavShortcut(
+        { key: "ArrowLeft", metaKey: false, ctrlKey: true, shiftKey: false, altKey: true },
+        "other",
+      ),
+    ).toBe(true);
+  });
+
+  test("matches Cmd+Alt+Arrow on macOS", () => {
+    expect(
+      isTerminalNavShortcut(
+        { key: "ArrowLeft", metaKey: true, ctrlKey: false, shiftKey: false, altKey: true },
+        "macos",
+      ),
+    ).toBe(true);
+  });
+
+  test("rejects missing modifiers, Shift combos, and wrong keys", () => {
+    const base = { metaKey: false, ctrlKey: true, shiftKey: false, altKey: true };
+    // no Alt
+    expect(
+      isTerminalNavShortcut({ key: "ArrowLeft", ...base, altKey: false }, "windows"),
+    ).toBe(false);
+    // no Ctrl
+    expect(
+      isTerminalNavShortcut({ key: "ArrowLeft", ...base, ctrlKey: false }, "windows"),
+    ).toBe(false);
+    // with Shift
+    expect(
+      isTerminalNavShortcut({ key: "ArrowLeft", ...base, shiftKey: true }, "windows"),
+    ).toBe(false);
+    // wrong key
+    expect(
+      isTerminalNavShortcut({ key: "ArrowUp", ...base }, "windows"),
+    ).toBe(false);
+    expect(
+      isTerminalNavShortcut({ key: "a", ...base }, "windows"),
+    ).toBe(false);
+    // bare arrows without modifiers
+    expect(
+      isTerminalNavShortcut(
+        { key: "ArrowLeft", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false },
+        "windows",
+      ),
+    ).toBe(false);
+  });
+
+  test("formats display keys/label by platform", () => {
+    expect(getTerminalNavShortcutKeys("macos")).toEqual(["⌘", "Alt", "←/→"]);
+    expect(getTerminalNavShortcutKeys("windows")).toEqual(["Ctrl", "Alt", "←/→"]);
+    expect(getTerminalNavShortcutKeys("other")).toEqual(["Ctrl", "Alt", "←/→"]);
+    expect(getTerminalNavShortcutLabel("macos")).toBe("⌘Alt←/→");
+    expect(getTerminalNavShortcutLabel("windows")).toBe("Ctrl + Alt + ←/→");
+    expect(getTerminalNavShortcutLabel("other")).toBe("Ctrl + Alt + ←/→");
   });
 });

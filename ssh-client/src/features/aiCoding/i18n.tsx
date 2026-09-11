@@ -134,6 +134,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.terminalNewlineAltAlways": "always inserts a new line",
     "appSettings.kanbanShortcut": "Kanban",
     "appSettings.kanbanShortcutHint": "open or close the board",
+    "appSettings.terminalNavShortcut": "Terminal back / forward",
+    "appSettings.terminalNavShortcutHint":
+      "step back or forward through terminals you have viewed",
     "fontSelector.search": "Search fonts...",
     "fontSelector.noResults": "No matching fonts",
     "fontSelector.loading": "Loading fonts...",
@@ -535,6 +538,8 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.terminalNewlineAltAlways": "始终可用于换行",
     "appSettings.kanbanShortcut": "看板",
     "appSettings.kanbanShortcutHint": "打开或关闭看板",
+    "appSettings.terminalNavShortcut": "终端后退 / 前进",
+    "appSettings.terminalNavShortcutHint": "在你看过的终端之间后退或前进",
     "fontSelector.search": "搜索字体...",
     "fontSelector.noResults": "没有匹配的字体",
     "fontSelector.loading": "正在加载字体...",

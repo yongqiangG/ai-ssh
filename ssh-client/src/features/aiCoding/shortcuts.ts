@@ -93,6 +93,40 @@ export function getKanbanShortcutLabel(platform: AppPlatform): string {
   return platform === "macos" ? keys.join("") : keys.join(" + ");
 }
 
+/**
+ * Ctrl+Alt+←/→ (macOS: Cmd+Alt+←/→) —— 终端展示历史后退/前进（需求-终端后退）。
+ * 双修饰键：单 Ctrl+←/→ 是 readline word 跳转、单 Alt+←/→ 与 xterm 的 ESC
+ * 序列有潜在冲突面，双修饰最安全。在全局 keydown 捕获阶段匹配，先于 xterm
+ * 处理（与看板快捷键同模式）。注：Intel 核显驱动的屏幕旋转热键同为
+ * Ctrl+Alt+方向键，被驱动机型占用时再议键位（决议 5）。
+ */
+export function isTerminalNavShortcut(
+  event: PromptKeyEventLike,
+  platform: AppPlatform,
+): boolean {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return false;
+  }
+  if (event.shiftKey) {
+    return false;
+  }
+  if (!event.altKey) {
+    return false;
+  }
+  return platform === "macos" ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}
+
+/** 终端后退/前进的展示键位：macOS ["⌘", "Alt", "←/→"]，其他 ["Ctrl", "Alt", "←/→"]。 */
+export function getTerminalNavShortcutKeys(platform: AppPlatform): string[] {
+  return platform === "macos" ? ["⌘", "Alt", "←/→"] : ["Ctrl", "Alt", "←/→"];
+}
+
+/** 纯文本标签：macOS 紧凑成 "⌘Alt←/→"，其他平台 "Ctrl + Alt + ←/→"。 */
+export function getTerminalNavShortcutLabel(platform: AppPlatform): string {
+  const keys = getTerminalNavShortcutKeys(platform);
+  return platform === "macos" ? keys.join("") : keys.join(" + ");
+}
+
 export function shouldInsertPromptNewlineKey(
   event: PromptKeyEventLike,
   shortcut: SendShortcut,

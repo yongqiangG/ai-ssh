@@ -11,6 +11,7 @@ import {
   getNewlineShortcutKeys,
   getSendShortcutKeys,
   getShiftEnterNewlineKeys,
+  getTerminalNavShortcutKeys,
   normalizeSendShortcut,
   normalizeShiftEnterNewline,
 } from "../../shortcuts";
@@ -218,6 +219,14 @@ export function ShortcutsPanel() {
               {renderShortcutKeys(getKanbanShortcutKeys(APP_PLATFORM))}
             </div>
             <div style={s.shortcutHint}>{t("appSettings.kanbanShortcutHint")}</div>
+          </div>
+          {/* 终端后退/前进同看板：固定键位只读展示（需求-终端后退），键位与 isTerminalNavShortcut 同源 */}
+          <div style={s.shortcutField}>
+            <label style={s.shortcutFieldLabel}>{t("appSettings.terminalNavShortcut")}</label>
+            <div style={s.shortcutReadonlyKey}>
+              {renderShortcutKeys(getTerminalNavShortcutKeys(APP_PLATFORM))}
+            </div>
+            <div style={s.shortcutHint}>{t("appSettings.terminalNavShortcutHint")}</div>
           </div>
         </div>
       )}

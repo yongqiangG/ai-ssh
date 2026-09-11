@@ -40,7 +40,15 @@ import { WelcomePage } from "./components/WelcomePage";
 import { ProjectPage } from "./components/ProjectPage";
 import { KanbanView, OPEN_KANBAN_VIEW_EVENT } from "./components/KanbanView";
 import { useToast } from "./components/Toast";
-import { isToggleKanbanShortcut } from "./shortcuts";
+import { isToggleKanbanShortcut, isTerminalNavShortcut } from "./shortcuts";
+import {
+  consumeSuppress,
+  deriveVisibleTerminal,
+  recordTerminalView,
+  stepBack,
+  stepForward,
+  type TerminalHistoryEntry,
+} from "./terminalHistory";
 import { APP_PLATFORM } from "./platform";
 import { useTerminalManager } from "./hooks/useTerminalManager";
 import { useI18n } from "./i18n";
@@ -371,11 +379,73 @@ function App() {
       setShowKanban((prev) => !prev);
     }
     window.addEventListener("keydown", handleToggleKanban, true);
+
+    // Ctrl+Alt+←/→ 终端展示历史后退/前进（需求-终端后退）。同看板快捷键：
+    // panel-visibility 门 + 捕获阶段拦截（先于 xterm，避免 ESC 序列进 PTY）。
+    // 目标校验在 step 内做（死链跳过）；导航执行走 navigateToHistoryEntry
+    // （声明在下方，经 ref 解引用避免依赖循环）。
+    function handleTerminalNav(event: KeyboardEvent) {
+      if (!panelActiveRef.current) return;
+      if (!isTerminalNavShortcut(event, APP_PLATFORM)) return;
+      event.preventDefault();
+      navigateToHistoryEntryRef.current(event.key === "ArrowLeft" ? -1 : 1);
+    }
+    window.addEventListener("keydown", handleTerminalNav, true);
     return () => {
       window.removeEventListener("ai-ssh:aiCoding:panel-visibility", handlePanelVisibility);
       window.removeEventListener("keydown", handleToggleKanban, true);
+      window.removeEventListener("keydown", handleTerminalNav, true);
     };
   }, []);
+
+  // 终端展示历史（需求-终端后退）：记录 effect 盯「当前可见终端」派生值，
+  // 变化时先消费 suppress（导航回访不 append），未吸收才入史。面板不激活 /
+  // 离开终端画面派生值为 null，不产生记录（决议 3 + 6）。centerView 必须
+  // 订阅（getState 不触发重算）；tasks 变化也要重算（选中任务状态翻转会
+  // 改变「是否终端态」判定）。
+  const centerView = useLayoutStore((s) => s.centerView);
+  const visibleTerminal = useMemo(() => {
+    const view = activeProject ? projectViews[activeProject.id] : undefined;
+    return deriveVisibleTerminal({
+      panelActive: centerView === "aiCoding",
+      activeProjectId: activeProject?.id ?? null,
+      isNewTask: view?.isNewTask ?? true,
+      selectedTaskId: view?.selectedTaskId ?? null,
+      selectedTask: activeProject
+        ? tasks.find((t) => t.id === view?.selectedTaskId)
+        : undefined,
+    });
+  }, [centerView, activeProject, projectViews, tasks]);
+
+  useEffect(() => {
+    if (consumeSuppress(visibleTerminal)) return;
+    recordTerminalView(visibleTerminal);
+    // visibleTerminal 是唯一输入；模块级 store 的消费是副作用本体
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleTerminal]);
+
+  // 后退/前进执行体：step（含死链跳过）→ 同项目快速路径只改选中任务（避免
+  // 高频后退触发 persistProjects 写盘 + coding_init_project_config IPC）；
+  // 跨项目复用 enterProjectFromKanban（三步一致性既有保障）。经 ref 供上方
+  // 无依赖快捷键 effect 解引用。
+  const navigateToHistoryEntryRef = useRef<(direction: -1 | 1) => void>(() => {});
+  navigateToHistoryEntryRef.current = (direction: -1 | 1) => {
+    const { tasks, projects, activeProject } = latestRef.current;
+    const exists = (e: TerminalHistoryEntry) =>
+      projects.some((p) => p.id === e.projectId) &&
+      tasks.some((t) => t.id === e.taskId && t.projectId === e.projectId);
+    const target = direction === -1 ? stepBack(exists) : stepForward(exists);
+    if (!target) return;
+    const project = projects.find((p) => p.id === target.projectId);
+    if (!project) return;
+    if (activeProject?.id === target.projectId) {
+      // 与 enterProjectFromKanban 的任务选中语义一致；看板开着会盖住终端，一并关掉
+      setShowKanban(false);
+      updateProjectView(project.id, { selectedTaskId: target.taskId, isNewTask: false });
+    } else {
+      enterProjectFromKanban(project, target.taskId);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem("ai-ssh:aiCoding:terminalFontSize", String(terminalFontSize));
