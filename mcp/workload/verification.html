@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <!--
+    PURPOSE: Complete one login verification so the existing workload query continues.
+    WORLD: Inherit AI-SSH's dark surfaces, cyan action color and system CJK typography.
+    FIRST VIEWPORT: One system, one challenge, a visible deadline and explicit cancel.
+    INTERACTION: The puzzle follows an accessible native slider; success releases the query.
+    SCOPE: Local Operate surface. Real challenge images only. No account or token reaches HTML.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>工时统计 · 登录验证</title>
+    <link rel="stylesheet" href="verification.css" />
+    <script src="verification.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1 id="title">完成登录验证</h1>
+        <p id="description">完成验证码后，将继续本次工时统计。</p>
+      </header>
+      <section id="verification" aria-label="登录验证码">
+        <div class="context">
+          <strong id="system">正在加载验证码</strong>
+          <span id="countdown">剩余 <time id="remaining">05:00</time></span>
+        </div>
+        <div id="loading" role="status">正在获取验证码…</div>
+        <form id="form" hidden>
+          <div id="text-challenge" hidden>
+            <div class="image-well">
+              <img id="text-image" alt="登录验证码，包含 4 位字母或数字" />
+            </div>
+            <label for="answer">图片中的 4 位字母或数字</label>
+            <input
+              id="answer"
+              type="text"
+              maxlength="4"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              aria-describedby="message"
+            />
+          </div>
+          <div id="slider-challenge" hidden>
+            <div class="puzzle" id="puzzle">
+              <img id="background" alt="请将拼图移到图中缺口处" />
+              <img id="piece" alt="" />
+            </div>
+            <label for="slider">拖动滑块，让拼图与缺口重合</label>
+            <input
+              id="slider"
+              type="range"
+              min="0"
+              max="263"
+              value="0"
+              step="1"
+              aria-describedby="slider-help message"
+            />
+            <p class="hint" id="slider-help">
+              也可使用键盘左右方向键微调位置。
+            </p>
+          </div>
+          <div class="refresh-row">
+            <button type="button" id="refresh" class="text-button">
+              看不清，换一张
+            </button>
+          </div>
+          <p id="message" role="status" aria-live="polite"></p>
+          <div class="actions">
+            <button type="submit" id="submit" class="primary">
+              验证并继续
+            </button>
+            <button type="button" id="cancel">取消统计</button>
+          </div>
+        </form>
+        <div id="result" hidden role="status" aria-live="polite"></div>
+      </section>
+      <footer id="footer">
+        工时统计 · 关闭页面不会取消统计，可使用“取消统计”结束。
+      </footer>
+      <noscript>请启用浏览器 JavaScript 后刷新，以完成验证码。</noscript>
+    </main>
+  </body>
+</html>

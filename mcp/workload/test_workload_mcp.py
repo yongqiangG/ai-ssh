@@ -80,7 +80,7 @@ class TestParsePunchHtml(unittest.TestCase):
 
     def test_empty_body_no_crash(self):
         # 无数据页：表格在但 tbody 空，total=0
-        html = '<table><thead><tr><th>序号</th></tr></thead><tbody></tbody></table><div>共 0 条</div>'
+        html = "<table><thead><tr><th>序号</th></tr></thead><tbody></tbody></table><div>共 0 条</div>"
         rows, total = parse_punch_html(html)
         self.assertEqual(rows, [])
         self.assertEqual(total, 0)
@@ -100,7 +100,9 @@ class TestClampRange(unittest.TestCase):
 
     def test_future_start_rejected(self):
         with self.assertRaises(ValueError):
-            clamp_range(dt.date(2026, 10, 1), dt.date(2026, 10, 2), dt.date(2026, 9, 11))
+            clamp_range(
+                dt.date(2026, 10, 1), dt.date(2026, 10, 2), dt.date(2026, 9, 11)
+            )
 
     def test_start_after_end_rejected(self):
         with self.assertRaises(ValueError):
@@ -128,7 +130,10 @@ class TestAccumulate(unittest.TestCase):
 
     def test_float_noise_immunity(self):
         # 0.1 × 70 累加在浮点下不等于 7，整数化到分钟后必须判满
-        records = [{"reportedAt": "2026-09-10", "duration": 0.1, "creator": "167"} for _ in range(70)]
+        records = [
+            {"reportedAt": "2026-09-10", "duration": 0.1, "creator": "167"}
+            for _ in range(70)
+        ]
         minutes = accumulate_records(records, "167")
         self.assertEqual(minutes[dt.date(2026, 9, 10)], 420)
 
@@ -139,7 +144,7 @@ class TestClassify(unittest.TestCase):
         punch = {dt.date(2026, 9, 7), dt.date(2026, 9, 9), dt.date(2026, 9, 10)}
         day_minutes = {
             dt.date(2026, 9, 7): 420,
-            dt.date(2026, 9, 9): 419,   # 6.98h → 未填满缺口 0.02h
+            dt.date(2026, 9, 9): 419,  # 6.98h → 未填满缺口 0.02h
             dt.date(2026, 9, 10): 0,
         }
         r = classify(dt.date(2026, 9, 7), dt.date(2026, 9, 11), punch, day_minutes)
@@ -153,7 +158,10 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(r["underfilled"][0]["date"], "2026-09-09")
         self.assertLess(abs(r["underfilled"][0]["gap_hours"] - 0.02), 1e-9)
         # 兜底：9/8、9/11 工作日无打卡
-        self.assertEqual(r["safety_net"]["calendar_workday_without_punch"], ["2026-09-08", "2026-09-11"])
+        self.assertEqual(
+            r["safety_net"]["calendar_workday_without_punch"],
+            ["2026-09-08", "2026-09-11"],
+        )
 
     def test_workload_without_punch_surfaces(self):
         # 9/8 填了工时但没打卡 → 兜底清单 workload_without_punch 浮出（忘打卡嫌疑）
