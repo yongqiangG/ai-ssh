@@ -492,22 +492,36 @@ def build_report(
         )
 
     creator_id = proj.current_user_id(cfg["project_username"])
+    # today 快照条件：查询区间贴着今天（钳后 end=昨天）才附带；
+    # 否则查历史区间时今天的记录与查询意图无关。
+    natural_today = today or dt.datetime.now(dt.timezone.utc).astimezone().date()
+    fetch_end = max(end, natural_today)  # 采集放宽到今天，比对区间仍止于 end
     punch_rows = oa.fetch_punch_rows(start, end)
     punch_dates = {
         date for date in merge_punch_rows(punch_rows) if start <= date <= end
     }
     work_items = proj.fetch_work_items()
     records = []
+    today_records = []
     for item in work_items:
         context.check()
         recs = proj.fetch_workload_records(str(item["id"]))
         try:
-            records.extend(
-                {**r, "_number": item.get("number"), "_title": item.get("title")}
-                for r in recs
-                if str(r.get("creator", "")) == creator_id
-                and start <= parse_date(r["reportedAt"]) <= end
-            )
+            for r in recs:
+                if str(r.get("creator", "")) != creator_id:
+                    continue
+                d = parse_date(r["reportedAt"])
+                if d > fetch_end or d < start:
+                    continue
+                tagged = {
+                    **r,
+                    "_number": item.get("number"),
+                    "_title": item.get("title"),
+                }
+                if d <= end:
+                    records.append(tagged)
+                elif d == natural_today:
+                    today_records.append(tagged)
         except (KeyError, TypeError, ValueError) as exc:
             raise WorkloadError("项目工时记录格式发生变化，请检查记录日期") from exc
     context.check()
@@ -548,6 +562,17 @@ def build_report(
             for r in records
             if r.get("overtime")
         ]
+    # today 快照：今天已填报的任务与工时（独立于 full_detail）。
+    # OA 打卡当天未出，punched=null 显式标记；不参与应填比对（classify 只见 end 前数据）。
+    if end + dt.timedelta(days=1) == natural_today:
+        today_tasks = accumulate_daily_tasks(today_records).get(natural_today, [])
+        report["today"] = {
+            "date": natural_today.isoformat(),
+            "punched": None,
+            "note": "OA 打卡当天未出，不参与应填比对；tasks 为今天已填报快照",
+            "reported_hours": round(sum(t["hours"] for t in today_tasks), 2),
+            "tasks": today_tasks,
+        }
     context.check()
     return report
 
@@ -752,6 +777,8 @@ TOOLS = [
         "description": (
             "统计本人工时：工作日有 OA 打卡则应填 >=7h。自动登录；验证码失败会打开本机验证页。"
             "返回 task_id 和状态；未结束时必须继续调用 get_workload_result，直到 completed/failed/cancelled。"
+            "统计区间最晚到昨天（OA 打卡隔天才出）；区间贴着今天时报告附带 today 字段——"
+            "今天已填报任务与工时快照，punched=null（当天打卡未出），不参与应填比对。"
         ),
         "inputSchema": {
             "type": "object",
@@ -935,7 +962,7 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.6.0"},
+            "serverInfo": {"name": "workload", "version": "2.7.0"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
                 "submit_workload 是写入操作，description 参数必须填任务标题原文"

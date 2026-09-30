@@ -31,7 +31,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp\workload\install.ps1
 & '.\mcp\workload\.venv\Scripts\python.exe' -X utf8 .\mcp\workload\workload_mcp.py report --start 2026-08-01 --end 2026-09-11 --full-detail
 ```
 
-结束日期最晚取昨天；当天尚未结束，不判定缺工时。汇总和加班明细均按登录身份及日期区间过滤。`full_detail` 的日明细 `detail[]` 含每日打卡与合计（`date/weekday/punched/reported_hours`）及**任务工时明细** `tasks[]`（本人记录按日聚合，同任务同日合并，`{number, title, hours}`，时长降序）；无记录日 `tasks` 为空数组。任一系统读取失败会结束统计，标准输出只在成功时给出完整 JSON 报告，错误写入标准错误。
+结束日期最晚取昨天；当天尚未结束，不判定缺工时。汇总和加班明细均按登录身份及日期区间过滤。`full_detail` 的日明细 `detail[]` 含每日打卡与合计（`date/weekday/punched/reported_hours`）及**任务工时明细** `tasks[]`（本人记录按日聚合，同任务同日合并，`{number, title, hours}`，时长降序）；无记录日 `tasks` 为空数组。区间贴着今天（钳后 end=昨天）时报告附带 `today` 字段——今天已填报的任务快照（`date/punched(null)/reported_hours/tasks`），OA 当天打卡未出故不参与应填比对。任一系统读取失败会结束统计，标准输出只在成功时给出完整 JSON 报告，错误写入标准错误。
 
 登录会优先复用缓存。项目系统 access token 到期后自动刷新，刷新授权失效后重新登录；OA 返回登录失效时重新登录。OA 明确要求强制登录时自动提交 `force=Y`，这可能结束已有的 OA 会话。
 
