@@ -206,6 +206,34 @@ def accumulate_records(records: list[dict], creator_id: str) -> dict[dt.date, in
     return minutes
 
 
+def accumulate_daily_tasks(
+    records: list[dict],
+) -> dict[dt.date, list[dict]]:
+    """按日聚合任务工时（记录须已按本人过滤并携带 _number/_title）。
+
+    同任务同日合并；hours 用 duration 直接加总保留 0.1 粒度（不做分钟化）；
+    排序按时长降序、同长按编号升序——按日核对先看大头。
+    """
+    days: dict[dt.date, dict[str, dict]] = {}
+    for r in records:
+        d = parse_date(r["reportedAt"])
+        number = str(r.get("_number") or "")
+        bucket = days.setdefault(d, {})
+        entry = bucket.get(number)
+        if entry is None:
+            entry = {
+                "number": number,
+                "title": str(r.get("_title") or number),
+                "hours": 0.0,
+            }
+            bucket[number] = entry
+        entry["hours"] = round(entry["hours"] + float(r["duration"]), 2)
+    return {
+        d: sorted(bucket.values(), key=lambda t: (-t["hours"], t["number"]))
+        for d, bucket in days.items()
+    }
+
+
 # ---------------------------------------------------------------------------
 # 凭据与业务客户端：认证恢复由 session 负责
 # ---------------------------------------------------------------------------
@@ -475,7 +503,7 @@ def build_report(
         recs = proj.fetch_workload_records(str(item["id"]))
         try:
             records.extend(
-                r
+                {**r, "_number": item.get("number"), "_title": item.get("title")}
                 for r in recs
                 if str(r.get("creator", "")) == creator_id
                 and start <= parse_date(r["reportedAt"]) <= end
@@ -484,6 +512,7 @@ def build_report(
             raise WorkloadError("项目工时记录格式发生变化，请检查记录日期") from exc
     context.check()
     day_minutes = accumulate_records(records, creator_id)
+    day_tasks = accumulate_daily_tasks(records)
     report = classify(start, end, punch_dates, day_minutes)
 
     cal = report["summary"]["calendar_workdays"]
@@ -505,6 +534,7 @@ def build_report(
                     ],
                     "punched": date in punch_dates,
                     "reported_hours": round(day_minutes.get(date, 0) / 60, 2),
+                    "tasks": day_tasks.get(date, []),
                 }
             )
             date += dt.timedelta(days=1)
@@ -734,7 +764,7 @@ TOOLS = [
                 "full_detail": {
                     "type": "boolean",
                     "default": False,
-                    "description": "附日明细与本人区间内加班记录",
+                    "description": "附日明细（含每日任务工时明细）与本人区间内加班记录",
                 },
             },
             "required": ["start_date", "end_date"],
@@ -905,7 +935,7 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.5.0"},
+            "serverInfo": {"name": "workload", "version": "2.6.0"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
                 "submit_workload 是写入操作，description 参数必须填任务标题原文"
