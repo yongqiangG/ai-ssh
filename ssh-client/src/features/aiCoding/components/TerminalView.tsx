@@ -23,6 +23,7 @@ import {
   attachPanelVisibilityRefresh,
   applyTerminalFontSize,
   applyTerminalFontFamily,
+  applyTerminalScrollback,
   applyDomCharSizeOverride,
   refreshTerminalDisplay,
   unregisterActiveTerminal,
@@ -321,6 +322,12 @@ export function TerminalView({
     );
     if (size) notifyResize(size.cols, size.rows);
   }, [terminalFontSize, notifyResize]);
+
+  // 设置热改：scrollback 变化立即作用于已开终端（无需重开任务）。
+  useEffect(() => {
+    if (!terminalRef.current) return;
+    applyTerminalScrollback(terminalRef.current, terminalScrollback);
+  }, [terminalScrollback]);
 
   useEffect(() => {
     if (!terminalRef.current || !fitAddonRef.current || !containerRef.current) return;

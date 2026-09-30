@@ -425,7 +425,7 @@ export function GeneralPanel({
           <span style={s.fontSizeUnit}>{t("appSettings.terminalScrollbackUnit")}</span>
         </div>
         <span style={s.settingFieldHint}>{t("appSettings.terminalScrollbackHint")}</span>
-        {terminalScrollback > 3000 && (
+        {terminalScrollback > 12000 && (
           <div style={s.settingsFieldWarning} role="alert">
             <AlertTriangle size={13} strokeWidth={2} style={s.settingsFieldWarningIcon} />
             <span>{t("appSettings.terminalScrollbackWarning")}</span>

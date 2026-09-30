@@ -871,6 +871,17 @@ export function applyTerminalFontSize(
   return result;
 }
 
+/**
+ * 运行时热改 scrollback（xterm 6 实测支持：赋值即触发内部 buffer resize，
+ * 历史不足新值时扩容、超出时裁掉最旧行）。只改 buffer 深度，不动 cols/rows，
+ * 无需 fit/refresh。对 alt 屏 TUI（Claude 型）天然 no-op——它不吃宿主 scrollback。
+ * 决议见 vault 需求-终端滚动缓冲对齐WT.md。
+ */
+export function applyTerminalScrollback(term: Terminal, scrollback: number): void {
+  if (term.options.scrollback === scrollback) return;
+  term.options.scrollback = scrollback;
+}
+
 export interface FontFamilyApplyResult {
   /** 同步 fit 的结果。新字体未加载时是 fallback 字体的尺寸，先反馈给用户。 */
   immediate: { cols: number; rows: number } | null;

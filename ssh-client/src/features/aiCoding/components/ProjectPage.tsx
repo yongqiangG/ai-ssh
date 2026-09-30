@@ -398,6 +398,7 @@ export function ProjectPage({
             onClose={handleShellClose}
             themeVariant={themeVariant}
             terminalFontSize={terminalFontSize}
+            terminalScrollback={terminalScrollback}
             monoFontFamily={monoFontFamily}
             onReady={handleShellReady}
             height={terminalHeight}

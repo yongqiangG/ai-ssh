@@ -55,7 +55,9 @@ fn default_claude_force_default_tui() -> bool {
 }
 
 fn default_terminal_scrollback() -> u32 {
-    1000
+    // 对齐 Windows Terminal 默认 historySize 9001（步进取整为 9000）。
+    // 决议见 vault 需求-终端滚动缓冲对齐WT.md。
+    9000
 }
 
 fn default_use_sideloaded_conpty() -> bool {
@@ -75,9 +77,9 @@ fn normalize_language(value: String) -> String {
     if value == "zh" { value } else { default_language() }
 }
 
-/// scrollback 必须在 [500, 5000] 之间且为 500 的倍数；越界或非整步则就近 snap。
+/// scrollback 必须在 [500, 20000] 之间且为 500 的倍数；越界或非整步则就近 snap。
 fn clamp_terminal_scrollback(value: u32) -> u32 {
-    let clamped = value.clamp(500, 5000);
+    let clamped = value.clamp(500, 20000);
     ((clamped + 250) / 500) * 500
 }
 
@@ -157,6 +159,12 @@ pub struct AppSettings {
     /// 完全由用户新选择/默认值决定，不再被迁移触碰。
     #[serde(default)]
     pub tui_default_migrated: bool,
+    /// 一次性迁移标记：scrollback 旧默认 1000（nezha 迁移原值）被设置保存链路
+    /// 静默持久化，无法与「用户显式选了 1000」区分；2026-09-21 决议对齐 WT。
+    /// load 时做一次性 1000→9000 迁移并落此标记；此后该字段完全由用户选择/
+    /// 默认值决定，不再被迁移触碰（含此后显式改回 1000 的用户）。
+    #[serde(default)]
+    pub scrollback_default_migrated: bool,
     #[serde(default = "default_terminal_scrollback")]
     pub terminal_scrollback: u32,
     /// 终端框选松手后自动把选区复制到剪贴板（copy-on-select）。默认关闭：
@@ -191,8 +199,9 @@ impl Default for AppSettings {
             terminal_shift_enter_newline: default_shift_enter_newline(),
             claude_force_default_tui: default_claude_force_default_tui(),
             // Default impl 供 parse 失败等兜底：迁移标记视为已完成，避免兜底值
-            // 再触发一次 tui 迁移写盘。
+            // 再触发一次 tui 迁移写盘。scrollback 同理。
             tui_default_migrated: true,
+            scrollback_default_migrated: true,
             terminal_scrollback: default_terminal_scrollback(),
             terminal_copy_on_select: false,
             use_sideloaded_conpty: default_use_sideloaded_conpty(),
@@ -560,6 +569,7 @@ fn normalize_settings(settings: AppSettings) -> AppSettings {
         terminal_shift_enter_newline: settings.terminal_shift_enter_newline,
         claude_force_default_tui: settings.claude_force_default_tui,
         tui_default_migrated: settings.tui_default_migrated,
+        scrollback_default_migrated: settings.scrollback_default_migrated,
         terminal_scrollback: clamp_terminal_scrollback(settings.terminal_scrollback),
         terminal_copy_on_select: settings.terminal_copy_on_select,
         use_sideloaded_conpty: settings.use_sideloaded_conpty,
@@ -585,6 +595,7 @@ fn load_settings_unlocked() -> AppSettings {
             claude_force_default_tui: default_claude_force_default_tui(),
             // 全新安装直接落新默认，无存量可迁移。
             tui_default_migrated: true,
+            scrollback_default_migrated: true,
             terminal_scrollback: default_terminal_scrollback(),
             terminal_copy_on_select: false,
             use_sideloaded_conpty: default_use_sideloaded_conpty(),
@@ -607,12 +618,13 @@ fn load_settings_unlocked() -> AppSettings {
         Err(_) => return AppSettings::default(),
     };
     let parsed: AppSettings = serde_json::from_str(&raw).unwrap_or_default();
-    let did_migrate = !parsed.tui_default_migrated;
+    let did_migrate = !parsed.tui_default_migrated || !parsed.scrollback_default_migrated;
     let settings = apply_tui_migration(parsed);
+    let settings = apply_scrollback_migration(settings);
     let normalized = normalize_settings(settings.clone());
     // 迁移本身不改变 normalized 与 settings 的差异（迁移后字段原样通过 normalize），
     // 必须用 did_migrate 强制落盘标记——否则标记永不持久化，用户此后显式打开
-    // classic 的选择会在每次 load 时被迁移再次清掉。
+    // classic 的选择会在每次 load 时被迁移再次清掉。scrollback 迁移同理。
     if did_migrate || normalized != settings {
         if let Ok(raw) = serde_json::to_string_pretty(&normalized) {
             let _ = atomic_write(&path, &raw);
@@ -628,6 +640,19 @@ fn apply_tui_migration(mut settings: AppSettings) -> AppSettings {
     if !settings.tui_default_migrated {
         settings.tui_default_migrated = true;
         settings.claude_force_default_tui = false;
+    }
+    settings
+}
+
+/// 一次性迁移（2026-09-21 决议，对齐 WT）：旧默认 1000 被保存链路静默持久化，
+/// 视为「没动过」→ 升到新默认 9000。标记落盘后永不再触发——此后用户显式
+/// 改回 1000 是真实选择，不再被迁移触碰。非 1000 的值（500/2000/…）一律不动。
+fn apply_scrollback_migration(mut settings: AppSettings) -> AppSettings {
+    if !settings.scrollback_default_migrated {
+        settings.scrollback_default_migrated = true;
+        if settings.terminal_scrollback == 1000 {
+            settings.terminal_scrollback = default_terminal_scrollback();
+        }
     }
     settings
 }
@@ -1205,6 +1230,74 @@ mod tui_migration_tests {
         assert!(!parsed.tui_default_migrated);
         let migrated = apply_tui_migration(parsed);
         assert!(!migrated.claude_force_default_tui);
+    }
+}
+
+#[cfg(test)]
+mod scrollback_migration_tests {
+    use super::*;
+
+    #[test]
+    fn migrates_legacy_default_1000_to_9000_and_marks() {
+        let migrated = apply_scrollback_migration(AppSettings {
+            terminal_scrollback: 1000,
+            scrollback_default_migrated: false,
+            ..AppSettings::default()
+        });
+        assert_eq!(migrated.terminal_scrollback, 9000);
+        assert!(migrated.scrollback_default_migrated);
+    }
+
+    #[test]
+    fn leaves_non_default_values_alone() {
+        // 用户显式选过的非 1000 值不动
+        for kept in [500u32, 2000, 5000, 9001, 20000] {
+            let migrated = apply_scrollback_migration(AppSettings {
+                terminal_scrollback: kept,
+                scrollback_default_migrated: false,
+                ..AppSettings::default()
+            });
+            assert_eq!(migrated.terminal_scrollback, kept, "value {kept} must stay");
+            assert!(migrated.scrollback_default_migrated);
+        }
+    }
+
+    #[test]
+    fn migration_is_idempotent_after_marker() {
+        // 二次 load（标记已落盘）：用户显式改回 1000 不再被迁移触碰
+        let again = apply_scrollback_migration(AppSettings {
+            terminal_scrollback: 1000,
+            scrollback_default_migrated: true,
+            ..AppSettings::default()
+        });
+        assert_eq!(again.terminal_scrollback, 1000);
+        assert!(again.scrollback_default_migrated);
+    }
+
+    #[test]
+    fn fresh_settings_json_without_marker_field_gets_migrated_via_serde_default() {
+        // 旧存量文件没有 scrollback_default_migrated 字段：serde default=false → 迁移触发
+        let raw = r#"{"terminal_scrollback": 1000}"#;
+        let parsed: AppSettings = serde_json::from_str(raw).unwrap();
+        assert!(!parsed.scrollback_default_migrated);
+        let migrated = apply_scrollback_migration(parsed);
+        assert_eq!(migrated.terminal_scrollback, 9000);
+    }
+
+    #[test]
+    fn clamp_respects_new_bounds() {
+        assert_eq!(clamp_terminal_scrollback(0), 500);
+        assert_eq!(clamp_terminal_scrollback(500), 500);
+        assert_eq!(clamp_terminal_scrollback(9001), 9000);
+        assert_eq!(clamp_terminal_scrollback(20000), 20000);
+        assert_eq!(clamp_terminal_scrollback(99999), 20000);
+        assert_eq!(clamp_terminal_scrollback(1250), 1500); // 就近 snap
+        assert_eq!(clamp_terminal_scrollback(1249), 1000); // 就近 snap
+    }
+
+    #[test]
+    fn default_matches_wt_aligned_value() {
+        assert_eq!(default_terminal_scrollback(), 9000);
     }
 }
 

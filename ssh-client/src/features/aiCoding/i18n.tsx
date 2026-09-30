@@ -60,9 +60,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.terminalScrollback": "Terminal Scrollback",
     "appSettings.terminalScrollbackUnit": "lines",
     "appSettings.terminalScrollbackHint":
-      "Maximum number of lines kept in each task terminal's scrollback. Lines beyond this are discarded. Range: 500–5000, step 500. Applies to newly opened terminals only.",
+      "Maximum number of lines kept in each task terminal's scrollback. Lines beyond this are discarded. Range: 500–20000, step 500. Default aligns with Windows Terminal (9001). Applies to open terminals immediately.",
     "appSettings.terminalScrollbackWarning":
-      "Above 3000, memory and selection/copy latency grow noticeably; many concurrent tasks may lag.",
+      "Above 12000, memory and selection/copy latency grow noticeably; many concurrent tasks may lag.",
     "appSettings.copyOnSelect": "Copy on Select",
     "appSettings.copyOnSelectToggle": "Copy terminal selection to clipboard automatically",
     "appSettings.copyOnSelectHint":
@@ -469,9 +469,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     "appSettings.terminalScrollback": "终端滚动缓冲",
     "appSettings.terminalScrollbackUnit": "行",
     "appSettings.terminalScrollbackHint":
-      "每个任务终端最多保留的回滚行数,超出后旧行被丢弃。范围:500–5000,步长 500。仅对新打开的终端生效。",
+      "每个任务终端最多保留的回滚行数,超出后旧行被丢弃。范围:500–20000,步长 500,默认 9000 对齐 Windows Terminal。修改后对已打开的终端立即生效。",
     "appSettings.terminalScrollbackWarning":
-      "3000 行以上,内存与选区/复制耗时明显增加,多任务并发可能卡顿。",
+      "12000 行以上,内存与选区/复制耗时明显增加,多任务并发可能卡顿。",
     "appSettings.copyOnSelect": "框选自动复制",
     "appSettings.copyOnSelectToggle": "终端选中文本后自动复制到剪贴板",
     "appSettings.copyOnSelectHint":

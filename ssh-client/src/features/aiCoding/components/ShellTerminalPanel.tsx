@@ -6,7 +6,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { attachCopyOnSelect, attachSmartCopy } from "./terminalCopyHelper";
 import { useTerminalPathDrop } from "./useTerminalPathDrop";
-import type { TerminalFontSize, FontFamily, ThemeVariant } from "../types";
+import type { TerminalFontSize, TerminalScrollback, FontFamily, ThemeVariant } from "../types";
 import {
   applyTerminalThemeOnPanel,
   initTerminal,
@@ -18,6 +18,7 @@ import {
   attachPanelVisibilityRefresh,
   applyTerminalFontSize,
   applyTerminalFontFamily,
+  applyTerminalScrollback,
   applyDomCharSizeOverride,
   refreshTerminalDisplay,
   unregisterActiveTerminal,
@@ -55,6 +56,7 @@ interface Props {
   onClose: () => void;
   themeVariant: ThemeVariant;
   terminalFontSize: TerminalFontSize;
+  terminalScrollback: TerminalScrollback;
   monoFontFamily: FontFamily;
   onReady?: () => void;
   height?: number;
@@ -77,11 +79,12 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
   isActive: boolean;
   themeVariant: ThemeVariant;
   terminalFontSize: TerminalFontSize;
+  terminalScrollback: TerminalScrollback;
   monoFontFamily: FontFamily;
   onReady?: () => void;
 }>(
   function ShellTerminalInstance(
-    { shellId, projectPath, isActive, themeVariant, terminalFontSize, monoFontFamily, onReady },
+    { shellId, projectPath, isActive, themeVariant, terminalFontSize, terminalScrollback, monoFontFamily, onReady },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -90,12 +93,14 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
     const themeVariantRef = useRef(themeVariant);
     const isActiveRef = useRef(isActive);
     const terminalFontSizeRef = useRef(terminalFontSize);
+    const terminalScrollbackRef = useRef(terminalScrollback);
     const monoFontFamilyRef = useRef(monoFontFamily);
     const onReadyRef = useRef(onReady);
     const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
     themeVariantRef.current = themeVariant;
     isActiveRef.current = isActive;
     terminalFontSizeRef.current = terminalFontSize;
+    terminalScrollbackRef.current = terminalScrollback;
     monoFontFamilyRef.current = monoFontFamily;
     onReadyRef.current = onReady;
 
@@ -132,7 +137,7 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
 
       const { term, fitAddon, whenFontsReady } = initTerminal(
         themeVariantRef.current,
-        5000,
+        terminalScrollbackRef.current,
         terminalFontSizeRef.current,
         monoFontFamilyRef.current,
       );
@@ -314,6 +319,12 @@ const ShellTerminalInstance = forwardRef<ShellTerminalInstanceHandle, {
       invoke("coding_resize_pty", { taskId: shellId, cols: size.cols, rows: size.rows }).catch(() => {});
     }, [terminalFontSize, shellId]);
 
+    // 设置热改：scrollback 变化立即作用于已开 shell（无需重开）。
+    useEffect(() => {
+      if (!terminalRef.current) return;
+      applyTerminalScrollback(terminalRef.current, terminalScrollback);
+    }, [terminalScrollback]);
+
     useEffect(() => {
       if (!terminalRef.current || !fitAddonRef.current || !containerRef.current) return;
       const result = applyTerminalFontFamily(
@@ -368,6 +379,7 @@ export const ShellTerminalPanel = forwardRef<ShellTerminalPanelHandle, Props>(
       onClose,
       themeVariant,
       terminalFontSize,
+      terminalScrollback,
       monoFontFamily,
       onReady,
       height = 240,
@@ -559,6 +571,7 @@ export const ShellTerminalPanel = forwardRef<ShellTerminalPanelHandle, Props>(
                 isActive={isActive && activeShellId === shell.id}
                 themeVariant={themeVariant}
                 terminalFontSize={terminalFontSize}
+                terminalScrollback={terminalScrollback}
                 monoFontFamily={monoFontFamily}
                 onReady={() => handleShellReady(shell.id)}
               />

@@ -41,9 +41,11 @@ export function clampTerminalFontSize(value: number): TerminalFontSize {
 export type TerminalScrollback = number;
 
 export const TERMINAL_SCROLLBACK_MIN = 500;
-export const TERMINAL_SCROLLBACK_MAX = 5000;
+// 默认 9000 对齐 Windows Terminal 默认 historySize 9001（步进取整）；上限 20000
+// 给重度用户留余量。决议见 vault 需求-终端滚动缓冲对齐WT.md。
+export const TERMINAL_SCROLLBACK_MAX = 20000;
 export const TERMINAL_SCROLLBACK_STEP = 500;
-export const DEFAULT_TERMINAL_SCROLLBACK: TerminalScrollback = 1000;
+export const DEFAULT_TERMINAL_SCROLLBACK: TerminalScrollback = 9000;
 
 export function clampTerminalScrollback(value: unknown): TerminalScrollback {
   const num = typeof value === "number" ? value : Number(value);

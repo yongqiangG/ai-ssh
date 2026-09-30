@@ -459,7 +459,7 @@ function App() {
         setTerminalScrollbackState(clampTerminalScrollback(settings.terminal_scrollback));
       })
       .catch(() => {
-        /* 默认 1000 已经在 state 初值,无需 fallback */
+        /* 默认 9000 已经在 state 初值,无需 fallback */
       });
     return () => {
       cancelled = true;
