@@ -564,7 +564,7 @@ def list_tasks_arguments(arguments: dict) -> dict:
 
 
 def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
-    """提交工时参数校验：仅昨天及更早、0.1 步进正数、number/description 必填。"""
+    """提交工时参数校验：最晚今天（统计口径仍只到昨天，两侧分离）、0.1 步进正数。"""
     if not isinstance(arguments, dict) or set(arguments) - {
         "number",
         "date",
@@ -597,8 +597,8 @@ def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
     duration = round(duration, 1)  # 归一浮点尾数：0.30000000000000004 → 0.3
     parsed = parse_date(date_value)
     today = today or dt.datetime.now(dt.timezone.utc).astimezone().date()
-    if parsed >= today:
-        raise WorkloadError("date 只能是昨天及更早——不预填今天及未来工时")
+    if parsed > today:
+        raise WorkloadError("date 不能是未来日期——不预填未来工时")
     return {
         "number": number.strip(),
         "date": date_value,
@@ -791,7 +791,7 @@ TOOLS = [
         "name": "submit_workload",
         "description": (
             "为指定任务提交一条工时记录（写入操作，单条）。number 须严格唯一命中进行中任务；"
-            "date 只能是昨天及更早；duration 为正数且 0.1 的整数倍；提交前自动校验不超出任务剩余容量，"
+            "date 最晚今天（未来日期拒绝）；duration 为正数且 0.1 的整数倍；提交前自动校验不超出任务剩余容量，"
             "超出即拒绝——唯一例外：duration=0.1 视为补报口令，满额任务也放行（剩余钳位为 0），"
             "用于触发系统将已报超预估的任务自动流转为 COMPLETED。"
             "description 必须填任务标题原文（list_work_tasks 返回的 title 字段）——"
@@ -809,7 +809,7 @@ TOOLS = [
                 },
                 "date": {
                     "type": "string",
-                    "description": "工时归属日期 YYYY-MM-DD，最晚昨天",
+                    "description": "工时归属日期 YYYY-MM-DD，最晚今天",
                 },
                 "duration": {
                     "type": "number",
@@ -905,7 +905,7 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.4.0"},
+            "serverInfo": {"name": "workload", "version": "2.5.0"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
                 "submit_workload 是写入操作，description 参数必须填任务标题原文"

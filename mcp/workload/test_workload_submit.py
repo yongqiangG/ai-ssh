@@ -2,7 +2,7 @@
 
 覆盖决议（见 vault 工作/ai-ssh/需求/需求-工时统计MCP.md）：
 - 查询：state=IN_PROGRESS 全量、字段完整透出、不做年份过滤。
-- 提交：number 严格唯一命中、仅昨天及更早、duration 0.1 步进、
+- 提交：number 严格唯一命中、最晚今天（未来拒绝）、duration 0.1 步进、
   预检负剩余拒发（duration=0.1 补报豁免，用于满额任务触发流转）、
   description=html.escape(标题)、type/overtime 固定、
   code==0 即成功、异常即停不吞错。
@@ -140,11 +140,13 @@ class SubmitArgumentsTests(unittest.TestCase):
             "[后端] 组合商品病症提交",
         )
 
-    def test_rejects_today_and_future(self):
-        for bad in ("2026-09-30", "2026-10-01"):
+    def test_accepts_today_rejects_future(self):
+        # 今天放行（决议 26：当天随手记工时；统计侧仍只到昨天，口径分离）
+        self.assertEqual(self.valid(date="2026-09-30")["date"], "2026-09-30")
+        for bad in ("2026-10-01", "2026-12-31"):
             with (
                 self.subTest(bad=bad),
-                self.assertRaisesRegex(WorkloadError, "昨天"),
+                self.assertRaisesRegex(WorkloadError, "未来"),
             ):
                 self.valid(date=bad)
 
