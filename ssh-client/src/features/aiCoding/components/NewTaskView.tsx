@@ -148,6 +148,23 @@ export function NewTaskView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 打开新建任务即可直接打字：mount 后聚焦编辑器，caret 显式置末尾（草稿
+  // 恢复场景可直接续打；空编辑器时末尾=开头，无需分支）。effect 声明在草稿
+  // 恢复之后，保证先回填 innerHTML 再聚焦。裸 focus() 的 caret 落点是浏览器
+  // 实现相关行为，不可依赖，故用 Range 显式设置。
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Cache draft on unmount so reopening the new-task view restores work in progress.
   // Cleared after submit to avoid re-restoring the just-sent prompt.
   const submittedRef = useRef(false);
