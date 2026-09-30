@@ -109,14 +109,35 @@ class SubmitArgumentsTests(unittest.TestCase):
     def today(self):
         return dt.date(2026, 9, 30)
 
+    def valid(self, **overrides):
+        args = {
+            "number": "SYSCCG-1821",
+            "date": "2026-09-28",
+            "duration": 7,
+            "description": "[后端] 组合商品病症提交",
+        }
+        args.update(overrides)
+        return submit_arguments(args, today=self.today())
+
     def test_minimal_valid(self):
-        args = submit_arguments(
-            {"number": "SYSCCG-1821", "date": "2026-09-28", "duration": 7},
-            today=self.today(),
-        )
+        args = self.valid()
         self.assertEqual(args["number"], "SYSCCG-1821")
         self.assertEqual(args["date"], "2026-09-28")
         self.assertEqual(args["duration"], 7.0)
+        self.assertEqual(args["description"], "[后端] 组合商品病症提交")
+
+    def test_description_required_and_stripped(self):
+        # 必填：缺失/空白/非字符串均拒；传入则 strip 归一
+        for bad in (None, "", "   ", 123, True):
+            with (
+                self.subTest(bad=bad),
+                self.assertRaisesRegex(WorkloadError, "description"),
+            ):
+                self.valid(description=bad)
+        self.assertEqual(
+            self.valid(description="  [后端] 组合商品病症提交  ")["description"],
+            "[后端] 组合商品病症提交",
+        )
 
     def test_rejects_today_and_future(self):
         for bad in ("2026-09-30", "2026-10-01"):
@@ -124,10 +145,7 @@ class SubmitArgumentsTests(unittest.TestCase):
                 self.subTest(bad=bad),
                 self.assertRaisesRegex(WorkloadError, "昨天"),
             ):
-                submit_arguments(
-                    {"number": "SYSCCG-1821", "date": bad, "duration": 7},
-                    today=self.today(),
-                )
+                self.valid(date=bad)
 
     def test_rejects_bad_duration_steps(self):
         for bad in (0, -1, 0.3, 7.25, "7", True):
@@ -135,21 +153,20 @@ class SubmitArgumentsTests(unittest.TestCase):
                 self.subTest(bad=bad),
                 self.assertRaises(WorkloadError),
             ):
-                submit_arguments(
-                    {
-                        "number": "SYSCCG-1821",
-                        "date": "2026-09-28",
-                        "duration": bad,
-                    },
-                    today=self.today(),
-                )
+                self.valid(duration=bad)
 
     def test_rejects_unknown_fields_and_bad_date(self):
-        for args in (
-            {"number": "X", "date": "2026-09-28", "duration": 7, "extra": 1},
-            {"number": "X", "date": "20260928", "duration": 7},
-            {"date": "2026-09-28", "duration": 7},
+        for overrides in (
+            {"extra": 1},
+            {"date": "20260928"},
+            {"description": None, "number": "X"},
         ):
+            args = {
+                "number": "SYSCCG-1821",
+                "date": "2026-09-28",
+                "duration": 7,
+            }
+            args.update(overrides)
             with (
                 self.subTest(args=args),
                 self.assertRaises(WorkloadError),
@@ -167,10 +184,32 @@ class SubmitWorkloadTests(unittest.TestCase):
         self.session.post_json.return_value = {"code": 0, "data": True}
         self.client = ProjClient(self.session)
 
-    def submit(self, duration=7, number="SYSCCG-1821", date="2026-09-28"):
+    def submit(
+        self,
+        duration=7,
+        number="SYSCCG-1821",
+        date="2026-09-28",
+        description="[后端] 组合商品病症提交",
+    ):
         return self.client.submit_workload(
-            number, date, duration, today=dt.date(2026, 9, 30)
+            number, date, duration, description, today=dt.date(2026, 9, 30)
         )
+
+    def test_description_mismatch_rejected_before_write(self):
+        # 回显校验：description 必须等于任务真实标题（strip 后精确匹配），
+        # 不符即拒且不发写入请求——卡片展示 = 将写入内容的硬保证。
+        with self.assertRaisesRegex(WorkloadError, "标题不一致"):
+            self.submit(description="[后端] 组合商品中药开方")
+        self.session.post_json.assert_not_called()
+
+    def test_description_mismatch_error_includes_real_title(self):
+        # 报错带真实标题，AI 可自愈：重读错误即得正确值，无需再查列表。
+        with self.assertRaisesRegex(WorkloadError, r"组合商品病症提交"):
+            self.submit(description="编造的标题")
+
+    def test_description_stripped_before_compare(self):
+        result = self.submit(description="  [后端] 组合商品病症提交  ")
+        self.assertEqual(result["duration"], 7.0)
 
     def test_happy_path_payload(self):
         result = self.submit()
@@ -240,11 +279,12 @@ class SubmitWorkloadTests(unittest.TestCase):
         self.session.post_json.assert_not_called()
 
     def test_title_html_is_escaped(self):
+        title = '<script>alert("x")</script>组合套餐'
         self.session.get.return_value = {
-            "list": [task(title='<script>alert("x")</script>组合套餐')],
+            "list": [task(title=title)],
             "total": 1,
         }
-        self.submit()
+        self.submit(description=title)
         payload = self.session.post_json.call_args.args[1]
         self.assertEqual(
             payload["description"],
@@ -311,12 +351,48 @@ class ToolsRegistrationTests(unittest.TestCase):
         self.assertIn("list_work_tasks", names)
         self.assertIn("submit_workload", names)
 
-    def test_tool_schema_submit_requires_three_fields(self):
+    def test_run_submit_workload_forwards_description(self):
+        # 入口级断链防再漏：run_submit_workload 必须把 description 传给
+        # client.submit_workload（曾漏传导致 MCP 入口永远走必填校验拒绝）。
+        from unittest.mock import patch
+
+        import workload_mcp as m
+
+        captured = {}
+
+        class _FakeClient:
+            def submit_workload(self, number, date, duration, description=""):
+                captured.update(
+                    number=number,
+                    date=date,
+                    duration=duration,
+                    description=description,
+                )
+                return {"ok": True}
+
+        with patch.object(m, "_project_client", return_value=(_FakeClient(), {})):
+            result = m.run_submit_workload(
+                {
+                    "number": "SYSCCG-1821",
+                    "date": "2026-09-28",
+                    "duration": 7,
+                    "description": "[后端] 组合商品病症提交",
+                }
+            )
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(captured["description"], "[后端] 组合商品病症提交")
+        self.assertEqual(captured["duration"], 7)
+
+    def test_tool_schema_submit_requires_four_fields(self):
         from workload_mcp import TOOLS
 
         submit = next(t for t in TOOLS if t["name"] == "submit_workload")
         self.assertEqual(
-            set(submit["inputSchema"]["required"]), {"number", "date", "duration"}
+            set(submit["inputSchema"]["required"]),
+            {"number", "date", "duration", "description"},
+        )
+        self.assertEqual(
+            submit["inputSchema"]["properties"]["description"]["type"], "string"
         )
 
     def test_tool_schema_list_allows_optional_number(self):

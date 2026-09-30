@@ -296,12 +296,23 @@ class ProjClient:
         number: str,
         date: str,
         duration: float,
+        description: str = "",
         *,
         today: dt.date | None = None,
     ) -> dict:
-        """单条提交：number 严格唯一命中 IN_PROGRESS 任务，预检剩余，失败即停。"""
+        """单条提交：number 严格唯一命中 IN_PROGRESS 任务，预检剩余，失败即停。
+
+        description 为回显校验参数：必须等于任务真实标题（strip 后精确匹配），
+        不符即拒且不发写入——保证调用方卡片上展示的标题就是将写入系统的标题。
+        """
         checked = submit_arguments(
-            {"number": number, "date": date, "duration": duration}, today=today
+            {
+                "number": number,
+                "date": date,
+                "duration": duration,
+                "description": description,
+            },
+            today=today,
         )
         date_s, duration_f = checked["date"], checked["duration"]
         candidates = [
@@ -317,6 +328,13 @@ class ProjClient:
                 f"编号 {number} 命中 {len(candidates)} 个任务，请检查系统数据"
             )
         item = candidates[0]
+        title = str(item.get("title") or number)
+        echo = checked["description"]
+        if echo != title.strip():
+            raise WorkloadError(
+                f"description 与任务 {number} 的真实标题不一致，已拒绝提交。"
+                f"真实标题：{title}——请以 list_work_tasks 返回的 title 为准重新调用"
+            )
         try:
             estimated = float(item["estimatedWorkload"] or 0)
             reported = float(item["reportedWorkload"] or 0)
@@ -330,7 +348,6 @@ class ProjClient:
                 f"提交 {duration_f:g}h 超出任务剩余容量 {remaining:g}h"
                 f"（预估 {estimated:g}h，已报 {reported:g}h），已拒绝提交"
             )
-        title = str(item.get("title") or number)
         payload = {
             "workItemId": str(item["id"]),
             "duration": _format_hours(duration_f),
@@ -543,16 +560,25 @@ def list_tasks_arguments(arguments: dict) -> dict:
 
 
 def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
-    """提交工时参数校验：仅昨天及更早、0.5 步进正数、number 必填。"""
+    """提交工时参数校验：仅昨天及更早、0.5 步进正数、number/description 必填。"""
     if not isinstance(arguments, dict) or set(arguments) - {
         "number",
         "date",
         "duration",
+        "description",
     }:
-        raise WorkloadError("提交参数不正确，仅支持 number、date、duration")
+        raise WorkloadError(
+            "提交参数不正确，仅支持 number、date、duration、description"
+        )
     number = arguments.get("number")
     if not isinstance(number, str) or not number.strip():
         raise WorkloadError("number 必须是非空任务编号，如 SYSCCG-1821")
+    description = arguments.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise WorkloadError(
+            "description 必须是任务标题原文（list_work_tasks 返回的 title 字段），"
+            "用于调用方展示确认；与真实标题不符会拒绝提交"
+        )
     date_value = arguments.get("date")
     if not isinstance(date_value, str) or not re.fullmatch(
         r"\d{4}-\d{2}-\d{2}", date_value
@@ -568,7 +594,12 @@ def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
     today = today or dt.datetime.now(dt.timezone.utc).astimezone().date()
     if parsed >= today:
         raise WorkloadError("date 只能是昨天及更早——不预填今天及未来工时")
-    return {"number": number.strip(), "date": date_value, "duration": duration}
+    return {
+        "number": number.strip(),
+        "date": date_value,
+        "duration": duration,
+        "description": description.strip(),
+    }
 
 
 def run_report(
@@ -667,7 +698,10 @@ def run_submit_workload(arguments: dict, config_path: Path | None = None) -> dic
     client, cfg = _project_client(config_path, context)
     try:
         return client.submit_workload(
-            checked["number"], checked["date"], checked["duration"]
+            checked["number"],
+            checked["date"],
+            checked["duration"],
+            checked["description"],
         )
     except WorkloadError as exc:
         raise WorkloadError(redact(exc, cfg)) from None
@@ -753,10 +787,11 @@ TOOLS = [
         "description": (
             "为指定任务提交一条工时记录（写入操作，单条）。number 须严格唯一命中进行中任务；"
             "date 只能是昨天及更早；duration 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量，"
-            "超出即拒绝。description 自动填任务标题，type 固定 DEVELOP、overtime 固定 false。"
-            "任何失败立即中断，不做重试。调用前向用户复述确认时须展示任务标题与剩余容量"
-            "（编号、标题、日期、时长、预估/已报/剩余）；本会话未查过该编号标题时先调 list_work_tasks"
-            "取当前标题，不得凭记忆。"
+            "超出即拒绝。description 必须填任务标题原文（list_work_tasks 返回的 title 字段）——"
+            "用于调用前向用户展示「提交到哪个任务」，与真实标题不符会拒绝提交；"
+            "写入系统的 description 由服务端用真实标题构造，不受入参影响。"
+            "type 固定 DEVELOP、overtime 固定 false。任何失败立即中断，不做重试。"
+            "本会话未查过该编号标题时先调 list_work_tasks 取当前 title，不得凭记忆。"
         ),
         "inputSchema": {
             "type": "object",
@@ -773,8 +808,15 @@ TOOLS = [
                     "type": "number",
                     "description": "时长（小时），正数且 0.5 的整数倍，如 7 或 6.5",
                 },
+                "description": {
+                    "type": "string",
+                    "description": (
+                        "任务标题原文（list_work_tasks 返回的 title 字段）。"
+                        "回显校验用：与真实标题不符会拒绝提交"
+                    ),
+                },
             },
-            "required": ["number", "date", "duration"],
+            "required": ["number", "date", "duration", "description"],
             "additionalProperties": False,
         },
     },
@@ -856,13 +898,13 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.2.1"},
+            "serverInfo": {"name": "workload", "version": "2.3.0"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
-                "submit_workload 是写入操作：向用户复述确认时必须展示任务标题与剩余容量"
-                "（编号、标题、日期、时长、预估/已报/剩余），不能只列参数——用户靠标题才知道提交到哪个任务；"
-                "若本会话尚未查过该编号的标题，先调用 list_work_tasks 取当前标题再复述，不得凭记忆。"
-                "确认后才调用，失败即停。成功后向用户报告剩余工时；若报满则提示任务已流转 COMPLETED，"
+                "submit_workload 是写入操作，description 参数必须填任务标题原文"
+                "（list_work_tasks 返回的 title，不得凭记忆或编造）——它用于向用户展示提交到哪个任务，"
+                "与真实标题不符会拒绝提交；确认前须向用户展示编号、标题、日期、时长。"
+                "失败即停。成功后向用户报告剩余工时；若报满则提示任务已流转 COMPLETED，"
                 "可用 list_work_tasks 传 number 回查验证，不限状态。"
             ),
         }
