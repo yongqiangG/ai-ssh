@@ -2,8 +2,9 @@
 
 覆盖决议（见 vault 工作/ai-ssh/需求/需求-工时统计MCP.md）：
 - 查询：state=IN_PROGRESS 全量、字段完整透出、不做年份过滤。
-- 提交：number 严格唯一命中、仅昨天及更早、duration 0.5 步进、
-  预检负剩余拒发、description=html.escape(标题)、type/overtime 固定、
+- 提交：number 严格唯一命中、仅昨天及更早、duration 0.1 步进、
+  预检负剩余拒发（duration=0.1 补报豁免，用于满额任务触发流转）、
+  description=html.escape(标题)、type/overtime 固定、
   code==0 即成功、异常即停不吞错。
 """
 
@@ -148,12 +149,19 @@ class SubmitArgumentsTests(unittest.TestCase):
                 self.valid(date=bad)
 
     def test_rejects_bad_duration_steps(self):
-        for bad in (0, -1, 0.3, 7.25, "7", True):
+        for bad in (0, -1, 0.05, 7.25, "7", True):
             with (
                 self.subTest(bad=bad),
                 self.assertRaises(WorkloadError),
             ):
                 self.valid(duration=bad)
+
+    def test_accepts_tenth_hour_duration_and_normalizes(self):
+        # 0.1 步进：0.1/0.2/0.7 合法；浮点尾数归一到一位小数
+        for good, expected in ((0.1, 0.1), (0.2, 0.2), (0.7, 0.7), (6.5, 6.5)):
+            with self.subTest(good=good):
+                self.assertEqual(self.valid(duration=good)["duration"], expected)
+        self.assertEqual(self.valid(duration=0.30000000000000004)["duration"], 0.3)
 
     def test_rejects_unknown_fields_and_bad_date(self):
         for overrides in (
@@ -262,6 +270,41 @@ class SubmitWorkloadTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(WorkloadError, "剩余"):
             self.submit(duration=1)
+        self.session.post_json.assert_not_called()
+
+    def test_tenth_hour_topup_bypasses_remaining_check(self):
+        # 0.1h 补报口令：满额任务（剩余 0）也放行，remainingWorkload 写 0 触发流转
+        # （实测写负数服务端照存但任务不流转，SYSCCG-1135 首试确证）
+        self.session.get.return_value = {
+            "list": [task(reportedWorkload=7.0, remainingWorkload=0.0)],
+            "total": 1,
+        }
+        result = self.submit(duration=0.1)
+        payload = self.session.post_json.call_args.args[1]
+        self.assertEqual(payload["duration"], "0.1")
+        self.assertEqual(payload["remainingWorkload"], 0)
+        self.assertEqual(result["remaining_after"], 0.0)
+
+    def test_tenth_hour_topup_on_nonfull_task_keeps_real_math(self):
+        # 非满额任务用 0.1h：正常扣减，不钳位（remaining 0.5 → 0.4）
+        self.session.get.return_value = {
+            "list": [task(reportedWorkload=6.5, remainingWorkload=0.5)],
+            "total": 1,
+        }
+        result = self.submit(duration=0.1)
+        payload = self.session.post_json.call_args.args[1]
+        self.assertEqual(payload["remainingWorkload"], 0.4)
+        self.assertEqual(result["remaining_after"], 0.4)
+
+    def test_non_tenth_topup_still_rejected_when_full(self):
+        # 豁免只认 0.1：满额任务补 0.2/0.5 照旧拒绝
+        self.session.get.return_value = {
+            "list": [task(reportedWorkload=7.0, remainingWorkload=0.0)],
+            "total": 1,
+        }
+        for bad in (0.2, 0.5):
+            with self.subTest(bad=bad), self.assertRaisesRegex(WorkloadError, "剩余"):
+                self.submit(duration=bad)
         self.session.post_json.assert_not_called()
 
     def test_unknown_number_rejected_with_no_write(self):

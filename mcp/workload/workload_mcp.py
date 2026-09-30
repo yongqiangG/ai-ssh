@@ -343,15 +343,19 @@ class ProjClient:
                 "任务预估/已报字段缺失或格式异常，请重新查询任务列表"
             ) from exc
         remaining = round(estimated - reported, 2)
-        if remaining - duration_f < -0.01:
+        # 0.1h 是补报口令：满额任务也放行，触发系统自动流转 COMPLETED；
+        # 其余时长照旧防呆，拒绝写出负剩余。
+        if duration_f != 0.1 and remaining - duration_f < -0.01:
             raise WorkloadError(
                 f"提交 {duration_f:g}h 超出任务剩余容量 {remaining:g}h"
                 f"（预估 {estimated:g}h，已报 {reported:g}h），已拒绝提交"
             )
+        # 剩余钳位到 0：负数服务端照存但任务不流转（SYSCCG-1135 实测），必须写 0
+        remaining_after = max(round(remaining - duration_f, 2), 0.0)
         payload = {
             "workItemId": str(item["id"]),
             "duration": _format_hours(duration_f),
-            "remainingWorkload": round(remaining - duration_f, 2),
+            "remainingWorkload": remaining_after,
             "type": "DEVELOP",
             "overtime": False,
             "reportedAt": date_s,
@@ -363,7 +367,7 @@ class ProjClient:
             "title": title,
             "date": date_s,
             "duration": duration_f,
-            "remaining_after": round(remaining - duration_f, 2),
+            "remaining_after": remaining_after,
         }
 
 
@@ -560,7 +564,7 @@ def list_tasks_arguments(arguments: dict) -> dict:
 
 
 def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
-    """提交工时参数校验：仅昨天及更早、0.5 步进正数、number/description 必填。"""
+    """提交工时参数校验：仅昨天及更早、0.1 步进正数、number/description 必填。"""
     if not isinstance(arguments, dict) or set(arguments) - {
         "number",
         "date",
@@ -588,8 +592,9 @@ def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
     if isinstance(duration, bool) or not isinstance(duration, (int, float)):
         raise WorkloadError("duration 必须是数字（小时）")
     duration = float(duration)
-    if duration <= 0 or abs(duration * 2 - round(duration * 2)) > 1e-9:
-        raise WorkloadError("duration 必须是正数且为 0.5 的整数倍（如 7 或 6.5）")
+    if duration <= 0 or abs(duration * 10 - round(duration * 10)) > 1e-6:
+        raise WorkloadError("duration 必须是正数且为 0.1 的整数倍（如 7、6.5 或 0.1）")
+    duration = round(duration, 1)  # 归一浮点尾数：0.30000000000000004 → 0.3
     parsed = parse_date(date_value)
     today = today or dt.datetime.now(dt.timezone.utc).astimezone().date()
     if parsed >= today:
@@ -786,8 +791,10 @@ TOOLS = [
         "name": "submit_workload",
         "description": (
             "为指定任务提交一条工时记录（写入操作，单条）。number 须严格唯一命中进行中任务；"
-            "date 只能是昨天及更早；duration 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量，"
-            "超出即拒绝。description 必须填任务标题原文（list_work_tasks 返回的 title 字段）——"
+            "date 只能是昨天及更早；duration 为正数且 0.1 的整数倍；提交前自动校验不超出任务剩余容量，"
+            "超出即拒绝——唯一例外：duration=0.1 视为补报口令，满额任务也放行（剩余钳位为 0），"
+            "用于触发系统将已报超预估的任务自动流转为 COMPLETED。"
+            "description 必须填任务标题原文（list_work_tasks 返回的 title 字段）——"
             "用于调用前向用户展示「提交到哪个任务」，与真实标题不符会拒绝提交；"
             "写入系统的 description 由服务端用真实标题构造，不受入参影响。"
             "type 固定 DEVELOP、overtime 固定 false。任何失败立即中断，不做重试。"
@@ -806,7 +813,7 @@ TOOLS = [
                 },
                 "duration": {
                     "type": "number",
-                    "description": "时长（小时），正数且 0.5 的整数倍，如 7 或 6.5",
+                    "description": "时长（小时），正数且 0.1 的整数倍，如 7、6.5 或 0.1（补报触发流转）",
                 },
                 "description": {
                     "type": "string",
@@ -898,7 +905,7 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.3.0"},
+            "serverInfo": {"name": "workload", "version": "2.4.0"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
                 "submit_workload 是写入操作，description 参数必须填任务标题原文"
@@ -906,6 +913,7 @@ def _handle(
                 "与真实标题不符会拒绝提交；确认前须向用户展示编号、标题、日期、时长。"
                 "失败即停。成功后向用户报告剩余工时；若报满则提示任务已流转 COMPLETED，"
                 "可用 list_work_tasks 传 number 回查验证，不限状态。"
+                "duration=0.1 是补报口令：满额任务也放行，用于触发系统自动流转 COMPLETED。"
             ),
         }
     elif method == "ping":
