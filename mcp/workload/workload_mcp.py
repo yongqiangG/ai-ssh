@@ -754,7 +754,9 @@ TOOLS = [
             "为指定任务提交一条工时记录（写入操作，单条）。number 须严格唯一命中进行中任务；"
             "date 只能是昨天及更早；duration 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量，"
             "超出即拒绝。description 自动填任务标题，type 固定 DEVELOP、overtime 固定 false。"
-            "任何失败立即中断，不做重试。"
+            "任何失败立即中断，不做重试。调用前向用户复述确认时须展示任务标题与剩余容量"
+            "（编号、标题、日期、时长、预估/已报/剩余）；本会话未查过该编号标题时先调 list_work_tasks"
+            "取当前标题，不得凭记忆。"
         ),
         "inputSchema": {
             "type": "object",
@@ -854,12 +856,14 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.2.0"},
+            "serverInfo": {"name": "workload", "version": "2.2.1"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
-                "submit_workload 是写入操作：先向用户复述任务编号/日期/时长，确认后再调用，失败即停。"
-                "submit_workload 成功后任务报满会流转为 COMPLETED：验证结果用 list_work_tasks 传 number 回查，"
-                "不限状态。"
+                "submit_workload 是写入操作：向用户复述确认时必须展示任务标题与剩余容量"
+                "（编号、标题、日期、时长、预估/已报/剩余），不能只列参数——用户靠标题才知道提交到哪个任务；"
+                "若本会话尚未查过该编号的标题，先调用 list_work_tasks 取当前标题再复述，不得凭记忆。"
+                "确认后才调用，失败即停。成功后向用户报告剩余工时；若报满则提示任务已流转 COMPLETED，"
+                "可用 list_work_tasks 传 number 回查验证，不限状态。"
             ),
         }
     elif method == "ping":

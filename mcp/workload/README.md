@@ -74,7 +74,7 @@ MCP 应运行在用户本机，以便打开验证码页面并使用当前 Window
 | `list_work_tasks`     | 可选 `number`                                    | 查询任务及预估/已报/剩余工时；不传列进行中任务，传 `number` 不限状态回查单个任务（含 COMPLETED，用于提交后验证） |
 | `submit_workload`     | `number`、`date`、`duration`                    | 为任务提交一条工时（写入，单条）    |
 
-`submit_workload` 是写入操作，防呆约束：`number` 须严格唯一命中进行中任务；`date` 最晚昨天；`duration` 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量（预估−已报），超出即拒绝；`description` 自动填任务标题，`type` 固定 `DEVELOP`、`overtime` 固定 `false`。任何失败立即中断，不重试。建议客户端在调用前向用户复述任务编号/日期/时长，确认后再提交。
+`submit_workload` 是写入操作，防呆约束：`number` 须严格唯一命中进行中任务；`date` 最晚昨天；`duration` 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量（预估−已报），超出即拒绝；`description` 自动填任务标题，`type` 固定 `DEVELOP`、`overtime` 固定 `false`。任何失败立即中断，不重试。建议客户端在调用前向用户复述确认——展示任务标题与剩余容量（编号、标题、日期、时长、预估/已报/剩余），本会话未查过该编号标题时先调 `list_work_tasks` 取当前标题；确认后再提交。
 
 客户端调用 `check_workload` 后，若状态为 `running`、`awaiting_verification` 或 `cancelling`，应继续查询同一 `task_id`，直至 `completed`、`failed` 或 `cancelled`。仅 `completed` 含完整报告。人工验证不会阻塞一个 MCP 请求五分钟，验证完成后原后台任务自动继续。
 
