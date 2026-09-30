@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `ssh-client/` — Tauri v2 + React 19 + TypeScript + Vite 7 + Zustand 5 的桌面客户端
 - `ssh-server/` — Spring Boot 3.4.3（Java 17）多模块 Maven 项目，DDD 分层，`groupId: com.johnny`
-- `mcp/` — MCP 工具集（Python，独立虚拟环境）。`mcp/workload/`：工时统计（OA 打卡 × 芋道项目系统工时交叉核对，自动登录及本地验证码识别，CLI `setup`/`report`/`serve`，Windows DPAPI 加密凭据 `~/.workload/credentials.dat`；MCP 后台统计支持结果查询与取消；口径与决议见 vault 工作/ai-ssh/需求/需求-工时统计MCP.md）。后续 MCP 管理功能在此目录扩展。
+- `mcp/` — MCP 工具集（Python，独立虚拟环境）。`mcp/workload/`：工时统计（OA 打卡 × 芋道项目系统工时交叉核对，自动登录及本地验证码识别，CLI `setup`/`report`/`serve`，Windows DPAPI 加密凭据 `~/.workload/credentials.dat`；MCP 后台统计支持结果查询与取消；260929 起新增受控写入：`list_work_tasks` 查进行中任务（260930 增可选 `number` 不限状态回查，用于提交后验证流转为 COMPLETED 的任务）+ `submit_workload` 单条提交工时（预检剩余容量、失败即停、date 最晚昨天）；口径与决议见 vault 工作/ai-ssh/需求/需求-工时统计MCP.md）。后续 MCP 管理功能在此目录扩展。
 
 规划文档统一放 Obsidian 笔记库（D:\project\ObsidianNotes，本项目映射到 工作/ai-ssh，模板与项目映射规则见全局 CLAUDE.md「规划与文档体系」）：一个需求 = 一份 `需求-<标题>.md`，澄清/决议/执行/验证在同一份文档内更新，状态由 frontmatter 驱动工作首页看板。`docs/` 下的旧三件套（situations/actions/backlog）为存量封存，只读参考，不再更新。架构决策继续记 `docs/adr/`（0001 部署双形态：single 单体版优先迭代、server 内部版后续演化，代码层必须完全兼容；0002 Agent 工具调用；0003 SFTP 边界）。
 

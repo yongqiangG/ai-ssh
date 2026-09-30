@@ -1,6 +1,8 @@
 # 工时统计 MCP
 
-读取 OA 打卡和项目系统工时，检查本人哪些出勤工作日未填满 7 小时。保留无打卡工作日核对清单，周末打卡单列。只读取考勤和工时，不填写或修改业务记录。
+读取 OA 打卡和项目系统工时，检查本人哪些出勤工作日未填满 7 小时。保留无打卡工作日核对清单，周末打卡单列。
+
+统计与查询为只读。另提供受控写入能力：向进行中的任务逐条提交工时（单条提交、预检剩余容量、失败即停），用于补录历史工时。
 
 两系统用账号密码自动登录，验证码在本机识别。账号配置一次后，无需手工复制 token。
 
@@ -69,6 +71,10 @@ MCP 应运行在用户本机，以便打开验证码页面并使用当前 Window
 | `check_workload`      | `start_date`、`end_date`，可选 `full_detail`    | 启动后台统计，返回 `task_id` 和状态 |
 | `get_workload_result` | `task_id`，可选 `wait_seconds`（0–20，默认 20） | 查询状态，完成时返回 `report`       |
 | `cancel_workload`     | `task_id`                                       | 请求取消统计                        |
+| `list_work_tasks`     | 可选 `number`                                    | 查询任务及预估/已报/剩余工时；不传列进行中任务，传 `number` 不限状态回查单个任务（含 COMPLETED，用于提交后验证） |
+| `submit_workload`     | `number`、`date`、`duration`                    | 为任务提交一条工时（写入，单条）    |
+
+`submit_workload` 是写入操作，防呆约束：`number` 须严格唯一命中进行中任务；`date` 最晚昨天；`duration` 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量（预估−已报），超出即拒绝；`description` 自动填任务标题，`type` 固定 `DEVELOP`、`overtime` 固定 `false`。任何失败立即中断，不重试。建议客户端在调用前向用户复述任务编号/日期/时长，确认后再提交。
 
 客户端调用 `check_workload` 后，若状态为 `running`、`awaiting_verification` 或 `cancelling`，应继续查询同一 `task_id`，直至 `completed`、`failed` 或 `cancelled`。仅 `completed` 含完整报告。人工验证不会阻塞一个 MCP 请求五分钟，验证完成后原后台任务自动继续。
 

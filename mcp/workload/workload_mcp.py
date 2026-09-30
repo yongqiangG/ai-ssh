@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import getpass
+import html
 import json
 import re
 import sys
@@ -274,10 +275,84 @@ class ProjClient:
             "/proj-ms/work_item/page-for-workload", {"type": WORK_ITEM_TYPE}
         )
 
+    def fetch_in_progress_tasks(self) -> list[dict]:
+        return self._pages(
+            "/proj-ms/work_item/page-for-workload",
+            {"type": WORK_ITEM_TYPE, "state": "IN_PROGRESS"},
+        )
+
+    def fetch_tasks_by_number(self, number: str) -> list[dict]:
+        """不限状态回查：提交后任务可能已流转出 IN_PROGRESS（如 COMPLETED）。"""
+        rows = self.fetch_work_items()
+        return [row for row in rows if str(row.get("number") or "") == number]
+
     def fetch_workload_records(self, work_item_id: str) -> list[dict]:
         return self._pages(
             "/proj-ms/workload-record/page", {"workItemId": work_item_id}
         )
+
+    def submit_workload(
+        self,
+        number: str,
+        date: str,
+        duration: float,
+        *,
+        today: dt.date | None = None,
+    ) -> dict:
+        """单条提交：number 严格唯一命中 IN_PROGRESS 任务，预检剩余，失败即停。"""
+        checked = submit_arguments(
+            {"number": number, "date": date, "duration": duration}, today=today
+        )
+        date_s, duration_f = checked["date"], checked["duration"]
+        candidates = [
+            t for t in self.fetch_in_progress_tasks() if t.get("number") == number
+        ]
+        if not candidates:
+            raise WorkloadError(
+                f"未找到编号 {number} 的进行中任务，请核对编号或先调用 list_work_tasks；"
+                f"若任务已报满会流转为 COMPLETED，可用 list_work_tasks 的 number 参数回查"
+            )
+        if len(candidates) > 1:
+            raise WorkloadError(
+                f"编号 {number} 命中 {len(candidates)} 个任务，请检查系统数据"
+            )
+        item = candidates[0]
+        try:
+            estimated = float(item["estimatedWorkload"] or 0)
+            reported = float(item["reportedWorkload"] or 0)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise WorkloadError(
+                "任务预估/已报字段缺失或格式异常，请重新查询任务列表"
+            ) from exc
+        remaining = round(estimated - reported, 2)
+        if remaining - duration_f < -0.01:
+            raise WorkloadError(
+                f"提交 {duration_f:g}h 超出任务剩余容量 {remaining:g}h"
+                f"（预估 {estimated:g}h，已报 {reported:g}h），已拒绝提交"
+            )
+        title = str(item.get("title") or number)
+        payload = {
+            "workItemId": str(item["id"]),
+            "duration": _format_hours(duration_f),
+            "remainingWorkload": round(remaining - duration_f, 2),
+            "type": "DEVELOP",
+            "overtime": False,
+            "reportedAt": date_s,
+            "description": "<p>" + html.escape(title) + "</p>",
+        }
+        self.session.post_json("/proj-ms/workload-record/create", payload)
+        return {
+            "number": number,
+            "title": title,
+            "date": date_s,
+            "duration": duration_f,
+            "remaining_after": round(remaining - duration_f, 2),
+        }
+
+
+def _format_hours(value: float) -> str:
+    """6.0 → "6"，6.5 → "6.5"，与系统展示口径一致。"""
+    return str(int(value)) if float(value).is_integer() else str(value)
 
 
 class OaClient:
@@ -456,6 +531,46 @@ def report_arguments(arguments: dict) -> dict:
     }
 
 
+def list_tasks_arguments(arguments: dict) -> dict:
+    if not isinstance(arguments, dict) or set(arguments) - {"number"}:
+        raise WorkloadError("任务列表查询仅支持可选参数 number（任务编号）")
+    if "number" not in arguments:
+        return {}
+    number = arguments["number"]
+    if not isinstance(number, str) or not number.strip():
+        raise WorkloadError("number 必须是非空任务编号，如 SYSCCG-1821")
+    return {"number": number.strip()}
+
+
+def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
+    """提交工时参数校验：仅昨天及更早、0.5 步进正数、number 必填。"""
+    if not isinstance(arguments, dict) or set(arguments) - {
+        "number",
+        "date",
+        "duration",
+    }:
+        raise WorkloadError("提交参数不正确，仅支持 number、date、duration")
+    number = arguments.get("number")
+    if not isinstance(number, str) or not number.strip():
+        raise WorkloadError("number 必须是非空任务编号，如 SYSCCG-1821")
+    date_value = arguments.get("date")
+    if not isinstance(date_value, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}", date_value
+    ):
+        raise WorkloadError("date 必须是 YYYY-MM-DD 日期")
+    duration = arguments.get("duration")
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+        raise WorkloadError("duration 必须是数字（小时）")
+    duration = float(duration)
+    if duration <= 0 or abs(duration * 2 - round(duration * 2)) > 1e-9:
+        raise WorkloadError("duration 必须是正数且为 0.5 的整数倍（如 7 或 6.5）")
+    parsed = parse_date(date_value)
+    today = today or dt.datetime.now(dt.timezone.utc).astimezone().date()
+    if parsed >= today:
+        raise WorkloadError("date 只能是昨天及更早——不预填今天及未来工时")
+    return {"number": number.strip(), "date": date_value, "duration": duration}
+
+
 def run_report(
     arguments: dict, context: RunContext | None = None, config_path: Path | None = None
 ) -> dict:
@@ -484,6 +599,78 @@ def run_report(
             raise WorkloadError(
                 f"统计数据格式发生变化（{type(exc).__name__}），请核对系统返回数据"
             ) from None
+
+
+def _project_client(
+    config_path: Path | None = None, context: RunContext | None = None
+) -> tuple[ProjClient, dict]:
+    """同步短请求共用的会话装配：持锁读凭据，复用缓存 token。"""
+    context = context or RunContext()
+    path = resolve_config_path(config_path)
+    store = CredentialStore(path)
+    with store.lock():
+        cfg = load_config(path)
+        client = ProjClient(
+            ProjectSession(
+                cfg,
+                lambda: save_config(cfg, path),
+                solver=CaptchaSolver(),
+                context=context,
+            ),
+            context,
+        )
+    return client, cfg
+
+
+def run_list_tasks(
+    arguments: dict | None = None, config_path: Path | None = None
+) -> dict:
+    checked = list_tasks_arguments(arguments or {})
+    context = RunContext()
+    client, cfg = _project_client(config_path, context)
+    try:
+        if "number" in checked:
+            items = client.fetch_tasks_by_number(checked["number"])
+        else:
+            items = client.fetch_in_progress_tasks()
+    except WorkloadError as exc:
+        raise WorkloadError(redact(exc, cfg)) from None
+    return {
+        "total": len(items),
+        "tasks": [
+            {
+                "number": item.get("number"),
+                "id": str(item.get("id")),
+                "title": item.get("title"),
+                "state": item.get("state"),
+                "estimated_workload": item.get("estimatedWorkload"),
+                "reported_workload": item.get("reportedWorkload"),
+                "remaining_workload": item.get("remainingWorkload"),
+                "create_time": (
+                    dt.datetime.fromtimestamp(
+                        item["createTime"] / 1000, dt.timezone.utc
+                    )
+                    .astimezone()
+                    .strftime("%Y-%m-%d")
+                    if item.get("createTime")
+                    else None
+                ),
+            }
+            for item in items
+        ],
+    }
+
+
+def run_submit_workload(arguments: dict, config_path: Path | None = None) -> dict:
+    checked = submit_arguments(arguments)
+    context = RunContext()
+    client, cfg = _project_client(config_path, context)
+    try:
+        return client.submit_workload(
+            checked["number"], checked["date"], checked["duration"]
+        )
+    except WorkloadError as exc:
+        raise WorkloadError(redact(exc, cfg)) from None
 
 
 # ---------------------------------------------------------------------------
@@ -543,6 +730,52 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "list_work_tasks",
+        "description": (
+            "查询项目系统任务及预估/已报/剩余工时，纯只读。不传参数返回全部进行中（IN_PROGRESS）任务，"
+            "用于选择要填报工时的任务；传 number 按编号不限状态回查单个任务"
+            "（含 COMPLETED，用于提交后验证任务状态与已报工时）。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "number": {
+                    "type": "string",
+                    "description": "任务编号，如 FXZT-237（number 字段，非 id）；不传则列全部进行中任务",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "submit_workload",
+        "description": (
+            "为指定任务提交一条工时记录（写入操作，单条）。number 须严格唯一命中进行中任务；"
+            "date 只能是昨天及更早；duration 为正数且 0.5 的整数倍；提交前自动校验不超出任务剩余容量，"
+            "超出即拒绝。description 自动填任务标题，type 固定 DEVELOP、overtime 固定 false。"
+            "任何失败立即中断，不做重试。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "number": {
+                    "type": "string",
+                    "description": "任务编号，如 SYSCCG-1821（number 字段，非 id）",
+                },
+                "date": {
+                    "type": "string",
+                    "description": "工时归属日期 YYYY-MM-DD，最晚昨天",
+                },
+                "duration": {
+                    "type": "number",
+                    "description": "时长（小时），正数且 0.5 的整数倍，如 7 或 6.5",
+                },
+            },
+            "required": ["number", "date", "duration"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -559,20 +792,24 @@ def serve(config_path: Path | None = None, *, runner=None) -> None:
             except (ValueError, UnicodeError):
                 _send(_rpc_error(None, -32700, "JSON 解析失败"))
                 continue
-            reply = _handle(message, jobs)
+            reply = _handle(message, jobs, config_path=config_path)
             if reply is not None:
                 _send(reply)
     finally:
         jobs.close()
 
 
-def _call_tool(params: dict, jobs: ReportJobs) -> dict:
+def _call_tool(params: dict, jobs: ReportJobs, config_path: Path | None = None) -> dict:
     if not isinstance(params, dict):
         raise WorkloadError("工具调用参数必须为对象")
     name = params.get("name")
     args = params.get("arguments", {})
     if name == "check_workload":
         return jobs.start(report_arguments(args))
+    if name == "list_work_tasks":
+        return run_list_tasks(args, config_path)
+    if name == "submit_workload":
+        return run_submit_workload(args, config_path)
     if name not in ("get_workload_result", "cancel_workload"):
         raise WorkloadError("未知工具，请调用 tools/list 查看可用工具")
     if (
@@ -593,7 +830,9 @@ def _call_tool(params: dict, jobs: ReportJobs) -> dict:
     return jobs.get(args["task_id"], args.get("wait_seconds", 20))
 
 
-def _handle(msg: dict, jobs: ReportJobs) -> dict | None:
+def _handle(
+    msg: dict, jobs: ReportJobs, config_path: Path | None = None
+) -> dict | None:
     if (
         not isinstance(msg, dict)
         or msg.get("jsonrpc") != "2.0"
@@ -615,8 +854,13 @@ def _handle(msg: dict, jobs: ReportJobs) -> dict | None:
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.0.0"},
-            "instructions": "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。",
+            "serverInfo": {"name": "workload", "version": "2.2.0"},
+            "instructions": (
+                "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
+                "submit_workload 是写入操作：先向用户复述任务编号/日期/时长，确认后再调用，失败即停。"
+                "submit_workload 成功后任务报满会流转为 COMPLETED：验证结果用 list_work_tasks 传 number 回查，"
+                "不限状态。"
+            ),
         }
     elif method == "ping":
         result = {}
@@ -624,7 +868,7 @@ def _handle(msg: dict, jobs: ReportJobs) -> dict | None:
         result = {"tools": TOOLS}
     elif method == "tools/call":
         try:
-            value = _call_tool(msg.get("params", {}), jobs)
+            value = _call_tool(msg.get("params", {}), jobs, config_path=config_path)
             result = {
                 "content": [
                     {"type": "text", "text": json.dumps(value, ensure_ascii=False)}

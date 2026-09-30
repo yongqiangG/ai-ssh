@@ -254,7 +254,14 @@ class TestMcpProtocol(unittest.TestCase):
         self.assertEqual([reply["id"] for reply in replies], [1, 2, 3])
         names = {tool["name"] for tool in replies[1]["result"]["tools"]}
         self.assertEqual(
-            names, {"check_workload", "get_workload_result", "cancel_workload"}
+            names,
+            {
+                "check_workload",
+                "get_workload_result",
+                "cancel_workload",
+                "list_work_tasks",
+                "submit_workload",
+            },
         )
         result = json.loads(replies[2]["result"]["content"][0]["text"])
         self.assertEqual(result["status"], "completed")

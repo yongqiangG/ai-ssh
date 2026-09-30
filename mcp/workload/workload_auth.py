@@ -207,6 +207,30 @@ class ProjectSession:
             return result.get("data") or {}
         raise WorkloadError("项目系统授权恢复失败")
 
+    def post_json(self, path: str, data: dict) -> dict:
+        """写入接口：仅 401（服务端未受理）恢复一次后重放，其余失败即抛、不重试。"""
+        expiry = self.cfg.get("expires_time", 0)
+        if (
+            not self.cfg.get("access_token")
+            or not isinstance(expiry, (int, float))
+            or expiry <= (time.time() + 30) * 1000
+        ):
+            self._recover()
+        result = self.transport.json(
+            path, data, headers=self._headers(authenticated=True), method="POST"
+        )
+        if result.get("code") == 401:
+            # 401 = 服务端未受理，重放不会造成重复写入；其余业务失败立即上抛。
+            self._recover()
+            result = self.transport.json(
+                path, data, headers=self._headers(authenticated=True), method="POST"
+            )
+        if result.get("code") != 0:
+            raise WorkloadError(
+                "项目系统提交失败：" + redact(result.get("msg", "未知错误"), self.cfg)
+            )
+        return result.get("data") or {}
+
     def challenge(self) -> dict:
         result = self.transport.json(
             "/system/captcha/get",
