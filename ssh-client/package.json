@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:mobile": "vite build --config vite.mobile.config.ts && node -e \"require('fs').writeFileSync('dist-mobile/.gitkeep','')\"",
+    "build:mobile": "vite build --config vite.mobile.config.ts && node -e \"require('fs').writeFileSync('dist-mobile/.gitkeep','')\" && node scripts/sync-harmony-rawfile.mjs",
     "preview": "vite preview",
     "tauri": "scripts\\tauri.cmd",
     "tauri:raw": "tauri",
@@ -71,6 +71,7 @@
     "jsdom": "^29.1.1",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
+    "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^4.1.9"
   }
 }

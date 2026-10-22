@@ -1,5 +1,10 @@
 // 手机伴侣 API 层：同源 fetch（页面由 axum 服务自身托管），token 走 header。
 // 响应封皮沿用全仓约定：成功码字符串 "0000"。
+// 鸿蒙 rawfile 注入模式（阶段 1 迁移）：URL 带 baseUrl 时 fetch 绝对地址、
+// token 走注入值不读 localStorage
+// （bootstrap.ts 分流）。
+
+import { apiBase, injectedToken } from "./bootstrap";
 
 export interface Envelope<T> {
   code: string;
@@ -33,7 +38,8 @@ export interface Task {
 export const TOKEN_KEY = "ai-ssh:mobile:token";
 
 export function getToken(): string {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
+  const injected = injectedToken();
+  return injected !== "" ? injected : (localStorage.getItem(TOKEN_KEY) ?? "");
 }
 
 export function setToken(token: string): void {
@@ -50,7 +56,7 @@ export class ApiError extends Error {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiBase() + path, {
     headers: { "X-Companion-Token": getToken() },
   });
   const body = (await res.json().catch(() => null)) as Envelope<T> | null;
@@ -61,7 +67,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiBase() + path, {
     method: "POST",
     headers: {
       "X-Companion-Token": getToken(),

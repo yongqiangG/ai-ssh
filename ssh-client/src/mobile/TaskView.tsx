@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import { themeFor } from "../features/aiCoding/components/terminalShared";
 import type { ThemeVariant } from "../features/aiCoding/types";
 import { getToken, resumeTask, type Task } from "./api";
+import { bootstrapConfig } from "./bootstrap";
 import { isTaskResumable } from "./resume";
 import { TaskWs, type WsConnState } from "./ws";
 
@@ -30,6 +31,13 @@ const CONN_LABEL: Record<WsConnState, { text: string; cls: string }> = {
 };
 
 function wsUrl(taskId: string): string {
+  // 注入模式（鸿蒙 rawfile）：baseUrl 显式给出 ws 前缀；
+  // 同源模式（web 伴侣）：按页面协议推导。
+  const cfg = bootstrapConfig();
+  if (cfg.injected) {
+    const proto = cfg.baseUrl.startsWith("https") ? "wss:" : "ws:";
+    return `${proto}//${cfg.baseUrl.replace(/^https?:/, "")}/api/ws/task/${encodeURIComponent(taskId)}?token=${encodeURIComponent(getToken())}`;
+  }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${location.host}/api/ws/task/${encodeURIComponent(taskId)}?token=${encodeURIComponent(getToken())}`;
 }
