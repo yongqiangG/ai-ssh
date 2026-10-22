@@ -324,14 +324,15 @@ class ProjClient:
         number: str,
         date: str,
         duration: float,
-        description: str = "",
+        description: str | None = None,
         *,
         today: dt.date | None = None,
     ) -> dict:
-        """单条提交：number 严格唯一命中 IN_PROGRESS 任务，预检剩余，失败即停。
+        """单条提交：number 严格唯一命中 IN_PROGRESS 任务，失败即停。
 
-        description 为回显校验参数：必须等于任务真实标题（strip 后精确匹配），
-        不符即拒且不发写入——保证调用方卡片上展示的标题就是将写入系统的标题。
+        容量上限放开（决议 31）：超容量照常提交，剩余钳位写 0。
+        description 可选覆盖写入内容（决议 30）：传入即 html.escape 后写入系统；
+        None/缺省回退任务真实标题（决议 20 原链路）。
         """
         checked = submit_arguments(
             {
@@ -357,12 +358,7 @@ class ProjClient:
             )
         item = candidates[0]
         title = str(item.get("title") or number)
-        echo = checked["description"]
-        if echo != title.strip():
-            raise WorkloadError(
-                f"description 与任务 {number} 的真实标题不一致，已拒绝提交。"
-                f"真实标题：{title}——请以 list_work_tasks 返回的 title 为准重新调用"
-            )
+        written = checked["description"] if checked["description"] else title
         try:
             estimated = float(item["estimatedWorkload"] or 0)
             reported = float(item["reportedWorkload"] or 0)
@@ -371,14 +367,8 @@ class ProjClient:
                 "任务预估/已报字段缺失或格式异常，请重新查询任务列表"
             ) from exc
         remaining = round(estimated - reported, 2)
-        # 0.1h 是补报口令：满额任务也放行，触发系统自动流转 COMPLETED；
-        # 其余时长照旧防呆，拒绝写出负剩余。
-        if duration_f != 0.1 and remaining - duration_f < -0.01:
-            raise WorkloadError(
-                f"提交 {duration_f:g}h 超出任务剩余容量 {remaining:g}h"
-                f"（预估 {estimated:g}h，已报 {reported:g}h），已拒绝提交"
-            )
-        # 剩余钳位到 0：负数服务端照存但任务不流转（SYSCCG-1135 实测），必须写 0
+        # 容量上限放开（决议 31）：超容量照常提交，预检退役；
+        # 剩余钳位到 0 保留——负数服务端照存但任务不流转（SYSCCG-1135 实测）。
         remaining_after = max(round(remaining - duration_f, 2), 0.0)
         payload = {
             "workItemId": str(item["id"]),
@@ -387,7 +377,7 @@ class ProjClient:
             "type": "DEVELOP",
             "overtime": False,
             "reportedAt": date_s,
-            "description": "<p>" + html.escape(title) + "</p>",
+            "description": "<p>" + html.escape(written) + "</p>",
         }
         self.session.post_json("/proj-ms/workload-record/create", payload)
         return {
@@ -633,10 +623,14 @@ def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
     if not isinstance(number, str) or not number.strip():
         raise WorkloadError("number 必须是非空任务编号，如 SYSCCG-1821")
     description = arguments.get("description")
-    if not isinstance(description, str) or not description.strip():
+    # 可选覆盖（决议 30）：None/缺失=回退任务标题；空白/非字符串拒绝
+    # （服务端 description 有非空校验，空白必然写入失败）
+    if description is not None and (
+        not isinstance(description, str) or not description.strip()
+    ):
         raise WorkloadError(
-            "description 必须是任务标题原文（list_work_tasks 返回的 title 字段），"
-            "用于调用方展示确认；与真实标题不符会拒绝提交"
+            "description 可选；传入则必须是非空字符串（作为写入内容），"
+            "不传则默认写任务标题"
         )
     date_value = arguments.get("date")
     if not isinstance(date_value, str) or not re.fullmatch(
@@ -658,7 +652,7 @@ def submit_arguments(arguments: dict, *, today: dt.date | None = None) -> dict:
         "number": number.strip(),
         "date": date_value,
         "duration": duration,
-        "description": description.strip(),
+        "description": description.strip() if description is not None else None,
     }
 
 
@@ -848,14 +842,12 @@ TOOLS = [
         "name": "submit_workload",
         "description": (
             "为指定任务提交一条工时记录（写入操作，单条）。number 须严格唯一命中进行中任务；"
-            "date 最晚今天（未来日期拒绝）；duration 为正数且 0.1 的整数倍；提交前自动校验不超出任务剩余容量，"
-            "超出即拒绝——唯一例外：duration=0.1 视为补报口令，满额任务也放行（剩余钳位为 0），"
-            "用于触发系统将已报超预估的任务自动流转为 COMPLETED。"
-            "description 必须填任务标题原文（list_work_tasks 返回的 title 字段）——"
-            "用于调用前向用户展示「提交到哪个任务」，与真实标题不符会拒绝提交；"
-            "写入系统的 description 由服务端用真实标题构造，不受入参影响。"
+            "date 最晚今天（未来日期拒绝）；duration 为正数且 0.1 的整数倍，"
+            "允许超出任务剩余容量提交（提交后剩余钳位为 0，任务可能自动流转 COMPLETED）。"
+            "description 可选：传入即作为该条工时的写入内容（如实描述当天工作，"
+            "如「外购单支付回调接口开发和全链路验证」）；不传则默认写任务标题。"
             "type 固定 DEVELOP、overtime 固定 false。任何失败立即中断，不做重试。"
-            "本会话未查过该编号标题时先调 list_work_tasks 取当前 title，不得凭记忆。"
+            "本会话未查过该编号时先调 list_work_tasks 核实任务存在，不得凭记忆。"
         ),
         "inputSchema": {
             "type": "object",
@@ -875,12 +867,12 @@ TOOLS = [
                 "description": {
                     "type": "string",
                     "description": (
-                        "任务标题原文（list_work_tasks 返回的 title 字段）。"
-                        "回显校验用：与真实标题不符会拒绝提交"
+                        "可选：该条工时的写入内容，如实描述当天工作；"
+                        "不传则默认写任务标题"
                     ),
                 },
             },
-            "required": ["number", "date", "duration", "description"],
+            "required": ["number", "date", "duration"],
             "additionalProperties": False,
         },
     },
@@ -962,15 +954,14 @@ def _handle(
         result = {
             "protocolVersion": version if version in versions else versions[-1],
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "workload", "version": "2.7.0"},
+            "serverInfo": {"name": "workload", "version": "2.9.0"},
             "instructions": (
                 "check_workload 返回未完成状态时，持续调用 get_workload_result；验证码完成后原统计自动继续。"
-                "submit_workload 是写入操作，description 参数必须填任务标题原文"
-                "（list_work_tasks 返回的 title，不得凭记忆或编造）——它用于向用户展示提交到哪个任务，"
-                "与真实标题不符会拒绝提交；确认前须向用户展示编号、标题、日期、时长。"
-                "失败即停。成功后向用户报告剩余工时；若报满则提示任务已流转 COMPLETED，"
-                "可用 list_work_tasks 传 number 回查验证，不限状态。"
-                "duration=0.1 是补报口令：满额任务也放行，用于触发系统自动流转 COMPLETED。"
+                "submit_workload 是写入操作，确认前须向用户展示编号、标题、日期、时长"
+                "（用户给了自定义描述则一并展示）。description 可选：传入即作为写入内容，"
+                "不传则默认写任务标题；不得凭记忆或编造任务信息，先查 list_work_tasks。"
+                "允许超容量提交，提交后剩余钳位为 0。失败即停。成功后向用户报告剩余工时；"
+                "若报满则提示任务已流转 COMPLETED，可用 list_work_tasks 传 number 回查验证，不限状态。"
             ),
         }
     elif method == "ping":

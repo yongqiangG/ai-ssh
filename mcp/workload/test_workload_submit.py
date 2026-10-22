@@ -3,9 +3,9 @@
 覆盖决议（见 vault 工作/ai-ssh/需求/需求-工时统计MCP.md）：
 - 查询：state=IN_PROGRESS 全量、字段完整透出、不做年份过滤。
 - 提交：number 严格唯一命中、最晚今天（未来拒绝）、duration 0.1 步进、
-  预检负剩余拒发（duration=0.1 补报豁免，用于满额任务触发流转）、
-  description=html.escape(标题)、type/overtime 固定、
-  code==0 即成功、异常即停不吞错。
+  容量上限放开（决议 31）：超容量照提、remainingWorkload 钳位写 0、
+  description 可选覆盖（缺省=html.escape(标题)，决议 30）、
+  type/overtime 固定、code==0 即成功、异常即停不吞错。
 """
 
 import datetime as dt
@@ -115,7 +115,6 @@ class SubmitArgumentsTests(unittest.TestCase):
             "number": "SYSCCG-1821",
             "date": "2026-09-28",
             "duration": 7,
-            "description": "[后端] 组合商品病症提交",
         }
         args.update(overrides)
         return submit_arguments(args, today=self.today())
@@ -125,19 +124,22 @@ class SubmitArgumentsTests(unittest.TestCase):
         self.assertEqual(args["number"], "SYSCCG-1821")
         self.assertEqual(args["date"], "2026-09-28")
         self.assertEqual(args["duration"], 7.0)
-        self.assertEqual(args["description"], "[后端] 组合商品病症提交")
+        self.assertIsNone(args["description"])
 
-    def test_description_required_and_stripped(self):
-        # 必填：缺失/空白/非字符串均拒；传入则 strip 归一
-        for bad in (None, "", "   ", 123, True):
+    def test_description_optional_and_stripped(self):
+        # 可选覆盖（决议 30）：None/缺失=用任务标题；空白=拒绝（服务端非空校验）；
+        # 非字符串拒绝；传入则 strip 归一
+        self.assertIsNone(self.valid()["description"])
+        self.assertIsNone(self.valid(description=None)["description"])
+        for bad in ("", "   ", 123, True):
             with (
                 self.subTest(bad=bad),
                 self.assertRaisesRegex(WorkloadError, "description"),
             ):
                 self.valid(description=bad)
         self.assertEqual(
-            self.valid(description="  [后端] 组合商品病症提交  ")["description"],
-            "[后端] 组合商品病症提交",
+            self.valid(description="  外购单回调全链路  ")["description"],
+            "外购单回调全链路",
         )
 
     def test_accepts_today_rejects_future(self):
@@ -169,7 +171,7 @@ class SubmitArgumentsTests(unittest.TestCase):
         for overrides in (
             {"extra": 1},
             {"date": "20260928"},
-            {"description": None, "number": "X"},
+            {"description": "x", "number": 123},
         ):
             args = {
                 "number": "SYSCCG-1821",
@@ -199,27 +201,35 @@ class SubmitWorkloadTests(unittest.TestCase):
         duration=7,
         number="SYSCCG-1821",
         date="2026-09-28",
-        description="[后端] 组合商品病症提交",
+        description=None,
     ):
         return self.client.submit_workload(
             number, date, duration, description, today=dt.date(2026, 9, 30)
         )
 
-    def test_description_mismatch_rejected_before_write(self):
-        # 回显校验：description 必须等于任务真实标题（strip 后精确匹配），
-        # 不符即拒且不发写入请求——卡片展示 = 将写入内容的硬保证。
-        with self.assertRaisesRegex(WorkloadError, "标题不一致"):
-            self.submit(description="[后端] 组合商品中药开方")
-        self.session.post_json.assert_not_called()
+    def test_custom_description_written_not_title(self):
+        # 可选覆盖（决议 30）：传入自定义描述即作为写入内容（转义包裹），
+        # 不再要求等于任务标题——回显校验闸门退役。
+        self.submit(description="外购单支付回调接口开发和全链路验证")
+        payload = self.session.post_json.call_args.args[1]
+        self.assertEqual(
+            payload["description"],
+            "<p>外购单支付回调接口开发和全链路验证</p>",
+        )
 
-    def test_description_mismatch_error_includes_real_title(self):
-        # 报错带真实标题，AI 可自愈：重读错误即得正确值，无需再查列表。
-        with self.assertRaisesRegex(WorkloadError, r"组合商品病症提交"):
-            self.submit(description="编造的标题")
+    def test_custom_description_html_escaped(self):
+        self.submit(description="推送erp/oms <回调> & 验证")
+        payload = self.session.post_json.call_args.args[1]
+        self.assertEqual(
+            payload["description"],
+            "<p>推送erp/oms &lt;回调&gt; &amp; 验证</p>",
+        )
 
-    def test_description_stripped_before_compare(self):
-        result = self.submit(description="  [后端] 组合商品病症提交  ")
-        self.assertEqual(result["duration"], 7.0)
+    def test_description_default_falls_back_to_title(self):
+        # 缺省=原标题逻辑（决议 20 链路保持）：不传描述时写入转义标题
+        self.submit()
+        payload = self.session.post_json.call_args.args[1]
+        self.assertEqual(payload["description"], "<p>[后端] 组合商品病症提交</p>")
 
     def test_happy_path_payload(self):
         result = self.submit()
@@ -256,39 +266,32 @@ class SubmitWorkloadTests(unittest.TestCase):
         self.assertEqual(payload["remainingWorkload"], 1)
         self.assertEqual(result["remaining_after"], 1.0)
 
-    def test_over_remaining_rejected_before_any_write(self):
+    def test_over_remaining_allowed_and_clamped_to_zero(self):
+        # 容量上限放开（决议 31）：超容量照常提交，remainingWorkload 钳位写 0
+        # （实测写负数服务端照存但任务不流转，SYSCCG-1135 首试确证）
         self.session.get.return_value = {
             "list": [task(reportedWorkload=4.0, remainingWorkload=3.0)],
             "total": 1,
         }
-        with self.assertRaisesRegex(WorkloadError, "剩余"):
-            self.submit(duration=4)
-        self.session.post_json.assert_not_called()
-
-    def test_zero_or_negative_remaining_rejected(self):
-        self.session.get.return_value = {
-            "list": [task(reportedWorkload=7.0, remainingWorkload=0.0)],
-            "total": 1,
-        }
-        with self.assertRaisesRegex(WorkloadError, "剩余"):
-            self.submit(duration=1)
-        self.session.post_json.assert_not_called()
-
-    def test_tenth_hour_topup_bypasses_remaining_check(self):
-        # 0.1h 补报口令：满额任务（剩余 0）也放行，remainingWorkload 写 0 触发流转
-        # （实测写负数服务端照存但任务不流转，SYSCCG-1135 首试确证）
-        self.session.get.return_value = {
-            "list": [task(reportedWorkload=7.0, remainingWorkload=0.0)],
-            "total": 1,
-        }
-        result = self.submit(duration=0.1)
+        result = self.submit(duration=4)
         payload = self.session.post_json.call_args.args[1]
-        self.assertEqual(payload["duration"], "0.1")
         self.assertEqual(payload["remainingWorkload"], 0)
         self.assertEqual(result["remaining_after"], 0.0)
 
-    def test_tenth_hour_topup_on_nonfull_task_keeps_real_math(self):
-        # 非满额任务用 0.1h：正常扣减，不钳位（remaining 0.5 → 0.4）
+    def test_submit_on_full_task_allowed(self):
+        # 满额任务（剩余 0）直接提常规时长：照常提交，钳位写 0——
+        # 0.1 补报口令的专属豁免语义随容量预检退役而消失
+        self.session.get.return_value = {
+            "list": [task(reportedWorkload=7.0, remainingWorkload=0.0)],
+            "total": 1,
+        }
+        result = self.submit(duration=1)
+        payload = self.session.post_json.call_args.args[1]
+        self.assertEqual(payload["remainingWorkload"], 0)
+        self.assertEqual(result["remaining_after"], 0.0)
+
+    def test_fraction_remaining_keeps_real_math(self):
+        # 非满额任务用小数时长：正常扣减，不钳位（remaining 0.5 → 0.4）
         self.session.get.return_value = {
             "list": [task(reportedWorkload=6.5, remainingWorkload=0.5)],
             "total": 1,
@@ -297,17 +300,6 @@ class SubmitWorkloadTests(unittest.TestCase):
         payload = self.session.post_json.call_args.args[1]
         self.assertEqual(payload["remainingWorkload"], 0.4)
         self.assertEqual(result["remaining_after"], 0.4)
-
-    def test_non_tenth_topup_still_rejected_when_full(self):
-        # 豁免只认 0.1：满额任务补 0.2/0.5 照旧拒绝
-        self.session.get.return_value = {
-            "list": [task(reportedWorkload=7.0, remainingWorkload=0.0)],
-            "total": 1,
-        }
-        for bad in (0.2, 0.5):
-            with self.subTest(bad=bad), self.assertRaisesRegex(WorkloadError, "剩余"):
-                self.submit(duration=bad)
-        self.session.post_json.assert_not_called()
 
     def test_unknown_number_rejected_with_no_write(self):
         with self.assertRaisesRegex(WorkloadError, "SYSCCG-9999"):
@@ -323,13 +315,14 @@ class SubmitWorkloadTests(unittest.TestCase):
             self.submit()
         self.session.post_json.assert_not_called()
 
-    def test_title_html_is_escaped(self):
+    def test_title_html_is_escaped_when_no_description(self):
+        # 缺省回退标题时同样转义（决议 20 原链路）
         title = '<script>alert("x")</script>组合套餐'
         self.session.get.return_value = {
             "list": [task(title=title)],
             "total": 1,
         }
-        self.submit(description=title)
+        self.submit()
         payload = self.session.post_json.call_args.args[1]
         self.assertEqual(
             payload["description"],
@@ -397,7 +390,7 @@ class ToolsRegistrationTests(unittest.TestCase):
         self.assertIn("submit_workload", names)
 
     def test_run_submit_workload_forwards_description(self):
-        # 入口级断链防再漏：run_submit_workload 必须把 description 传给
+        # 入口级断链防再漏：run_submit_workload 必须把可选 description 透传给
         # client.submit_workload（曾漏传导致 MCP 入口永远走必填校验拒绝）。
         from unittest.mock import patch
 
@@ -406,7 +399,7 @@ class ToolsRegistrationTests(unittest.TestCase):
         captured = {}
 
         class _FakeClient:
-            def submit_workload(self, number, date, duration, description=""):
+            def submit_workload(self, number, date, duration, description=None):
                 captured.update(
                     number=number,
                     date=date,
@@ -421,20 +414,39 @@ class ToolsRegistrationTests(unittest.TestCase):
                     "number": "SYSCCG-1821",
                     "date": "2026-09-28",
                     "duration": 7,
-                    "description": "[后端] 组合商品病症提交",
+                    "description": "外购单回调全链路验证",
                 }
             )
         self.assertEqual(result, {"ok": True})
-        self.assertEqual(captured["description"], "[后端] 组合商品病症提交")
+        self.assertEqual(captured["description"], "外购单回调全链路验证")
         self.assertEqual(captured["duration"], 7)
 
-    def test_tool_schema_submit_requires_four_fields(self):
+    def test_run_submit_workload_forwards_absent_description(self):
+        # 不传 description 的入参也要原样透传 None（回退标题在 client 层做）
+        from unittest.mock import patch
+
+        import workload_mcp as m
+
+        captured = {}
+
+        class _FakeClient:
+            def submit_workload(self, number, date, duration, description=None):
+                captured["description"] = description
+                return {"ok": True}
+
+        with patch.object(m, "_project_client", return_value=(_FakeClient(), {})):
+            m.run_submit_workload(
+                {"number": "SYSCCG-1821", "date": "2026-09-28", "duration": 7}
+            )
+        self.assertIsNone(captured["description"])
+
+    def test_tool_schema_submit_description_optional(self):
         from workload_mcp import TOOLS
 
         submit = next(t for t in TOOLS if t["name"] == "submit_workload")
         self.assertEqual(
             set(submit["inputSchema"]["required"]),
-            {"number", "date", "duration", "description"},
+            {"number", "date", "duration"},
         )
         self.assertEqual(
             submit["inputSchema"]["properties"]["description"]["type"], "string"
