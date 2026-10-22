@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "AI-SSH 伴侣入口模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "AI-SSH 手机伴侣"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "AI-SSH"
+    }
+  ]
+}

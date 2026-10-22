@@ -1,0 +1,9 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/Setup",
+    "pages/Projects",
+    "pages/Tasks",
+    "pages/TerminalWeb"
+  ]
+}
