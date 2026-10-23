@@ -8,9 +8,14 @@ export interface Project {
 }
 
 export type AgentType = "claude" | "codex";
-/** aiCoding 固定深色单主题；类型保留以兼容迁移组件的 props 契约，取值恒为 "dark"。 */
-export type ThemeMode = "dark";
-export type ThemeVariant = "dark";
+/**
+ * 双主题（261023 决议）：面板级 dark｜light，默认 dark（老用户无感），
+ * 持久化在 localStorage `ai-ssh:aiCoding:themeVariant`。SSH 主界面 --vsc-*
+ * 体系不在此列（样式隔离）。ThemeMode 是 nezha 迁移遗留的 props 契约名，
+ * 含义与 ThemeVariant 相同。
+ */
+export type ThemeMode = "dark" | "light";
+export type ThemeVariant = "dark" | "light";
 export type PermissionMode = "ask" | "auto_edit" | "full_access";
 export type TaskDisplayWindow = 3 | 7 | 15 | 30 | "all";
 

@@ -16,6 +16,7 @@
  * 或样式注入异常导致 body 类短暂缺失的面板黑屏）。 */
 body.ai-coding-active,
 .ai-coding-root {
+  color-scheme: dark;
   --bg-root: #07080f;
   --bg-shell: #0b0d17;
   --bg-titlebar: #0d0f1b;
@@ -162,6 +163,175 @@ body.ai-coding-active,
   --xterm-scrollbar-width: 8px;
   --xterm-scrollbar-thumb: rgba(140, 160, 255, 0.18);
   --xterm-scrollbar-thumb-hover: rgba(140, 160, 255, 0.32);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --font-ui: "SF Pro Display", "IBM Plex Sans", "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
+}
+
+/* ============================================================
+   亮色主题（261023 决议，需求-AICoding亮色主题.md）
+   ------------------------------------------------------------
+   令牌值直搬 nezha light 原版（GitHub light 风：白底递层 +
+   #5d7cff 蓝 accent + 近黑 CTA）。挂载层级与 dark 块相同：
+   body.ai-coding-active 覆盖 Radix Portal 弹层，根类保证子树
+   自身令牌。ai-coding-light 类由 AiCodingApp 按持久化偏好添加
+   （localStorage ai-ssh:aiCoding:themeVariant，默认 dark）。
+   深色专属令牌（--bg-app/--bg-secondary/--bg-elevated 等
+   aiCoding 自加项）在此整块重给浅值，不留暗色死角。
+   xterm 滚动条为 aiCoding 自加令牌（nezha 无对照），按浅底
+   自调半透明灰。SSH 主界面 --vsc-* 体系不受影响（样式隔离）。
+   ============================================================ */
+body.ai-coding-active.ai-coding-light,
+.ai-coding-root.ai-coding-light {
+  color-scheme: light;
+
+  --bg-root: hsl(240deg 6% 99.4%);
+  --bg-shell: hsl(240deg 6% 99.4%);
+  --bg-titlebar: hsl(240deg 6% 99.4%);
+  --bg-sidebar: #fdfdfd;
+  --bg-sidebar-elevated: #fafafa;
+  --bg-panel: #ffffff;
+  /* 卡片/弹层用更高一层的底色：叠在遮罩或面板上必须肉眼可辨 */
+  --bg-card: #ffffff;
+  --bg-hover: hsl(240deg 6% 97.7%);
+  --bg-selected: rgba(15, 23, 42, 0.08);
+  --bg-subtle: hsl(240deg 6% 99.4%);
+  --bg-input: #ffffff;
+  --bg: var(--bg-root);
+  /* 看板全屏接管底色（nezha 遗留引用） */
+  --bg-app: hsl(240deg 6% 99.4%);
+  /* 次级面（附件小卡等） */
+  --bg-secondary: rgba(15, 23, 42, 0.04);
+  --bg-elevated: #ffffff;
+
+  --border-dim: rgba(15, 23, 42, 0.08);
+  --border-medium: rgba(15, 23, 42, 0.14);
+  --border-strong: rgba(99, 122, 163, 0.24);
+  --border-focus: #20242e;
+  --border: var(--border-dim);
+
+  --text-primary: #171b24;
+  --text-secondary: #414857;
+  --text-muted: #69758a;
+  --text-hint: #9aa3b2;
+  --fg-on-accent: #ffffff;
+  --control-active-bg: rgba(15, 23, 42, 0.08);
+  --control-active-fg: #171b24;
+  --control-selected-bg: #20242e;
+  --control-selected-fg: #ffffff;
+  --control-knob-bg: #ffffff;
+  --primary-action-bg: #20242e;
+  --primary-action-fg: #ffffff;
+  --primary-action-hover: #111827;
+
+  --accent: #5d7cff;
+  --accent-strong: #4467f5;
+  --accent-soft: rgba(93, 124, 255, 0.28);
+  --accent-hover: #4d6ff2;
+  --accent-subtle: rgba(93, 124, 255, 0.12);
+
+  --brand-mark-gradient: linear-gradient(145deg, #13213f, #1676d2 58%, #2fb7d3 100%);
+  --brand-mark-glow: rgba(22, 118, 210, 0.14);
+  --brand-mark-inner-bg: rgba(9, 12, 18, 0.82);
+  --brand-mark-fg: #ffffff;
+  --badge-muted-bg: rgba(123, 139, 166, 0.14);
+
+  --icon-folder: #8f98a7;
+  --icon-folder-open: #737d8b;
+  --icon-folder-root: #7d8795;
+  --icon-file-default: #94a3b8;
+  --icon-file-ignored: #8b94a3;
+  --icon-file-config: #6b7280;
+  --icon-file-docker: #2496ed;
+  --icon-file-build: #6d8086;
+  --icon-file-ruby: #cc342d;
+  --icon-file-ts: #3178c6;
+  --icon-file-js: #d6a500;
+  --icon-file-json: #d97706;
+  --icon-file-rust: #ce422b;
+  --icon-file-html: #e34c26;
+  --icon-file-css: #264de4;
+  --icon-file-md: #7c3aed;
+  --icon-file-yaml: #ef4444;
+  --icon-file-toml: #9c4221;
+  --icon-file-python: #3572a5;
+  --icon-file-go: #00add8;
+  --icon-file-shell: #4eaa25;
+  --icon-file-svg: #ff9800;
+  --icon-file-image: #16a34a;
+  --icon-file-wasm: #654ff0;
+
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--danger);
+  --accent-success: #16a34a;
+  --danger-action-bg: #dc2626;
+  --danger-action-fg: #ffffff;
+  --usage-good: #22c55e;
+  --usage-warn: #f59e0b;
+  --usage-danger: #ef4444;
+  --usage-codex: #a78bfa;
+
+  --warning-surface: rgba(234, 179, 8, 0.1);
+  --warning-code-bg: rgba(234, 179, 8, 0.15);
+  --warning-border: rgba(234, 179, 8, 0.3);
+  --danger-surface: rgba(248, 81, 73, 0.1);
+  --danger-border: rgba(248, 81, 73, 0.3);
+  --danger-fg: #f85149;
+  --star-fg: #c8922a;
+  --inverse-muted: rgba(255, 255, 255, 0.75);
+
+  --diff-add-bg: rgba(46, 160, 67, 0.12);
+  --diff-add-fg: #1f8f46;
+  --diff-add-marker-bg: rgba(46, 160, 67, 0.22);
+  --diff-delete-bg: rgba(248, 81, 73, 0.12);
+  --diff-delete-fg: #c7352f;
+  --diff-delete-marker-bg: rgba(248, 81, 73, 0.22);
+  --diff-hunk-bg: rgba(88, 166, 255, 0.08);
+  --diff-hunk-fg: #2563eb;
+  --diff-meta-fg: #9aa3b2;
+  --diff-gutter-bg: rgba(15, 23, 42, 0.02);
+  --diff-empty-bg: rgba(15, 23, 42, 0.025);
+  --diff-status-added-fg: #1f8f46;
+  --diff-status-added-bg: rgba(46, 160, 67, 0.14);
+  --diff-status-deleted-fg: #c7352f;
+  --diff-status-deleted-bg: rgba(248, 81, 73, 0.14);
+  --diff-status-renamed-fg: #2563eb;
+  --diff-status-renamed-bg: rgba(88, 166, 255, 0.14);
+  --diff-status-modified-fg: #a46a0a;
+  --diff-status-modified-bg: rgba(214, 150, 32, 0.14);
+
+  --code-line-number: rgba(128, 128, 128, 0.35);
+  --code-line-number-hover: rgba(128, 128, 128, 0.6);
+  --code-line-divider: rgba(128, 128, 128, 0.1);
+  --code-line-hover-bg: rgba(128, 128, 128, 0.05);
+  --image-checker-bg: rgba(128, 128, 128, 0.06);
+
+  --overlay-bg: rgba(0, 0, 0, 0.45);
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-popover: 0 8px 32px rgba(0, 0, 0, 0.22);
+  --shadow-drawer: 4px 0 16px rgba(0, 0, 0, 0.12);
+  --shadow-compose: 0 6px 18px rgba(15, 23, 42, 0.035);
+  --shadow-control: 0 1px 0 rgba(0, 0, 0, 0.08);
+  --shadow-switch-thumb: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.24), 0 1px 4px rgba(0, 0, 0, 0.14);
+  --shadow-media: 0 16px 40px rgba(0, 0, 0, 0.25);
+  --agent-badge-filter: none;
+
+  /* xterm 滚动条（App.css 引用；aiCoding 自加令牌，浅底自调半透明灰） */
+  --xterm-scrollbar-width: 8px;
+  --xterm-scrollbar-thumb: rgba(15, 23, 42, 0.2);
+  --xterm-scrollbar-thumb-hover: rgba(15, 23, 42, 0.35);
 
   --radius-sm: 6px;
   --radius-md: 8px;

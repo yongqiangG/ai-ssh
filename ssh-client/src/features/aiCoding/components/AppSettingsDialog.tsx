@@ -1,6 +1,12 @@
 import { Fragment, useState } from "react";
 import { X, Keyboard, Settings as SettingsIcon, Type, Zap } from "lucide-react";
-import type { TerminalFontSize, TerminalScrollback, TaskDisplayWindow, FontFamily } from "../types";
+import type {
+  TerminalFontSize,
+  TerminalScrollback,
+  TaskDisplayWindow,
+  FontFamily,
+  ThemeVariant,
+} from "../types";
 import { useI18n } from "../i18n";
 import s from "../styles";
 import claudeLogo from "../assets/claude.svg";
@@ -72,6 +78,8 @@ export function AppSettingsDialog({
   onTerminalFontSizeChange,
   taskDisplayWindow,
   onTaskDisplayWindowChange,
+  themeVariant,
+  onThemeVariantChange,
   attentionBadge,
   onAttentionBadgeChange,
   terminalScrollback,
@@ -86,6 +94,8 @@ export function AppSettingsDialog({
   onTerminalFontSizeChange: (size: TerminalFontSize) => void;
   taskDisplayWindow: TaskDisplayWindow;
   onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  themeVariant: ThemeVariant;
+  onThemeVariantChange: (variant: ThemeVariant) => void;
   attentionBadge: boolean;
   onAttentionBadgeChange: (enabled: boolean) => void;
   terminalScrollback: TerminalScrollback;
@@ -160,6 +170,8 @@ export function AppSettingsDialog({
               key="general"
               taskDisplayWindow={taskDisplayWindow}
               onTaskDisplayWindowChange={onTaskDisplayWindowChange}
+              themeVariant={themeVariant}
+              onThemeVariantChange={onThemeVariantChange}
               attentionBadge={attentionBadge}
               onAttentionBadgeChange={onAttentionBadgeChange}
               terminalScrollback={terminalScrollback}

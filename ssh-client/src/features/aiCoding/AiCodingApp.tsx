@@ -11,6 +11,7 @@ import type {
   TerminalFontSize,
   TerminalScrollback,
   TaskDisplayWindow,
+  ThemeVariant,
 } from "./types";
 import {
   isActiveTaskStatus,
@@ -59,9 +60,6 @@ import {
 } from "./projectName";
 import s from "./styles";
 import "./App.css";
-
-/** CSS 变量作用域挂载点（见 App.css / themes.css 的 .ai-coding-root）。 */
-const THEME_VARIANT = "dark" as const;
 
 function deriveProjectName(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
@@ -262,6 +260,10 @@ function getInitialFontFamily(key: string, fallback: FontFamily): FontFamily {
   return quoteFontName(stored);
 }
 
+function getInitialThemeVariant(): ThemeVariant {
+  return localStorage.getItem("ai-ssh:aiCoding:themeVariant") === "light" ? "light" : "dark";
+}
+
 function App() {
   const { showToast } = useToast();
   const { t } = useI18n();
@@ -273,6 +275,8 @@ function App() {
   const [taskDisplayWindow, setTaskDisplayWindow] = useState<TaskDisplayWindow>(
     getInitialTaskDisplayWindow,
   );
+  // 面板主题（261023 双主题决议）：dark 默认，light 见 themes.css 亮色块
+  const [themeVariant, setThemeVariant] = useState<ThemeVariant>(getInitialThemeVariant);
   // 应用内提醒开关（260818 迁入 attention store）：横幅 + 双角标共用，
   // 持久化由 store 负责；此处仅为保持 children props 形状不变
   const attentionBadge = useAttentionStore((s) => s.attentionBadgeEnabled);
@@ -469,6 +473,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem("ai-ssh:aiCoding:taskDisplayWindow", String(taskDisplayWindow));
   }, [taskDisplayWindow]);
+
+  useEffect(() => {
+    localStorage.setItem("ai-ssh:aiCoding:themeVariant", themeVariant);
+    // body 级亮色类：Radix Portal 弹层渲染在 body 下、不在 .ai-coding-root
+    // 子树内，只有 body 作用域才能让弹层也拿到亮色令牌（dark 是基础块，无需类）
+    document.body.classList.toggle("ai-coding-light", themeVariant === "light");
+  }, [themeVariant]);
 
   useEffect(() => {
     const value = uiFontFamily.trim() || DEFAULT_UI_FONT;
@@ -1376,7 +1387,14 @@ function App() {
   });
 
   return (
-    <div ref={rootRef} className="ai-coding-root" style={s.rootRelative}>
+    <div
+      ref={rootRef}
+      // 亮色时加 .ai-coding-light 换 themes.css 的亮色令牌块；dark 为
+      // 基础块不加类（body 级同类由 AiCodingPanel 侧维护不到,这里根类
+      // 已覆盖子树,Portal 弹层见下方 body effect）
+      className={`ai-coding-root${themeVariant === "light" ? " ai-coding-light" : ""}`}
+      style={s.rootRelative}
+    >
       <div style={s.appProjectLayer}>
         {mountedProjects.map((project) => {
           const view = getProjectView(project.id);
@@ -1420,7 +1438,7 @@ function App() {
               onSwitchProject={handleProjectClick}
               onCommitProjectOrder={handleCommitProjectOrder}
               onOpen={handleOpen}
-              themeVariant={THEME_VARIANT}
+              themeVariant={themeVariant}
               terminalFontSize={terminalFontSize}
               onTerminalFontSizeChange={setTerminalFontSize}
               taskDisplayWindow={taskDisplayWindow}
@@ -1433,6 +1451,7 @@ function App() {
               onUiFontFamilyChange={setUiFontFamily}
               monoFontFamily={monoFontFamily}
               onMonoFontFamilyChange={setMonoFontFamily}
+              onThemeVariantChange={setThemeVariant}
             />
           );
         })}
@@ -1472,6 +1491,8 @@ function App() {
             onUiFontFamilyChange={setUiFontFamily}
             monoFontFamily={monoFontFamily}
             onMonoFontFamilyChange={setMonoFontFamily}
+            themeVariant={themeVariant}
+            onThemeVariantChange={setThemeVariant}
           />
         </div>
       )}

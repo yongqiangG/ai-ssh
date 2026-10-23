@@ -7,7 +7,6 @@ import { X, AlertCircle, Eye, PencilLine, MoreHorizontal, List } from "lucide-re
 import { getFileColor } from "../utils";
 import ReactCodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { githubDark, githubLight } from "@uiw/codemirror-theme-github";
-import { solarizedLight } from "@uiw/codemirror-theme-solarized";
 import { ImagePreviewPane } from "./file-viewer/ImagePreviewPane";
 import { useLanguageExtension } from "./file-viewer/languageExtensions";
 import type { OpenFileTab } from "../hooks/useProjectPanels";
@@ -185,12 +184,8 @@ function FilePreviewPane({
   themeVariant: ThemeVariant;
   previewMode: boolean;
 }) {
-  const editorTheme =
-    themeVariant === "dark" || themeVariant === "midnight"
-      ? githubDark
-      : themeVariant === "eyecare"
-        ? solarizedLight
-        : githubLight;
+  // 双主题（261023）：dark→githubDark，light→githubLight；eyecare/midnight 档已裁剪。
+  const editorTheme = themeVariant === "dark" ? githubDark : githubLight;
   const { t } = useI18n();
   const [content, setContent] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<ImagePreviewData | null>(null);

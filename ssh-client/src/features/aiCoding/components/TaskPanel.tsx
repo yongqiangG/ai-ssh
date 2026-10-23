@@ -7,6 +7,7 @@ import type {
   TerminalScrollback,
   TaskDisplayWindow,
   FontFamily,
+  ThemeVariant,
 } from "../types";
 import { ProjectAvatar } from "./ProjectAvatar";
 import { SidebarFooterActions } from "./SidebarFooterActions";
@@ -31,6 +32,8 @@ export function TaskPanel({
   onTerminalFontSizeChange,
   taskDisplayWindow,
   onTaskDisplayWindowChange,
+  themeVariant,
+  onThemeVariantChange,
   attentionBadge,
   onAttentionBadgeChange,
   terminalScrollback,
@@ -58,6 +61,8 @@ export function TaskPanel({
   onTerminalFontSizeChange: (size: TerminalFontSize) => void;
   taskDisplayWindow: TaskDisplayWindow;
   onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  themeVariant: ThemeVariant;
+  onThemeVariantChange: (variant: ThemeVariant) => void;
   attentionBadge: boolean;
   onAttentionBadgeChange: (enabled: boolean) => void;
   terminalScrollback: TerminalScrollback;
@@ -181,6 +186,8 @@ export function TaskPanel({
           onTerminalFontSizeChange={onTerminalFontSizeChange}
           taskDisplayWindow={taskDisplayWindow}
           onTaskDisplayWindowChange={onTaskDisplayWindowChange}
+          themeVariant={themeVariant}
+          onThemeVariantChange={onThemeVariantChange}
           attentionBadge={attentionBadge}
           onAttentionBadgeChange={onAttentionBadgeChange}
           terminalScrollback={terminalScrollback}

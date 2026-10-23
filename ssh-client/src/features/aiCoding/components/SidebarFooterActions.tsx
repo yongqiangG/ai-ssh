@@ -5,6 +5,7 @@ import type {
   TerminalScrollback,
   TaskDisplayWindow,
   FontFamily,
+  ThemeVariant,
 } from "../types";
 import { AppSettingsDialog } from "./AppSettingsDialog";
 import { OPEN_APP_SETTINGS_EVENT } from "./app-settings/types";
@@ -16,6 +17,8 @@ export function SidebarFooterActions({
   onTerminalFontSizeChange,
   taskDisplayWindow,
   onTaskDisplayWindowChange,
+  themeVariant,
+  onThemeVariantChange,
   attentionBadge,
   onAttentionBadgeChange,
   terminalScrollback,
@@ -29,6 +32,8 @@ export function SidebarFooterActions({
   onTerminalFontSizeChange: (size: TerminalFontSize) => void;
   taskDisplayWindow: TaskDisplayWindow;
   onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  themeVariant: ThemeVariant;
+  onThemeVariantChange: (variant: ThemeVariant) => void;
   attentionBadge: boolean;
   onAttentionBadgeChange: (enabled: boolean) => void;
   terminalScrollback: TerminalScrollback;
@@ -65,6 +70,8 @@ export function SidebarFooterActions({
           onTerminalFontSizeChange={onTerminalFontSizeChange}
           taskDisplayWindow={taskDisplayWindow}
           onTaskDisplayWindowChange={onTaskDisplayWindowChange}
+          themeVariant={themeVariant}
+          onThemeVariantChange={onThemeVariantChange}
           attentionBadge={attentionBadge}
           onAttentionBadgeChange={onAttentionBadgeChange}
           terminalScrollback={terminalScrollback}

@@ -67,6 +67,7 @@ export function ProjectPage({
   onTerminalFontSizeChange,
   taskDisplayWindow,
   onTaskDisplayWindowChange,
+  onThemeVariantChange,
   attentionBadge,
   onAttentionBadgeChange,
   terminalScrollback,
@@ -129,6 +130,7 @@ export function ProjectPage({
   onTerminalFontSizeChange: (size: TerminalFontSize) => void;
   taskDisplayWindow: TaskDisplayWindow;
   onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  onThemeVariantChange: (variant: ThemeVariant) => void;
   attentionBadge: boolean;
   onAttentionBadgeChange: (enabled: boolean) => void;
   terminalScrollback: TerminalScrollback;
@@ -281,6 +283,8 @@ export function ProjectPage({
         onTerminalFontSizeChange={onTerminalFontSizeChange}
         taskDisplayWindow={taskDisplayWindow}
         onTaskDisplayWindowChange={onTaskDisplayWindowChange}
+        themeVariant={themeVariant}
+        onThemeVariantChange={onThemeVariantChange}
         attentionBadge={attentionBadge}
         onAttentionBadgeChange={onAttentionBadgeChange}
         terminalScrollback={terminalScrollback}

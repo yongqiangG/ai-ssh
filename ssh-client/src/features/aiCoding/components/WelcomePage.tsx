@@ -5,6 +5,7 @@ import type {
   TerminalFontSize,
   TerminalScrollback,
   TaskDisplayWindow,
+  ThemeVariant,
   FontFamily,
 } from "../types";
 import type { ProjectRenameResult } from "../projectName";
@@ -47,6 +48,8 @@ export function WelcomePage({
   onTerminalFontSizeChange,
   taskDisplayWindow,
   onTaskDisplayWindowChange,
+  themeVariant,
+  onThemeVariantChange,
   attentionBadge,
   onAttentionBadgeChange,
   terminalScrollback,
@@ -66,6 +69,8 @@ export function WelcomePage({
   onTerminalFontSizeChange: (size: TerminalFontSize) => void;
   taskDisplayWindow: TaskDisplayWindow;
   onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  themeVariant: ThemeVariant;
+  onThemeVariantChange: (variant: ThemeVariant) => void;
   attentionBadge: boolean;
   onAttentionBadgeChange: (enabled: boolean) => void;
   terminalScrollback: TerminalScrollback;
@@ -121,6 +126,8 @@ export function WelcomePage({
               onTerminalFontSizeChange={onTerminalFontSizeChange}
               taskDisplayWindow={taskDisplayWindow}
               onTaskDisplayWindowChange={onTaskDisplayWindowChange}
+              themeVariant={themeVariant}
+              onThemeVariantChange={onThemeVariantChange}
               attentionBadge={attentionBadge}
               onAttentionBadgeChange={onAttentionBadgeChange}
               terminalScrollback={terminalScrollback}

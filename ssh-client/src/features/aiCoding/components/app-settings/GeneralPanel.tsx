@@ -17,6 +17,7 @@ import {
   TERMINAL_SCROLLBACK_STEP,
   type TaskDisplayWindow,
   type TerminalScrollback,
+  type ThemeVariant,
 } from "../../types";
 import { APP_PLATFORM } from "../../platform";
 import s from "../../styles";
@@ -25,6 +26,8 @@ import { APP_SETTINGS_CHANGED_EVENT, type AppSettings } from "./types";
 export function GeneralPanel({
   taskDisplayWindow,
   onTaskDisplayWindowChange,
+  themeVariant,
+  onThemeVariantChange,
   attentionBadge,
   onAttentionBadgeChange,
   terminalScrollback,
@@ -32,6 +35,8 @@ export function GeneralPanel({
 }: {
   taskDisplayWindow: TaskDisplayWindow;
   onTaskDisplayWindowChange: (window: TaskDisplayWindow) => void;
+  themeVariant: ThemeVariant;
+  onThemeVariantChange: (variant: ThemeVariant) => void;
   attentionBadge: boolean;
   onAttentionBadgeChange: (enabled: boolean) => void;
   terminalScrollback: TerminalScrollback;
@@ -222,6 +227,13 @@ export function GeneralPanel({
   ];
   const selectedLanguageLabel =
     languageOptions.find((option) => option.value === language)?.label ?? language;
+  const themeOptions: Array<{ value: ThemeVariant; label: string }> = [
+    { value: "dark", label: t("appSettings.themeDark") },
+    { value: "light", label: t("appSettings.themeLight") },
+  ];
+  const selectedThemeLabel =
+    themeOptions.find((option) => option.value === themeVariant)?.label ??
+    t("appSettings.themeDark");
   const taskDisplayWindowOptions = TASK_DISPLAY_WINDOW_VALUES.map((value) => ({
     value,
     label:
@@ -278,6 +290,48 @@ export function GeneralPanel({
           </Select.Portal>
         </Select.Root>
         <span style={s.settingFieldHint}>{t("appSettings.languageHint")}</span>
+      </div>
+
+      <div style={s.settingFieldSpaced}>
+        <label style={s.settingFieldLabel}>{t("appSettings.theme")}</label>
+        <Select.Root
+          value={themeVariant}
+          onValueChange={(value) => onThemeVariantChange(value as ThemeVariant)}
+        >
+          <Select.Trigger
+            aria-label={t("appSettings.theme")}
+            style={s.settingsSelectTriggerCompact}
+          >
+            <Select.Value>{selectedThemeLabel}</Select.Value>
+            <Select.Icon>
+              <ChevronDown size={13} strokeWidth={2.2} color="var(--text-hint)" />
+            </Select.Icon>
+          </Select.Trigger>
+          <Select.Portal>
+            <Select.Content position="popper" sideOffset={4} style={s.settingsSelectContent}>
+              <Select.Viewport style={s.settingsSelectViewport}>
+                {themeOptions.map((option) => {
+                  const selected = option.value === themeVariant;
+
+                  return (
+                    <Select.Item
+                      key={option.value}
+                      value={option.value}
+                      className="radix-select-item"
+                      style={selected ? s.settingsSelectOptionSelected : s.settingsSelectOption}
+                    >
+                      <Select.ItemText>{option.label}</Select.ItemText>
+                      <Select.ItemIndicator style={s.settingsSelectIndicator}>
+                        <Check size={13} style={s.settingsSelectCheck} />
+                      </Select.ItemIndicator>
+                    </Select.Item>
+                  );
+                })}
+              </Select.Viewport>
+            </Select.Content>
+          </Select.Portal>
+        </Select.Root>
+        <span style={s.settingFieldHint}>{t("appSettings.themeHint")}</span>
       </div>
 
       <div style={s.settingFieldSpaced}>

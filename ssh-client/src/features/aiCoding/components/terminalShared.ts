@@ -106,14 +106,17 @@ export const EYECARE_THEME = {
   brightWhite: "#fdf6e3",
 };
 
-/** 固定深色单主题：xterm 恒用深色预设（260815 决议，主题切换已拆除）。 */
-export function themeFor(_variant: ThemeVariant) {
-  return DARK_THEME;
+/** 双主题（261023 决议）：dark 保持手调预设；light 换 GitHub light 白底。 */
+export function themeFor(variant: ThemeVariant) {
+  return variant === "light" ? LIGHT_THEME : DARK_THEME;
 }
 
-/** 深色预设为手工调校的可读配色，关闭 xterm 自动对比度提升以保留 ANSI 色相。 */
-export function minimumContrastRatioFor(_variant: ThemeVariant): number {
-  return 1;
+/**
+ * 深色预设为手工调校的可读配色，关闭 xterm 自动对比度提升以保留 ANSI 色相。
+ * 亮底上部分高饱和 ANSI（如 brightYellow）不可读，恢复 nezha 原版 4.5 自动提亮。
+ */
+export function minimumContrastRatioFor(variant: ThemeVariant): number {
+  return variant === "light" ? 4.5 : 1;
 }
 
 // 终端嵌在 var(--bg-panel) 表面（Agent 任务终端 / 嵌入式 Shell）时，把 xterm 背景

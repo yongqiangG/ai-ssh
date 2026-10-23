@@ -47,12 +47,8 @@ export function AgentConfigPanel({
   lang: string;
   themeVariant: ThemeVariant;
 }) {
-  const shikiTheme =
-    themeVariant === "dark" || themeVariant === "midnight"
-      ? "github-dark"
-      : themeVariant === "eyecare"
-        ? "solarized-light"
-        : "github-light";
+  // 双主题（261023）：dark→github-dark，light→github-light；eyecare/midnight 档已裁剪。
+  const shikiTheme = themeVariant === "dark" ? "github-dark" : "github-light";
   const { t } = useI18n();
   const [resolvedFilePath, setResolvedFilePath] = useState(filePath);
   const [fileState, setFileState] = useState<FileState>({ status: "loading" });
